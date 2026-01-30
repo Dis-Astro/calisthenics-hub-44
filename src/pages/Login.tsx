@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import { ArrowLeft, Lock, User } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { ArrowLeft, Lock, Mail, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { z } from "zod";
+import { useAuth } from "@/hooks/useAuth";
 
 const loginSchema = z.object({
   email: z.string().trim().email("Email non valida"),
@@ -13,23 +15,36 @@ const loginSchema = z.object({
 type LoginFormData = z.infer<typeof loginSchema>;
 
 const Login = () => {
+  const navigate = useNavigate();
+  const { signIn, user, loading: authLoading } = useAuth();
   const [formData, setFormData] = useState<LoginFormData>({
     email: "",
     password: "",
   });
   const [errors, setErrors] = useState<Partial<Record<keyof LoginFormData, string>>>({});
+  const [authError, setAuthError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Redirect if already logged in
+  if (user && !authLoading) {
+    navigate("/dashboard", { replace: true });
+    return null;
+  }
 
   const handleChange = (field: keyof LoginFormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: undefined }));
     }
+    if (authError) {
+      setAuthError(null);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setAuthError(null);
 
     const result = loginSchema.safeParse(formData);
     
@@ -45,11 +60,23 @@ const Login = () => {
       return;
     }
 
-    // Simulate login attempt
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setIsSubmitting(false);
-    // For now, just show that login is a placeholder
-    alert("Area clienti in arrivo! Il login sarà disponibile presto.");
+    const { error } = await signIn(formData.email, formData.password);
+    
+    if (error) {
+      // Handle specific error messages
+      if (error.message.includes('Invalid login credentials')) {
+        setAuthError('Email o password non corretti');
+      } else if (error.message.includes('Email not confirmed')) {
+        setAuthError('Email non confermata. Contatta l\'amministratore.');
+      } else {
+        setAuthError(error.message);
+      }
+      setIsSubmitting(false);
+      return;
+    }
+
+    // Success - navigate to dashboard
+    navigate("/dashboard", { replace: true });
   };
 
   return (
@@ -79,6 +106,14 @@ const Login = () => {
           </p>
         </header>
 
+        {/* Auth Error Alert */}
+        {authError && (
+          <Alert variant="destructive" className="mb-6 animate-fade-in">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{authError}</AlertDescription>
+          </Alert>
+        )}
+
         {/* Login Form */}
         <form onSubmit={handleSubmit} className="form-container space-y-5 animate-fade-in" style={{ animationDelay: '0.1s' }}>
           <div>
@@ -93,8 +128,9 @@ const Login = () => {
                 onChange={(e) => handleChange("email", e.target.value)}
                 className={`pl-10 ${errors.email ? "border-destructive" : ""}`}
                 placeholder="La tua email"
+                autoComplete="email"
               />
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             </div>
             {errors.email && <p className="mt-1 text-sm text-destructive">{errors.email}</p>}
           </div>
@@ -111,6 +147,7 @@ const Login = () => {
                 onChange={(e) => handleChange("password", e.target.value)}
                 className={`pl-10 ${errors.password ? "border-destructive" : ""}`}
                 placeholder="La tua password"
+                autoComplete="current-password"
               />
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             </div>
@@ -126,14 +163,14 @@ const Login = () => {
           </Button>
         </form>
 
-        {/* Coming Soon Notice */}
+        {/* Info Notice */}
         <div className="mt-8 text-center animate-fade-in" style={{ animationDelay: '0.2s' }}>
           <div className="inline-block rounded-sm bg-secondary/50 px-4 py-3 border border-border">
             <p className="text-sm text-muted-foreground">
-              <span className="text-primary font-semibold">Area riservata clienti</span> — in arrivo
+              <span className="text-primary font-semibold">Credenziali mancanti?</span>
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              Pagamenti, schede di allenamento, foto e video dei progressi
+              Contatta l'amministratore per ricevere le tue credenziali di accesso
             </p>
           </div>
         </div>
