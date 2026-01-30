@@ -17,6 +17,7 @@ import Dashboard from "./pages/Dashboard";
 
 // Admin pages
 import AdminDashboard from "./pages/admin/AdminDashboard";
+import UserManagement from "./pages/admin/UserManagement";
 
 // Coach pages
 import CoachDashboard from "./pages/coach/CoachDashboard";
@@ -56,6 +57,11 @@ const App = () => (
             <Route path="/admin/*" element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <AdminDashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/utenti" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <UserManagement />
               </ProtectedRoute>
             } />
             
