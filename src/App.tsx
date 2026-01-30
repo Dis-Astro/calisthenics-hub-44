@@ -19,6 +19,10 @@ import Dashboard from "./pages/Dashboard";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import UserManagement from "./pages/admin/UserManagement";
 import SubscriptionManagement from "./pages/admin/SubscriptionManagement";
+import CalendarManagement from "./pages/admin/CalendarManagement";
+import ExerciseManagement from "./pages/admin/ExerciseManagement";
+import GymHoursManagement from "./pages/admin/GymHoursManagement";
+import CourseManagement from "./pages/admin/CourseManagement";
 
 // Coach pages
 import CoachDashboard from "./pages/coach/CoachDashboard";
@@ -68,6 +72,26 @@ const App = () => (
             <Route path="/admin/abbonamenti" element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <SubscriptionManagement />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/calendario" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <CalendarManagement />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/esercizi" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <ExerciseManagement />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/orari" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <GymHoursManagement />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/corsi" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <CourseManagement />
               </ProtectedRoute>
             } />
             
