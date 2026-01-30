@@ -1,46 +1,79 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   Users, 
   Calendar, 
   CreditCard, 
-  Settings, 
   UserPlus,
-  FileText,
   BarChart3,
   Bell,
   LogOut,
   Menu,
   X,
   Dumbbell,
-  Clock
+  Clock,
+  BookOpen,
+  ChevronRight
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
+
+interface Stats {
+  totalClients: number;
+  expiringSubscriptions: number;
+  todayAppointments: number;
+  activeCourses: number;
+}
 
 const AdminDashboard = () => {
   const { profile, signOut } = useAuth();
+  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [stats, setStats] = useState<Stats>({ totalClients: 0, expiringSubscriptions: 0, todayAppointments: 0, activeCourses: 0 });
+  const [loading, setLoading] = useState(true);
 
   const navigationItems = [
-    { icon: BarChart3, label: "Dashboard", href: "/admin", active: true },
+    { icon: BarChart3, label: "Dashboard", href: "/admin" },
     { icon: Users, label: "Utenti", href: "/admin/utenti" },
-    { icon: UserPlus, label: "Nuovo Utente", href: "/admin/utenti/nuovo" },
     { icon: Calendar, label: "Calendario", href: "/admin/calendario" },
     { icon: CreditCard, label: "Abbonamenti", href: "/admin/abbonamenti" },
-    { icon: FileText, label: "Documenti", href: "/admin/documenti" },
+    { icon: BookOpen, label: "Corsi", href: "/admin/corsi" },
     { icon: Dumbbell, label: "Esercizi", href: "/admin/esercizi" },
     { icon: Clock, label: "Orari Palestra", href: "/admin/orari" },
-    { icon: Bell, label: "Notifiche", href: "/admin/notifiche" },
-    { icon: Settings, label: "Impostazioni", href: "/admin/impostazioni" },
   ];
 
-  const stats = [
-    { label: "Clienti Attivi", value: "0", icon: Users, color: "text-primary" },
-    { label: "Abbonamenti in Scadenza", value: "0", icon: CreditCard, color: "text-destructive" },
-    { label: "Appuntamenti Oggi", value: "0", icon: Calendar, color: "text-success" },
-    { label: "Nuove Segnalazioni", value: "0", icon: Bell, color: "text-primary" },
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
+  const fetchStats = async () => {
+    setLoading(true);
+    const today = new Date().toISOString().split("T")[0];
+    const weekFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
+    const [clientsRes, expiringRes, appointmentsRes, coursesRes] = await Promise.all([
+      supabase.from("profiles").select("*", { count: "exact", head: true }).in("role", ["cliente_palestra", "cliente_coaching"]),
+      supabase.from("subscriptions").select("*", { count: "exact", head: true }).eq("status", "attivo").lte("end_date", weekFromNow),
+      supabase.from("appointments").select("*", { count: "exact", head: true }).gte("start_time", today).lt("start_time", today + "T23:59:59"),
+      supabase.from("courses").select("*", { count: "exact", head: true }).eq("is_active", true)
+    ]);
+
+    setStats({
+      totalClients: clientsRes.count || 0,
+      expiringSubscriptions: expiringRes.count || 0,
+      todayAppointments: appointmentsRes.count || 0,
+      activeCourses: coursesRes.count || 0
+    });
+    setLoading(false);
+  };
+
+  const statCards = [
+    { label: "Clienti Attivi", value: stats.totalClients, icon: Users, color: "text-primary" },
+    { label: "Abbonamenti in Scadenza", value: stats.expiringSubscriptions, icon: CreditCard, color: "text-destructive" },
+    { label: "Appuntamenti Oggi", value: stats.todayAppointments, icon: Calendar, color: "text-green-500" },
+    { label: "Corsi Attivi", value: stats.activeCourses, icon: BookOpen, color: "text-blue-500" },
   ];
 
   return (
@@ -70,22 +103,25 @@ const AdminDashboard = () => {
 
           {/* Navigation */}
           <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-            {navigationItems.map((item) => (
-              <Link
-                key={item.label}
-                to={item.href}
-                className={`
-                  flex items-center gap-3 px-4 py-3 rounded-sm transition-colors
-                  ${item.active 
-                    ? 'bg-sidebar-accent text-sidebar-primary' 
-                    : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-                  }
-                `}
-              >
-                <item.icon className="w-5 h-5" />
-                <span className="font-medium">{item.label}</span>
-              </Link>
-            ))}
+            {navigationItems.map((item) => {
+              const isActive = location.pathname === item.href;
+              return (
+                <Link
+                  key={item.label}
+                  to={item.href}
+                  className={`
+                    flex items-center gap-3 px-4 py-3 rounded-sm transition-colors
+                    ${isActive 
+                      ? 'bg-sidebar-accent text-sidebar-primary' 
+                      : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                    }
+                  `}
+                >
+                  <item.icon className="w-5 h-5" />
+                  <span className="font-medium">{item.label}</span>
+                </Link>
+              );
+            })}
           </nav>
 
           {/* User Info & Logout */}
@@ -143,7 +179,7 @@ const AdminDashboard = () => {
 
           {/* Stats Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            {stats.map((stat) => (
+            {statCards.map((stat) => (
               <Card key={stat.label} className="bg-card border-border">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
@@ -166,22 +202,40 @@ const AdminDashboard = () => {
                 <CardDescription>Operazioni comuni</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Link to="/admin/utenti/nuovo">
-                  <Button className="w-full justify-start gap-3" variant="secondary">
-                    <UserPlus className="w-5 h-5" />
-                    Crea Nuovo Utente
+                <Link to="/admin/utenti">
+                  <Button className="w-full justify-between" variant="secondary">
+                    <span className="flex items-center gap-3">
+                      <UserPlus className="w-5 h-5" />
+                      Gestisci Utenti
+                    </span>
+                    <ChevronRight className="w-4 h-4" />
                   </Button>
                 </Link>
                 <Link to="/admin/calendario">
-                  <Button className="w-full justify-start gap-3" variant="secondary">
-                    <Calendar className="w-5 h-5" />
-                    Gestisci Calendario
+                  <Button className="w-full justify-between" variant="secondary">
+                    <span className="flex items-center gap-3">
+                      <Calendar className="w-5 h-5" />
+                      Gestisci Calendario
+                    </span>
+                    <ChevronRight className="w-4 h-4" />
                   </Button>
                 </Link>
                 <Link to="/admin/abbonamenti">
-                  <Button className="w-full justify-start gap-3" variant="secondary">
-                    <CreditCard className="w-5 h-5" />
-                    Registra Pagamento
+                  <Button className="w-full justify-between" variant="secondary">
+                    <span className="flex items-center gap-3">
+                      <CreditCard className="w-5 h-5" />
+                      Gestisci Abbonamenti
+                    </span>
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </Link>
+                <Link to="/admin/corsi">
+                  <Button className="w-full justify-between" variant="secondary">
+                    <span className="flex items-center gap-3">
+                      <BookOpen className="w-5 h-5" />
+                      Gestisci Corsi
+                    </span>
+                    <ChevronRight className="w-4 h-4" />
                   </Button>
                 </Link>
               </CardContent>
@@ -189,14 +243,28 @@ const AdminDashboard = () => {
 
             <Card className="bg-card border-border">
               <CardHeader>
-                <CardTitle className="font-display tracking-wider">Attività Recenti</CardTitle>
-                <CardDescription>Ultime operazioni nel sistema</CardDescription>
+                <CardTitle className="font-display tracking-wider">Accesso Rapido</CardTitle>
+                <CardDescription>Altre sezioni</CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="text-center py-8 text-muted-foreground">
-                  <Bell className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>Nessuna attività recente</p>
-                </div>
+              <CardContent className="space-y-3">
+                <Link to="/admin/esercizi">
+                  <Button className="w-full justify-between" variant="outline">
+                    <span className="flex items-center gap-3">
+                      <Dumbbell className="w-5 h-5" />
+                      Libreria Esercizi
+                    </span>
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </Link>
+                <Link to="/admin/orari">
+                  <Button className="w-full justify-between" variant="outline">
+                    <span className="flex items-center gap-3">
+                      <Clock className="w-5 h-5" />
+                      Orari Palestra
+                    </span>
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </Link>
               </CardContent>
             </Card>
           </div>
