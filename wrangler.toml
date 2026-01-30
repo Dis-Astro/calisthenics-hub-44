@@ -1,6 +1,0 @@
-[build]
-install_command = "npm install --no-audit --no-fund"
-command = "npm run build"
-
-[site]
-bucket = "dist"
