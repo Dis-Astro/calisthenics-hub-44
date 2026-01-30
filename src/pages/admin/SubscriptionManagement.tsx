@@ -1,0 +1,714 @@
+import { useState, useEffect } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from "@/hooks/use-toast";
+import { 
+  CreditCard, 
+  Plus,
+  Search,
+  LogOut,
+  Menu,
+  X,
+  Dumbbell,
+  ArrowLeft,
+  Loader2,
+  Calendar,
+  Euro,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  Users
+} from "lucide-react";
+import { Link } from "react-router-dom";
+import type { Database } from "@/integrations/supabase/types";
+import { format, addMonths, differenceInDays, isPast, isFuture } from "date-fns";
+import { it } from "date-fns/locale";
+
+type SubscriptionStatus = Database["public"]["Enums"]["subscription_status"];
+type PaymentStatus = Database["public"]["Enums"]["payment_status"];
+
+interface MembershipPlan {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  duration_months: number;
+  plan_type: string;
+  is_active: boolean;
+}
+
+interface Profile {
+  id: string;
+  user_id: string;
+  first_name: string;
+  last_name: string;
+  role: string;
+}
+
+interface Subscription {
+  id: string;
+  user_id: string;
+  plan_id: string;
+  start_date: string;
+  end_date: string;
+  status: SubscriptionStatus;
+  notes: string | null;
+  profiles?: Profile;
+  membership_plans?: MembershipPlan;
+}
+
+interface Payment {
+  id: string;
+  user_id: string;
+  subscription_id: string;
+  amount: number;
+  payment_date: string;
+  method: string;
+  status: PaymentStatus;
+  receipt_number: string | null;
+  notes: string | null;
+  profiles?: Profile;
+}
+
+const statusLabels: Record<SubscriptionStatus, string> = {
+  attivo: "Attivo",
+  scaduto: "Scaduto",
+  sospeso: "Sospeso",
+  cancellato: "Cancellato"
+};
+
+const statusBadgeVariant: Record<SubscriptionStatus, "default" | "secondary" | "destructive" | "outline"> = {
+  attivo: "default",
+  scaduto: "destructive",
+  sospeso: "secondary",
+  cancellato: "outline"
+};
+
+const paymentStatusLabels: Record<PaymentStatus, string> = {
+  completato: "Completato",
+  in_attesa: "In Attesa",
+  fallito: "Fallito",
+  rimborsato: "Rimborsato"
+};
+
+const SubscriptionManagement = () => {
+  const { profile, signOut } = useAuth();
+  const { toast } = useToast();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("subscriptions");
+  
+  // Data states
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [plans, setPlans] = useState<MembershipPlan[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [clients, setClients] = useState<Profile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  // Dialog states
+  const [isSubscriptionDialogOpen, setIsSubscriptionDialogOpen] = useState(false);
+  const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+
+  // Form states
+  const [newSubscription, setNewSubscription] = useState({
+    user_id: "",
+    plan_id: "",
+    notes: ""
+  });
+
+  const [newPayment, setNewPayment] = useState({
+    subscription_id: "",
+    amount: "",
+    method: "contanti",
+    notes: ""
+  });
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    setLoading(true);
+    
+    // Fetch all data in parallel
+    const [subsRes, plansRes, paymentsRes, clientsRes] = await Promise.all([
+      supabase
+        .from("subscriptions")
+        .select("*, profiles!subscriptions_user_id_fkey(id, user_id, first_name, last_name, role), membership_plans!subscriptions_plan_id_fkey(id, name, price, duration_months)")
+        .order("end_date", { ascending: true }),
+      supabase
+        .from("membership_plans")
+        .select("*")
+        .eq("is_active", true)
+        .order("price", { ascending: true }),
+      supabase
+        .from("payments")
+        .select("*, profiles!payments_user_id_fkey(id, user_id, first_name, last_name, role)")
+        .order("payment_date", { ascending: false })
+        .limit(50),
+      supabase
+        .from("profiles")
+        .select("*")
+        .in("role", ["cliente_palestra", "cliente_coaching"])
+        .order("last_name", { ascending: true })
+    ]);
+
+    if (subsRes.error) console.error("Subscriptions error:", subsRes.error);
+    if (plansRes.error) console.error("Plans error:", plansRes.error);
+    if (paymentsRes.error) console.error("Payments error:", paymentsRes.error);
+    if (clientsRes.error) console.error("Clients error:", clientsRes.error);
+
+    setSubscriptions((subsRes.data as unknown as Subscription[]) || []);
+    setPlans(plansRes.data || []);
+    setPayments((paymentsRes.data as unknown as Payment[]) || []);
+    setClients(clientsRes.data || []);
+    setLoading(false);
+  };
+
+  const createSubscription = async () => {
+    if (!newSubscription.user_id || !newSubscription.plan_id) {
+      toast({
+        title: "Errore",
+        description: "Seleziona un cliente e un piano",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setCreating(true);
+    const selectedPlan = plans.find(p => p.id === newSubscription.plan_id);
+    if (!selectedPlan) {
+      setCreating(false);
+      return;
+    }
+
+    const startDate = new Date();
+    const endDate = addMonths(startDate, selectedPlan.duration_months);
+
+    const { error } = await supabase
+      .from("subscriptions")
+      .insert({
+        user_id: newSubscription.user_id,
+        plan_id: newSubscription.plan_id,
+        start_date: format(startDate, "yyyy-MM-dd"),
+        end_date: format(endDate, "yyyy-MM-dd"),
+        status: "attivo",
+        notes: newSubscription.notes || null
+      });
+
+    if (error) {
+      console.error("Subscription error:", error);
+      toast({
+        title: "Errore",
+        description: "Impossibile creare l'abbonamento",
+        variant: "destructive"
+      });
+    } else {
+      toast({
+        title: "Abbonamento creato",
+        description: "L'abbonamento è stato attivato con successo"
+      });
+      setNewSubscription({ user_id: "", plan_id: "", notes: "" });
+      setIsSubscriptionDialogOpen(false);
+      fetchData();
+    }
+    setCreating(false);
+  };
+
+  const recordPayment = async () => {
+    if (!newPayment.subscription_id || !newPayment.amount) {
+      toast({
+        title: "Errore",
+        description: "Seleziona un abbonamento e inserisci l'importo",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setCreating(true);
+    const subscription = subscriptions.find(s => s.id === newPayment.subscription_id);
+    if (!subscription) {
+      setCreating(false);
+      return;
+    }
+
+    const { error } = await supabase
+      .from("payments")
+      .insert({
+        user_id: subscription.user_id,
+        subscription_id: newPayment.subscription_id,
+        amount: parseFloat(newPayment.amount),
+        method: newPayment.method,
+        status: "completato",
+        notes: newPayment.notes || null,
+        recorded_by: profile?.user_id
+      });
+
+    if (error) {
+      console.error("Payment error:", error);
+      toast({
+        title: "Errore",
+        description: "Impossibile registrare il pagamento",
+        variant: "destructive"
+      });
+    } else {
+      toast({
+        title: "Pagamento registrato",
+        description: "Il pagamento è stato registrato con successo"
+      });
+      setNewPayment({ subscription_id: "", amount: "", method: "contanti", notes: "" });
+      setIsPaymentDialogOpen(false);
+      fetchData();
+    }
+    setCreating(false);
+  };
+
+  const getExpirationStatus = (endDate: string) => {
+    const end = new Date(endDate);
+    const daysLeft = differenceInDays(end, new Date());
+    
+    if (isPast(end)) {
+      return { label: "Scaduto", variant: "destructive" as const, icon: AlertTriangle };
+    } else if (daysLeft <= 7) {
+      return { label: `${daysLeft}g rimasti`, variant: "secondary" as const, icon: Clock };
+    } else if (daysLeft <= 30) {
+      return { label: `${daysLeft}g rimasti`, variant: "outline" as const, icon: Calendar };
+    }
+    return { label: `${daysLeft}g rimasti`, variant: "default" as const, icon: CheckCircle };
+  };
+
+  const filteredSubscriptions = subscriptions.filter(sub => {
+    const clientName = sub.profiles 
+      ? `${sub.profiles.first_name} ${sub.profiles.last_name}`.toLowerCase()
+      : "";
+    return clientName.includes(searchTerm.toLowerCase());
+  });
+
+  const expiringCount = subscriptions.filter(s => {
+    const daysLeft = differenceInDays(new Date(s.end_date), new Date());
+    return daysLeft <= 7 && daysLeft >= 0;
+  }).length;
+
+  const expiredCount = subscriptions.filter(s => isPast(new Date(s.end_date))).length;
+
+  return (
+    <div className="min-h-screen bg-background flex">
+      {/* Sidebar */}
+      <aside className={`
+        fixed inset-y-0 left-0 z-50 w-64 bg-sidebar-background border-r border-sidebar-border
+        transform transition-transform duration-300 lg:translate-x-0 lg:static
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+      `}>
+        <div className="flex flex-col h-full">
+          <div className="h-16 flex items-center px-6 border-b border-sidebar-border">
+            <Link to="/admin" className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-primary rounded-sm flex items-center justify-center">
+                <Dumbbell className="w-5 h-5 text-primary-foreground" />
+              </div>
+              <span className="font-display text-xl tracking-wider text-sidebar-foreground">ADMIN</span>
+            </Link>
+            <button onClick={() => setSidebarOpen(false)} className="ml-auto lg:hidden text-sidebar-foreground">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="p-4">
+            <Link to="/admin" className="flex items-center gap-2 text-sidebar-foreground hover:text-primary transition-colors">
+              <ArrowLeft className="w-4 h-4" />
+              Torna alla Dashboard
+            </Link>
+          </div>
+
+          <div className="mt-auto p-4 border-t border-sidebar-border">
+            <div className="mb-3 px-4">
+              <p className="text-sm font-medium text-sidebar-foreground">
+                {profile?.first_name} {profile?.last_name}
+              </p>
+              <p className="text-xs text-muted-foreground">Amministratore</p>
+            </div>
+            <Button variant="ghost" className="w-full justify-start gap-3 text-sidebar-foreground hover:text-destructive" onClick={signOut}>
+              <LogOut className="w-5 h-5" />
+              Esci
+            </Button>
+          </div>
+        </div>
+      </aside>
+
+      {sidebarOpen && (
+        <div className="fixed inset-0 bg-background/80 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
+      )}
+
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col min-h-screen">
+        <header className="h-16 bg-card border-b border-border flex items-center px-6">
+          <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-foreground mr-4">
+            <Menu className="w-6 h-6" />
+          </button>
+          <CreditCard className="w-6 h-6 mr-3 text-primary" />
+          <h1 className="font-display text-2xl tracking-wider">ABBONAMENTI</h1>
+        </header>
+
+        <div className="flex-1 p-6">
+          {/* Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <Card>
+              <CardContent className="p-4 flex items-center gap-4">
+                <Users className="w-10 h-10 text-primary" />
+                <div>
+                  <p className="text-2xl font-display">{subscriptions.length}</p>
+                  <p className="text-sm text-muted-foreground">Abbonamenti Totali</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4 flex items-center gap-4">
+                <CheckCircle className="w-10 h-10 text-primary" />
+                <div>
+                  <p className="text-2xl font-display">{subscriptions.filter(s => s.status === "attivo" && isFuture(new Date(s.end_date))).length}</p>
+                  <p className="text-sm text-muted-foreground">Attivi</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4 flex items-center gap-4">
+                <Clock className="w-10 h-10 text-muted-foreground" />
+                <div>
+                  <p className="text-2xl font-display">{expiringCount}</p>
+                  <p className="text-sm text-muted-foreground">In Scadenza (7gg)</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4 flex items-center gap-4">
+                <AlertTriangle className="w-10 h-10 text-destructive" />
+                <div>
+                  <p className="text-2xl font-display">{expiredCount}</p>
+                  <p className="text-sm text-muted-foreground">Scaduti</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <div className="flex flex-col md:flex-row gap-4 mb-6 justify-between">
+              <TabsList>
+                <TabsTrigger value="subscriptions">Abbonamenti</TabsTrigger>
+                <TabsTrigger value="payments">Pagamenti</TabsTrigger>
+                <TabsTrigger value="plans">Piani</TabsTrigger>
+              </TabsList>
+
+              <div className="flex gap-2">
+                <div className="relative flex-1 md:w-64">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Cerca cliente..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                
+                <Dialog open={isSubscriptionDialogOpen} onOpenChange={setIsSubscriptionDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="gap-2">
+                      <Plus className="w-4 h-4" />
+                      Nuovo Abbonamento
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle className="font-display tracking-wider">Nuovo Abbonamento</DialogTitle>
+                      <DialogDescription>Crea un nuovo abbonamento per un cliente</DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                      <div className="space-y-2">
+                        <Label>Cliente *</Label>
+                        <Select value={newSubscription.user_id} onValueChange={(v) => setNewSubscription({...newSubscription, user_id: v})}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Seleziona cliente" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {clients.map(c => (
+                              <SelectItem key={c.user_id} value={c.user_id}>
+                                {c.first_name} {c.last_name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Piano *</Label>
+                        <Select value={newSubscription.plan_id} onValueChange={(v) => setNewSubscription({...newSubscription, plan_id: v})}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Seleziona piano" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {plans.map(p => (
+                              <SelectItem key={p.id} value={p.id}>
+                                {p.name} - €{p.price} ({p.duration_months} mesi)
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Note</Label>
+                        <Input
+                          value={newSubscription.notes}
+                          onChange={(e) => setNewSubscription({...newSubscription, notes: e.target.value})}
+                          placeholder="Note opzionali"
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setIsSubscriptionDialogOpen(false)}>Annulla</Button>
+                      <Button onClick={createSubscription} disabled={creating}>
+                        {creating && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                        Crea Abbonamento
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+
+                <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="secondary" className="gap-2">
+                      <Euro className="w-4 h-4" />
+                      Registra Pagamento
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle className="font-display tracking-wider">Registra Pagamento</DialogTitle>
+                      <DialogDescription>Registra un nuovo pagamento per un abbonamento</DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                      <div className="space-y-2">
+                        <Label>Abbonamento *</Label>
+                        <Select value={newPayment.subscription_id} onValueChange={(v) => {
+                          const sub = subscriptions.find(s => s.id === v);
+                          setNewPayment({
+                            ...newPayment, 
+                            subscription_id: v,
+                            amount: sub?.membership_plans?.price?.toString() || ""
+                          });
+                        }}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Seleziona abbonamento" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {subscriptions.map(s => (
+                              <SelectItem key={s.id} value={s.id}>
+                                {s.profiles?.first_name} {s.profiles?.last_name} - {s.membership_plans?.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Importo (€) *</Label>
+                        <Input
+                          type="number"
+                          value={newPayment.amount}
+                          onChange={(e) => setNewPayment({...newPayment, amount: e.target.value})}
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Metodo di Pagamento</Label>
+                        <Select value={newPayment.method} onValueChange={(v) => setNewPayment({...newPayment, method: v})}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="contanti">Contanti</SelectItem>
+                            <SelectItem value="carta">Carta</SelectItem>
+                            <SelectItem value="bonifico">Bonifico</SelectItem>
+                            <SelectItem value="satispay">Satispay</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Note</Label>
+                        <Input
+                          value={newPayment.notes}
+                          onChange={(e) => setNewPayment({...newPayment, notes: e.target.value})}
+                          placeholder="Note opzionali"
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setIsPaymentDialogOpen(false)}>Annulla</Button>
+                      <Button onClick={recordPayment} disabled={creating}>
+                        {creating && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                        Registra Pagamento
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </div>
+
+            <TabsContent value="subscriptions">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="font-display tracking-wider">Abbonamenti Attivi</CardTitle>
+                  <CardDescription>{filteredSubscriptions.length} abbonamenti trovati</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {loading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                    </div>
+                  ) : filteredSubscriptions.length === 0 ? (
+                    <div className="text-center py-12 text-muted-foreground">
+                      <CreditCard className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                      <p>Nessun abbonamento trovato</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Cliente</TableHead>
+                            <TableHead>Piano</TableHead>
+                            <TableHead>Inizio</TableHead>
+                            <TableHead>Scadenza</TableHead>
+                            <TableHead>Stato</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredSubscriptions.map((sub) => {
+                            const expStatus = getExpirationStatus(sub.end_date);
+                            return (
+                              <TableRow key={sub.id}>
+                                <TableCell className="font-medium">
+                                  {sub.profiles?.first_name} {sub.profiles?.last_name}
+                                </TableCell>
+                                <TableCell>{sub.membership_plans?.name}</TableCell>
+                                <TableCell>{format(new Date(sub.start_date), "dd MMM yyyy", { locale: it })}</TableCell>
+                                <TableCell>{format(new Date(sub.end_date), "dd MMM yyyy", { locale: it })}</TableCell>
+                                <TableCell>
+                                  <Badge variant={expStatus.variant} className="gap-1">
+                                    <expStatus.icon className="w-3 h-3" />
+                                    {expStatus.label}
+                                  </Badge>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="payments">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="font-display tracking-wider">Storico Pagamenti</CardTitle>
+                  <CardDescription>Ultimi {payments.length} pagamenti registrati</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {loading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                    </div>
+                  ) : payments.length === 0 ? (
+                    <div className="text-center py-12 text-muted-foreground">
+                      <Euro className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                      <p>Nessun pagamento registrato</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Data</TableHead>
+                            <TableHead>Cliente</TableHead>
+                            <TableHead>Importo</TableHead>
+                            <TableHead>Metodo</TableHead>
+                            <TableHead>Stato</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {payments.map((payment) => (
+                            <TableRow key={payment.id}>
+                              <TableCell>{format(new Date(payment.payment_date), "dd MMM yyyy", { locale: it })}</TableCell>
+                              <TableCell className="font-medium">
+                                {payment.profiles?.first_name} {payment.profiles?.last_name}
+                              </TableCell>
+                              <TableCell className="font-medium">€{payment.amount.toFixed(2)}</TableCell>
+                              <TableCell className="capitalize">{payment.method}</TableCell>
+                              <TableCell>
+                                <Badge variant={payment.status === "completato" ? "default" : "secondary"}>
+                                  {paymentStatusLabels[payment.status]}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="plans">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="font-display tracking-wider">Piani Disponibili</CardTitle>
+                  <CardDescription>{plans.length} piani attivi</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {loading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {plans.map((plan) => (
+                        <Card key={plan.id} className="border-2">
+                          <CardHeader>
+                            <CardTitle className="flex items-center justify-between">
+                              {plan.name}
+                              <Badge variant="secondary">{plan.duration_months} mesi</Badge>
+                            </CardTitle>
+                            <CardDescription>{plan.description}</CardDescription>
+                          </CardHeader>
+                          <CardContent>
+                            <p className="text-3xl font-display">
+                              €{plan.price}
+                              <span className="text-sm text-muted-foreground font-normal">
+                                /{plan.duration_months === 1 ? "mese" : `${plan.duration_months} mesi`}
+                              </span>
+                            </p>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </div>
+      </main>
+    </div>
+  );
+};
+
+export default SubscriptionManagement;
