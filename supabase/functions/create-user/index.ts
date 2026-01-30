@@ -17,6 +17,7 @@ interface CreateUserRequest {
   address?: string
   fiscal_code?: string
   emergency_contact?: string
+  bootstrap?: boolean // Flag per creazione primo admin
 }
 
 serve(async (req) => {
@@ -32,54 +33,83 @@ serve(async (req) => {
     // Create admin client for user creation
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
     
-    // Create regular client for auth verification
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'Authorization header required' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    const supabaseClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
-      global: { headers: { Authorization: authHeader } }
-    })
-
-    // Verify caller is authenticated
-    const { data: { user: callerUser }, error: authError } = await supabaseClient.auth.getUser()
-    if (authError || !callerUser) {
-      console.error('Auth error:', authError)
-      return new Response(
-        JSON.stringify({ error: 'Non autenticato' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    // Check if caller is admin
-    const { data: callerProfile, error: profileError } = await supabaseAdmin
-      .from('profiles')
-      .select('role')
-      .eq('user_id', callerUser.id)
-      .single()
-
-    if (profileError || !callerProfile) {
-      console.error('Profile error:', profileError)
-      return new Response(
-        JSON.stringify({ error: 'Profilo non trovato' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    if (callerProfile.role !== 'admin') {
-      console.error('User is not admin:', callerProfile.role)
-      return new Response(
-        JSON.stringify({ error: 'Solo gli admin possono creare utenti' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    // Parse request body
+    // Parse request body first to check for bootstrap
     const body: CreateUserRequest = await req.json()
+    console.log('Request received:', body.email, 'bootstrap:', body.bootstrap)
+
+    // Check if this is a bootstrap request (creating first admin)
+    if (body.bootstrap === true && body.role === 'admin') {
+      // Verify no admins exist in the system
+      const { count, error: countError } = await supabaseAdmin
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('role', 'admin')
+
+      if (countError) {
+        console.error('Count error:', countError)
+        return new Response(
+          JSON.stringify({ error: 'Errore nel verificare gli admin esistenti' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      if (count && count > 0) {
+        console.error('Admins already exist, bootstrap not allowed')
+        return new Response(
+          JSON.stringify({ error: 'Bootstrap non permesso: esistono già degli admin nel sistema' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      console.log('Bootstrap mode: creating first admin')
+    } else {
+      // Normal flow: require authentication
+      const authHeader = req.headers.get('Authorization')
+      if (!authHeader) {
+        return new Response(
+          JSON.stringify({ error: 'Authorization header required' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const supabaseClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
+        global: { headers: { Authorization: authHeader } }
+      })
+
+      // Verify caller is authenticated
+      const { data: { user: callerUser }, error: authError } = await supabaseClient.auth.getUser()
+      if (authError || !callerUser) {
+        console.error('Auth error:', authError)
+        return new Response(
+          JSON.stringify({ error: 'Non autenticato' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Check if caller is admin
+      const { data: callerProfile, error: profileError } = await supabaseAdmin
+        .from('profiles')
+        .select('role')
+        .eq('user_id', callerUser.id)
+        .single()
+
+      if (profileError || !callerProfile) {
+        console.error('Profile error:', profileError)
+        return new Response(
+          JSON.stringify({ error: 'Profilo non trovato' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      if (callerProfile.role !== 'admin') {
+        console.error('User is not admin:', callerProfile.role)
+        return new Response(
+          JSON.stringify({ error: 'Solo gli admin possono creare utenti' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+    }
+
     console.log('Creating user:', body.email, 'with role:', body.role)
 
     // Validate required fields
