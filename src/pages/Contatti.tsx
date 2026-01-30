@@ -60,7 +60,7 @@ const Contatti = () => {
     setIsSubmitting(false);
   };
 
-  const whatsappNumber = "393331234567";
+  const whatsappNumber = "+393484157414";
   const whatsappMessage = encodeURIComponent("Ciao! Vorrei informazioni sulla palestra.");
 
   return (
@@ -100,7 +100,7 @@ const Contatti = () => {
                 <div>
                   <h3 className="font-display text-lg text-foreground">Telefono</h3>
                   <a href="tel:+393331234567" className="text-muted-foreground hover:text-primary transition-colors">
-                    +39 333 123 4567
+                    +39 348 415 7414
                   </a>
                 </div>
               </div>
@@ -111,8 +111,8 @@ const Contatti = () => {
                 </div>
                 <div>
                   <h3 className="font-display text-lg text-foreground">Email</h3>
-                  <a href="mailto:info@palestracalisthenics.it" className="text-muted-foreground hover:text-primary transition-colors">
-                    info@palestracalisthenics.it
+                  <a href="mailto:socialpowergym@gmail.com" className="text-muted-foreground hover:text-primary transition-colors">
+                    socialpowergym@gmail.com
                   </a>
                 </div>
               </div>
@@ -124,8 +124,8 @@ const Contatti = () => {
                 <div>
                   <h3 className="font-display text-lg text-foreground">Indirizzo</h3>
                   <p className="text-muted-foreground">
-                    Via Roma 123<br />
-                    20100 Milano (MI)
+                    Via CARLO RICCIONI N°1<br />
+                    64100 San Nicolò (TE)
                   </p>
                 </div>
               </div>
