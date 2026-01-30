@@ -5,16 +5,13 @@ import {
   Users, 
   Calendar, 
   CreditCard, 
-  Settings, 
-  UserPlus,
-  FileText,
   BarChart3,
-  Bell,
   LogOut,
   X,
   Dumbbell,
   Clock,
-  ArrowLeft
+  ArrowLeft,
+  BookOpen
 } from "lucide-react";
 
 interface AdminSidebarProps {
@@ -28,11 +25,9 @@ const navigationItems = [
   { icon: Users, label: "Utenti", href: "/admin/utenti" },
   { icon: Calendar, label: "Calendario", href: "/admin/calendario" },
   { icon: CreditCard, label: "Abbonamenti", href: "/admin/abbonamenti" },
+  { icon: BookOpen, label: "Corsi", href: "/admin/corsi" },
   { icon: Dumbbell, label: "Esercizi", href: "/admin/esercizi" },
   { icon: Clock, label: "Orari Palestra", href: "/admin/orari" },
-  { icon: FileText, label: "Documenti", href: "/admin/documenti" },
-  { icon: Bell, label: "Notifiche", href: "/admin/notifiche" },
-  { icon: Settings, label: "Impostazioni", href: "/admin/impostazioni" },
 ];
 
 const AdminSidebar = ({ isOpen, onClose, showBackLink = false }: AdminSidebarProps) => {

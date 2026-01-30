@@ -59,12 +59,12 @@ const App = () => (
                 <AdminDashboard />
               </ProtectedRoute>
             } />
-            <Route path="/admin/*" element={
+            <Route path="/admin/utenti" element={
               <ProtectedRoute allowedRoles={['admin']}>
-                <AdminDashboard />
+                <UserManagement />
               </ProtectedRoute>
             } />
-            <Route path="/admin/utenti" element={
+            <Route path="/admin/utenti/nuovo" element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <UserManagement />
               </ProtectedRoute>
