@@ -627,6 +627,7 @@ export type Database = {
           completed_at: string
           difficulty_rating: number | null
           id: string
+          set_number: number
           weight_used: string | null
           workout_plan_exercise_id: string
         }
@@ -638,6 +639,7 @@ export type Database = {
           completed_at?: string
           difficulty_rating?: number | null
           id?: string
+          set_number?: number
           weight_used?: string | null
           workout_plan_exercise_id: string
         }
@@ -649,6 +651,7 @@ export type Database = {
           completed_at?: string
           difficulty_rating?: number | null
           id?: string
+          set_number?: number
           weight_used?: string | null
           workout_plan_exercise_id?: string
         }
