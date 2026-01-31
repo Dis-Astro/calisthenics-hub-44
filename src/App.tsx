@@ -30,6 +30,7 @@ import CoachDashboard from "./pages/coach/CoachDashboard";
 // Client pages
 import PalestraDashboard from "./pages/cliente/PalestraDashboard";
 import CoachingDashboard from "./pages/cliente/CoachingDashboard";
+import WorkoutPlanPage from "./pages/cliente/WorkoutPlanPage";
 
 const queryClient = new QueryClient();
 
@@ -123,6 +124,16 @@ const App = () => (
             <Route path="/coaching" element={
               <ProtectedRoute allowedRoles={['cliente_coaching']}>
                 <CoachingDashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/coaching/scheda" element={
+              <ProtectedRoute allowedRoles={['cliente_coaching']}>
+                <WorkoutPlanPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/coaching/scheda/:dayId" element={
+              <ProtectedRoute allowedRoles={['cliente_coaching']}>
+                <WorkoutPlanPage />
               </ProtectedRoute>
             } />
             <Route path="/coaching/*" element={
