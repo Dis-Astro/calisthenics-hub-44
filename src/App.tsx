@@ -27,11 +27,20 @@ import CourseManagement from "./pages/admin/CourseManagement";
 
 // Coach pages
 import CoachDashboard from "./pages/coach/CoachDashboard";
+import CoachClientsPage from "./pages/coach/CoachClientsPage";
+import CoachWorkoutsPage from "./pages/coach/CoachWorkoutsPage";
+import CoachCalendarPage from "./pages/coach/CoachCalendarPage";
+import CoachReportsPage from "./pages/coach/CoachReportsPage";
 
 // Client pages
 import PalestraDashboard from "./pages/cliente/PalestraDashboard";
 import CoachingDashboard from "./pages/cliente/CoachingDashboard";
 import WorkoutPlanPage from "./pages/cliente/WorkoutPlanPage";
+import VideoLibraryPage from "./pages/cliente/VideoLibraryPage";
+import ProgressPage from "./pages/cliente/ProgressPage";
+import AppointmentsPage from "./pages/cliente/AppointmentsPage";
+import ReportIssuePage from "./pages/cliente/ReportIssuePage";
+import DocumentsPage from "./pages/cliente/DocumentsPage";
 
 const queryClient = new QueryClient();
 
@@ -108,6 +117,26 @@ const App = () => (
                 <CoachDashboard />
               </ProtectedRoute>
             } />
+            <Route path="/coach/clienti" element={
+              <ProtectedRoute allowedRoles={['coach', 'admin']}>
+                <CoachClientsPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/coach/schede" element={
+              <ProtectedRoute allowedRoles={['coach', 'admin']}>
+                <CoachWorkoutsPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/coach/calendario" element={
+              <ProtectedRoute allowedRoles={['coach', 'admin']}>
+                <CoachCalendarPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/coach/segnalazioni" element={
+              <ProtectedRoute allowedRoles={['coach', 'admin']}>
+                <CoachReportsPage />
+              </ProtectedRoute>
+            } />
             <Route path="/coach/*" element={
               <ProtectedRoute allowedRoles={['coach', 'admin']}>
                 <CoachDashboard />
@@ -140,6 +169,31 @@ const App = () => (
             <Route path="/coaching/scheda/:dayId" element={
               <ProtectedRoute allowedRoles={['cliente_coaching']}>
                 <WorkoutPlanPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/coaching/video" element={
+              <ProtectedRoute allowedRoles={['cliente_coaching']}>
+                <VideoLibraryPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/coaching/progressi" element={
+              <ProtectedRoute allowedRoles={['cliente_coaching']}>
+                <ProgressPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/coaching/appuntamenti" element={
+              <ProtectedRoute allowedRoles={['cliente_coaching']}>
+                <AppointmentsPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/coaching/segnala" element={
+              <ProtectedRoute allowedRoles={['cliente_coaching']}>
+                <ReportIssuePage />
+              </ProtectedRoute>
+            } />
+            <Route path="/coaching/documenti" element={
+              <ProtectedRoute allowedRoles={['cliente_coaching']}>
+                <DocumentsPage />
               </ProtectedRoute>
             } />
             <Route path="/coaching/*" element={
