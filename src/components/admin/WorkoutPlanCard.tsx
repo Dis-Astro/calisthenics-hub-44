@@ -115,60 +115,35 @@ const WorkoutPlanCard = ({ plan, onEdit, onView }: WorkoutPlanCardProps) => {
               <Eye className="w-3 h-3" />
               Visualizza
             </Button>
-          </div>
+        </div>
         </div>
 
-        {/* Preview esercizi compatta - SEMPRE VISIBILE */}
-        <div className="p-3 bg-muted/50 rounded-lg mb-2">
-          <div className="flex items-center gap-3 mb-2">
-            <Dumbbell className="w-4 h-4 text-primary" />
-            <span className="text-sm">
-              <strong>{totalExercises}</strong> esercizi in <strong>{uniqueDays}</strong> giorni
-            </span>
-            <div className="flex gap-1 flex-wrap">
-              {Object.keys(exercisesByDay).map(day => (
-                <Badge key={day} variant="secondary" className="text-xs px-1.5">
-                  G{day}: {exercisesByDay[parseInt(day)].length}
-                </Badge>
-              ))}
-            </div>
-          </div>
-          
-          {/* Lista esercizi in anteprima - mostra primi 5 esercizi */}
-          {!loading && exercises.length > 0 && (
-            <div className="text-sm text-muted-foreground space-y-1 border-t pt-2 mt-2">
-              {exercises.slice(0, 5).map((ex, idx) => (
-                <div key={ex.id} className="flex items-center justify-between">
-                  <span className="truncate">
-                    <span className="text-xs text-muted-foreground mr-1">G{ex.day_of_week || 1}:</span>
-                    {ex.exercise?.name || "Esercizio"}
-                  </span>
-                  <span className="text-xs font-mono ml-2">{ex.sets}x{ex.reps}</span>
-                </div>
-              ))}
-              {exercises.length > 5 && (
-                <p className="text-xs text-muted-foreground italic">... e altri {exercises.length - 5} esercizi</p>
+        {/* Lista esercizi SEMPRE VISIBILE - formato compatto inline */}
+        <div className="mt-3 p-3 bg-muted/30 rounded-lg border border-border/50">
+          <div className="flex items-start gap-2">
+            <Dumbbell className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <span className="text-sm font-medium text-foreground">Esercizi: </span>
+              {loading ? (
+                <span className="text-sm text-muted-foreground">Caricamento...</span>
+              ) : exercises.length === 0 ? (
+                <span className="text-sm text-muted-foreground italic">Nessun esercizio</span>
+              ) : (
+                <span className="text-sm text-muted-foreground">
+                  {exercises.map((ex, idx) => (
+                    <span key={ex.id}>
+                      {idx + 1}-{ex.exercise?.name || "Esercizio"}
+                      {ex.sets && ex.reps && <span className="text-xs opacity-70"> ({ex.sets}x{ex.reps})</span>}
+                      {idx < exercises.length - 1 && ", "}
+                    </span>
+                  ))}
+                </span>
               )}
             </div>
-          )}
-        </div>
-        
-        {/* Toggle per vista espansa dettagliata */}
-        <div 
-          className="flex items-center justify-center p-1 cursor-pointer hover:bg-muted/70 rounded transition-colors text-muted-foreground text-sm"
-          onClick={() => setExpanded(!expanded)}
-        >
-          {expanded ? (
-            <>
-              <ChevronUp className="w-4 h-4 mr-1" />
-              Nascondi dettagli
-            </>
-          ) : (
-            <>
-              <ChevronDown className="w-4 h-4 mr-1" />
-              Mostra tutti i dettagli
-            </>
-          )}
+          </div>
+          <div className="mt-2 text-xs text-muted-foreground">
+            Totale: <strong>{totalExercises}</strong> esercizi in <strong>{uniqueDays}</strong> giorni
+          </div>
         </div>
 
         {/* Lista esercizi espansa */}
