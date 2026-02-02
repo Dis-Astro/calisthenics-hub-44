@@ -118,33 +118,56 @@ const WorkoutPlanCard = ({ plan, onEdit, onView }: WorkoutPlanCardProps) => {
           </div>
         </div>
 
-        {/* Preview esercizi compatta */}
-        <div 
-          className="flex items-center justify-between p-2 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted/70 transition-colors"
-          onClick={() => setExpanded(!expanded)}
-        >
-          <div className="flex items-center gap-3">
+        {/* Preview esercizi compatta - SEMPRE VISIBILE */}
+        <div className="p-3 bg-muted/50 rounded-lg mb-2">
+          <div className="flex items-center gap-3 mb-2">
             <Dumbbell className="w-4 h-4 text-primary" />
             <span className="text-sm">
               <strong>{totalExercises}</strong> esercizi in <strong>{uniqueDays}</strong> giorni
             </span>
-            {!loading && exercises.length > 0 && (
-              <div className="flex gap-1">
-                {Object.keys(exercisesByDay).slice(0, 5).map(day => (
-                  <Badge key={day} variant="secondary" className="text-xs px-1.5">
-                    {dayLabels[parseInt(day)] || `G${day}`}: {exercisesByDay[parseInt(day)].length}
-                  </Badge>
-                ))}
-                {Object.keys(exercisesByDay).length > 5 && (
-                  <Badge variant="secondary" className="text-xs px-1.5">+{Object.keys(exercisesByDay).length - 5}</Badge>
-                )}
-              </div>
-            )}
+            <div className="flex gap-1 flex-wrap">
+              {Object.keys(exercisesByDay).map(day => (
+                <Badge key={day} variant="secondary" className="text-xs px-1.5">
+                  G{day}: {exercisesByDay[parseInt(day)].length}
+                </Badge>
+              ))}
+            </div>
           </div>
+          
+          {/* Lista esercizi in anteprima - mostra primi 5 esercizi */}
+          {!loading && exercises.length > 0 && (
+            <div className="text-sm text-muted-foreground space-y-1 border-t pt-2 mt-2">
+              {exercises.slice(0, 5).map((ex, idx) => (
+                <div key={ex.id} className="flex items-center justify-between">
+                  <span className="truncate">
+                    <span className="text-xs text-muted-foreground mr-1">G{ex.day_of_week || 1}:</span>
+                    {ex.exercise?.name || "Esercizio"}
+                  </span>
+                  <span className="text-xs font-mono ml-2">{ex.sets}x{ex.reps}</span>
+                </div>
+              ))}
+              {exercises.length > 5 && (
+                <p className="text-xs text-muted-foreground italic">... e altri {exercises.length - 5} esercizi</p>
+              )}
+            </div>
+          )}
+        </div>
+        
+        {/* Toggle per vista espansa dettagliata */}
+        <div 
+          className="flex items-center justify-center p-1 cursor-pointer hover:bg-muted/70 rounded transition-colors text-muted-foreground text-sm"
+          onClick={() => setExpanded(!expanded)}
+        >
           {expanded ? (
-            <ChevronUp className="w-4 h-4 text-muted-foreground" />
+            <>
+              <ChevronUp className="w-4 h-4 mr-1" />
+              Nascondi dettagli
+            </>
           ) : (
-            <ChevronDown className="w-4 h-4 text-muted-foreground" />
+            <>
+              <ChevronDown className="w-4 h-4 mr-1" />
+              Mostra tutti i dettagli
+            </>
           )}
         </div>
 
