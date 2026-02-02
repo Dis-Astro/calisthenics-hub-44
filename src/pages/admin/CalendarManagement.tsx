@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -10,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, Plus, ChevronLeft, ChevronRight, Loader2, Clock, User } from "lucide-react";
+import { Calendar, Plus, ChevronLeft, ChevronRight, Loader2, Clock, User, ExternalLink } from "lucide-react";
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, isSameDay, parseISO, addHours } from "date-fns";
 import { it } from "date-fns/locale";
 
@@ -54,6 +55,7 @@ interface CourseSession {
 }
 
 const CalendarManagement = () => {
+  const navigate = useNavigate();
   const { profile } = useAuth();
   const { toast } = useToast();
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -175,6 +177,18 @@ const CalendarManagement = () => {
     const dayAppointments = appointments.filter(a => isSameDay(parseISO(a.start_time), day));
     const daySessions = courseSessions.filter(s => isSameDay(parseISO(s.start_time), day));
     return { appointments: dayAppointments, sessions: daySessions };
+  };
+
+  const getClientName = (clientId: string | null) => {
+    if (!clientId) return null;
+    const client = clients.find(c => c.user_id === clientId);
+    return client ? `${client.first_name} ${client.last_name}` : null;
+  };
+
+  const handleAppointmentClick = (apt: Appointment) => {
+    if (apt.client_id) {
+      navigate(`/admin/utenti/${apt.client_id}`);
+    }
   };
 
   const hours = Array.from({ length: 14 }, (_, i) => i + 7); // 7:00 - 20:00
@@ -343,19 +357,29 @@ const CalendarManagement = () => {
 
                     return (
                       <div key={`${day.toISOString()}-${hour}`} className="p-1 min-h-[60px] border-r border-border last:border-r-0 relative">
-                        {hourAppointments.map((apt) => (
-                          <div
-                            key={apt.id}
-                            className="text-xs p-1.5 rounded mb-1 text-white truncate cursor-pointer hover:opacity-90"
-                            style={{ backgroundColor: apt.color }}
-                            title={apt.title}
-                          >
-                            <div className="flex items-center gap-1">
-                              <User className="w-3 h-3" />
-                              <span className="truncate">{apt.title}</span>
+                        {hourAppointments.map((apt) => {
+                          const clientName = getClientName(apt.client_id);
+                          return (
+                            <div
+                              key={apt.id}
+                              className="text-xs p-1.5 rounded mb-1 text-white cursor-pointer hover:opacity-90 group"
+                              style={{ backgroundColor: apt.color }}
+                              title={`${apt.title}${clientName ? ` - ${clientName}` : ''}`}
+                              onClick={() => handleAppointmentClick(apt)}
+                            >
+                              <div className="flex items-center gap-1">
+                                <User className="w-3 h-3 flex-shrink-0" />
+                                <span className="truncate">{apt.title}</span>
+                                {apt.client_id && <ExternalLink className="w-3 h-3 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />}
+                              </div>
+                              {clientName && (
+                                <div className="text-[10px] opacity-80 truncate mt-0.5">
+                                  {clientName}
+                                </div>
+                              )}
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                         {hourSessions.map((session) => (
                           <div
                             key={session.id}
