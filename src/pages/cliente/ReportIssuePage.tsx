@@ -177,13 +177,13 @@ const ReportIssuePage = () => {
                   <Label htmlFor="exercise">Esercizio (opzionale)</Label>
                   <Select 
                     value={formData.exercise_id} 
-                    onValueChange={(v) => setFormData({ ...formData, exercise_id: v })}
+                    onValueChange={(v) => setFormData({ ...formData, exercise_id: v === "none" ? "" : v })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Seleziona l'esercizio relativo..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Nessun esercizio specifico</SelectItem>
+                      <SelectItem value="none">Nessun esercizio specifico</SelectItem>
                       {exercises.map(ex => (
                         <SelectItem key={ex.id} value={ex.id}>{ex.name}</SelectItem>
                       ))}
