@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Users, UserPlus, Search, Loader2, Trash2, Edit } from "lucide-react";
+import { Users, UserPlus, Search, Loader2, Trash2, Edit, Eye } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -45,6 +46,7 @@ const roleBadgeVariant: Record<UserRole, "default" | "secondary" | "destructive"
 };
 
 const UserManagement = () => {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [users, setUsers] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -314,7 +316,11 @@ const UserManagement = () => {
                 </TableHeader>
                 <TableBody>
                   {filteredUsers.map((user) => (
-                    <TableRow key={user.id}>
+                    <TableRow 
+                      key={user.id} 
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => navigate(`/admin/utenti/${user.user_id}`)}
+                    >
                       <TableCell className="font-medium">{user.first_name} {user.last_name}</TableCell>
                       <TableCell>
                         <Badge variant={roleBadgeVariant[user.role]}>{roleLabels[user.role]}</Badge>
@@ -322,10 +328,29 @@ const UserManagement = () => {
                       <TableCell>{user.phone || "-"}</TableCell>
                       <TableCell>{new Date(user.created_at).toLocaleDateString("it-IT")}</TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" onClick={() => openEditDialog(user)}>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={(e) => { e.stopPropagation(); navigate(`/admin/utenti/${user.user_id}`); }}
+                          title="Visualizza dettaglio"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={(e) => { e.stopPropagation(); openEditDialog(user); }}
+                          title="Modifica"
+                        >
                           <Edit className="w-4 h-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => setDeleteUserId(user.id)} disabled={user.role === 'admin'}>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={(e) => { e.stopPropagation(); setDeleteUserId(user.id); }} 
+                          disabled={user.role === 'admin'}
+                          title="Elimina"
+                        >
                           <Trash2 className="w-4 h-4 text-destructive" />
                         </Button>
                       </TableCell>

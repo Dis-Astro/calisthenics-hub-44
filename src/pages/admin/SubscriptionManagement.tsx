@@ -140,11 +140,11 @@ const SubscriptionManagement = () => {
   const fetchData = async () => {
     setLoading(true);
     
-    // Fetch all data in parallel
+    // Fetch all data in parallel - no FK hints, we'll join manually
     const [subsRes, plansRes, paymentsRes, clientsRes] = await Promise.all([
       supabase
         .from("subscriptions")
-        .select("*, profiles!subscriptions_user_id_fkey(id, user_id, first_name, last_name, role), membership_plans!subscriptions_plan_id_fkey(id, name, price, duration_months)")
+        .select("*, membership_plans(id, name, price, duration_months)")
         .order("end_date", { ascending: true }),
       supabase
         .from("membership_plans")
@@ -153,7 +153,7 @@ const SubscriptionManagement = () => {
         .order("price", { ascending: true }),
       supabase
         .from("payments")
-        .select("*, profiles!payments_user_id_fkey(id, user_id, first_name, last_name, role)")
+        .select("*")
         .order("payment_date", { ascending: false })
         .limit(50),
       supabase
@@ -168,9 +168,24 @@ const SubscriptionManagement = () => {
     if (paymentsRes.error) console.error("Payments error:", paymentsRes.error);
     if (clientsRes.error) console.error("Clients error:", clientsRes.error);
 
-    setSubscriptions((subsRes.data as unknown as Subscription[]) || []);
+    // Create profiles map for manual join
+    const profilesMap = new Map((clientsRes.data || []).map(p => [p.user_id, p]));
+    
+    // Add profiles to subscriptions manually
+    const subscriptionsWithProfiles = (subsRes.data || []).map(sub => ({
+      ...sub,
+      profiles: profilesMap.get(sub.user_id)
+    }));
+
+    // Add profiles to payments manually
+    const paymentsWithProfiles = (paymentsRes.data || []).map(pay => ({
+      ...pay,
+      profiles: profilesMap.get(pay.user_id)
+    }));
+
+    setSubscriptions(subscriptionsWithProfiles as unknown as Subscription[]);
     setPlans(plansRes.data || []);
-    setPayments((paymentsRes.data as unknown as Payment[]) || []);
+    setPayments(paymentsWithProfiles as unknown as Payment[]);
     setClients(clientsRes.data || []);
     setLoading(false);
   };
