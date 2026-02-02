@@ -15,10 +15,18 @@ interface WorkoutPlan {
   coach_notes: string | null;
 }
 
+interface ExerciseInfo {
+  id: string;
+  name: string;
+  sets: number | null;
+  reps: string | null;
+}
+
 interface DayExercise {
   day_of_week: number;
   exercise_count: number;
   completed_count: number;
+  exercises: ExerciseInfo[];
 }
 
 const WorkoutPlanDays = () => {
@@ -52,20 +60,14 @@ const WorkoutPlanDays = () => {
     if (plans && plans.length > 0) {
       setActivePlan(plans[0]);
 
-      // Fetch exercises grouped by day
+      // Fetch exercises grouped by day WITH exercise names
       const { data: exercises } = await supabase
         .from("workout_plan_exercises")
-        .select("id, day_of_week")
-        .eq("workout_plan_id", plans[0].id);
+        .select("id, day_of_week, sets, reps, order_index, exercise:exercises(id, name)")
+        .eq("workout_plan_id", plans[0].id)
+        .order("order_index");
 
       if (exercises) {
-        // Group by day
-        const dayMap = new Map<number, number>();
-        exercises.forEach(ex => {
-          const day = ex.day_of_week ?? 1;
-          dayMap.set(day, (dayMap.get(day) || 0) + 1);
-        });
-
         // Fetch completions
         const exerciseIds = exercises.map(e => e.id);
         const { data: completions } = await supabase
@@ -76,20 +78,32 @@ const WorkoutPlanDays = () => {
 
         const completedSet = new Set(completions?.map(c => c.workout_plan_exercise_id) || []);
 
-        // Build day summary
-        const dayCompletions = new Map<number, number>();
+        // Group exercises by day
+        const dayMap = new Map<number, { exercises: ExerciseInfo[], completedCount: number }>();
+        
         exercises.forEach(ex => {
           const day = ex.day_of_week ?? 1;
+          if (!dayMap.has(day)) {
+            dayMap.set(day, { exercises: [], completedCount: 0 });
+          }
+          const dayData = dayMap.get(day)!;
+          dayData.exercises.push({
+            id: ex.id,
+            name: (ex.exercise as any)?.name || "Esercizio",
+            sets: ex.sets,
+            reps: ex.reps
+          });
           if (completedSet.has(ex.id)) {
-            dayCompletions.set(day, (dayCompletions.get(day) || 0) + 1);
+            dayData.completedCount++;
           }
         });
 
         const days: DayExercise[] = Array.from(dayMap.entries())
-          .map(([day, count]) => ({
+          .map(([day, data]) => ({
             day_of_week: day,
-            exercise_count: count,
-            completed_count: dayCompletions.get(day) || 0
+            exercise_count: data.exercises.length,
+            completed_count: data.completedCount,
+            exercises: data.exercises
           }))
           .sort((a, b) => a.day_of_week - b.day_of_week);
 
@@ -168,26 +182,33 @@ const WorkoutPlanDays = () => {
                     )}
                   </div>
                   
-                  <p className="text-sm text-muted-foreground mb-2">
+                  <p className="text-sm text-muted-foreground mb-3">
                     Giorno {day.day_of_week}
                   </p>
                   
-                  <div className="flex items-center gap-2">
-                    <Badge variant={isComplete ? "default" : "secondary"} className="text-xs">
-                      {day.exercise_count} esercizi
-                    </Badge>
+                  {/* Lista esercizi inline */}
+                  <div className="text-xs text-muted-foreground mb-3 leading-relaxed">
+                    {day.exercises.map((ex, idx) => (
+                      <span key={ex.id}>
+                        {idx + 1}-{ex.name}
+                        {ex.sets && ex.reps && <span className="opacity-70"> ({ex.sets}x{ex.reps})</span>}
+                        {idx < day.exercises.length - 1 && ", "}
+                      </span>
+                    ))}
                   </div>
 
                   {/* Progress bar */}
-                  <div className="mt-4 h-1.5 bg-muted rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-primary transition-all duration-300"
-                      style={{ width: `${progress}%` }}
-                    />
+                  <div className="mt-auto">
+                    <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-primary transition-all duration-300"
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {day.completed_count}/{day.exercise_count} completati
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {day.completed_count}/{day.exercise_count} completati
-                  </p>
                 </CardContent>
               </Card>
             </Link>
