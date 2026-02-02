@@ -21,8 +21,20 @@ import {
   Clock,
   Euro,
   FileText,
-  Plus
+  Plus,
+  Trash2
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import AdminLayout from "@/components/admin/AdminLayout";
 import CreateWorkoutPlanDialog from "@/components/admin/CreateWorkoutPlanDialog";
 import EditWorkoutPlanDialog from "@/components/admin/EditWorkoutPlanDialog";
@@ -108,6 +120,22 @@ const ClientDetailPage = () => {
   const [isCreatePlanOpen, setIsCreatePlanOpen] = useState(false);
   const [editPlanId, setEditPlanId] = useState<string | null>(null);
   const [viewPlanId, setViewPlanId] = useState<string | null>(null);
+  const [deletingSubId, setDeletingSubId] = useState<string | null>(null);
+
+  const handleDeleteSubscription = async (subId: string) => {
+    const { error } = await supabase
+      .from("subscriptions")
+      .delete()
+      .eq("id", subId);
+
+    if (error) {
+      toast({ title: "Errore", description: "Impossibile eliminare l'abbonamento", variant: "destructive" });
+    } else {
+      toast({ title: "Eliminato", description: "Abbonamento eliminato con successo" });
+      fetchClientData();
+    }
+    setDeletingSubId(null);
+  };
 
   useEffect(() => {
     if (userId) {
@@ -306,6 +334,7 @@ const ClientDetailPage = () => {
                       <TableHead>Fine</TableHead>
                       <TableHead>Stato</TableHead>
                       <TableHead>Prezzo</TableHead>
+                      <TableHead className="w-12"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -330,6 +359,32 @@ const ClientDetailPage = () => {
                           </TableCell>
                           <TableCell>
                             €{sub.membership_plans?.price || 0}
+                          </TableCell>
+                          <TableCell>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Eliminare l'abbonamento?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Questa azione non può essere annullata. L'abbonamento e lo storico associato verranno rimossi.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Annulla</AlertDialogCancel>
+                                  <AlertDialogAction 
+                                    onClick={() => handleDeleteSubscription(sub.id)}
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  >
+                                    Elimina
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           </TableCell>
                         </TableRow>
                       );
