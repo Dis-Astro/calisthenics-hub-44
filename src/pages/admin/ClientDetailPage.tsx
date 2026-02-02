@@ -25,6 +25,9 @@ import {
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import CreateWorkoutPlanDialog from "@/components/admin/CreateWorkoutPlanDialog";
+import EditWorkoutPlanDialog from "@/components/admin/EditWorkoutPlanDialog";
+import WorkoutPlanViewDialog from "@/components/admin/WorkoutPlanViewDialog";
+import WorkoutPlanCard from "@/components/admin/WorkoutPlanCard";
 import CoachAssignmentManager from "@/components/admin/CoachAssignmentManager";
 import type { Database } from "@/integrations/supabase/types";
 import { format, differenceInDays, isPast } from "date-fns";
@@ -101,8 +104,10 @@ const ClientDetailPage = () => {
   const [workoutPlans, setWorkoutPlans] = useState<WorkoutPlan[]>([]);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   
-  // Dialog state for creating workout plan
+  // Dialog state for creating/editing workout plan
   const [isCreatePlanOpen, setIsCreatePlanOpen] = useState(false);
+  const [editPlanId, setEditPlanId] = useState<string | null>(null);
+  const [viewPlanId, setViewPlanId] = useState<string | null>(null);
 
   useEffect(() => {
     if (userId) {
@@ -366,31 +371,12 @@ const ClientDetailPage = () => {
               ) : (
                 <div className="grid gap-4">
                   {workoutPlans.map((plan) => (
-                    <Card key={plan.id} className={plan.is_active ? "border-primary" : ""}>
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <h4 className="font-medium">{plan.name}</h4>
-                              {plan.is_active && (
-                                <Badge variant="default">Attiva</Badge>
-                              )}
-                            </div>
-                            {plan.description && (
-                              <p className="text-sm text-muted-foreground mt-1">
-                                {plan.description}
-                              </p>
-                            )}
-                            <p className="text-xs text-muted-foreground mt-2">
-                              {format(new Date(plan.start_date), "dd/MM/yyyy")} - {format(new Date(plan.end_date), "dd/MM/yyyy")}
-                            </p>
-                          </div>
-                          <Button variant="outline" size="sm">
-                            Visualizza
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
+                    <WorkoutPlanCard
+                      key={plan.id}
+                      plan={plan}
+                      onEdit={(planId) => setEditPlanId(planId)}
+                      onView={(planId) => setViewPlanId(planId)}
+                    />
                   ))}
                 </div>
               )}
@@ -509,6 +495,21 @@ const ClientDetailPage = () => {
           onSuccess={fetchClientData}
         />
       )}
+
+      {/* Edit Workout Plan Dialog */}
+      <EditWorkoutPlanDialog
+        planId={editPlanId}
+        open={!!editPlanId}
+        onOpenChange={(open) => !open && setEditPlanId(null)}
+        onSuccess={fetchClientData}
+      />
+
+      {/* View Workout Plan Dialog */}
+      <WorkoutPlanViewDialog
+        planId={viewPlanId}
+        open={!!viewPlanId}
+        onOpenChange={(open) => !open && setViewPlanId(null)}
+      />
     </AdminLayout>
   );
 };
