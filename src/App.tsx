@@ -18,6 +18,7 @@ import Dashboard from "./pages/Dashboard";
 // Admin pages
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import UserManagement from "./pages/admin/UserManagement";
+import ClientDetailPage from "./pages/admin/ClientDetailPage";
 import SubscriptionManagement from "./pages/admin/SubscriptionManagement";
 import CalendarManagement from "./pages/admin/CalendarManagement";
 import ExerciseManagement from "./pages/admin/ExerciseManagement";
@@ -68,6 +69,11 @@ const App = () => (
             <Route path="/admin/utenti/nuovo" element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <UserManagement />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/utenti/:userId" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <ClientDetailPage />
               </ProtectedRoute>
             } />
             <Route path="/admin/abbonamenti" element={
