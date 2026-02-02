@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import CreateWorkoutPlanDialog from "@/components/admin/CreateWorkoutPlanDialog";
+import CoachAssignmentManager from "@/components/admin/CoachAssignmentManager";
 import type { Database } from "@/integrations/supabase/types";
 import { format, differenceInDays, isPast } from "date-fns";
 import { it } from "date-fns/locale";
@@ -274,9 +275,11 @@ const ClientDetailPage = () => {
             <FileText className="w-4 h-4" />
             Anagrafica
           </TabsTrigger>
+          <TabsTrigger value="coach" className="gap-2">
+            <User className="w-4 h-4" />
+            Coach
+          </TabsTrigger>
         </TabsList>
-
-        {/* Tab Abbonamento */}
         <TabsContent value="subscription">
           <Card>
             <CardHeader>
@@ -484,6 +487,15 @@ const ClientDetailPage = () => {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Tab Coach */}
+        <TabsContent value="coach">
+          <CoachAssignmentManager 
+            clientId={profile.user_id} 
+            clientRole={profile.role}
+            onUpdate={fetchClientData}
+          />
         </TabsContent>
       </Tabs>
 

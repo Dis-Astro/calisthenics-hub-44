@@ -1,0 +1,165 @@
+import { useState, useEffect } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { 
+  Dumbbell, 
+  Search,
+  Calendar,
+  User,
+  Loader2,
+  Eye
+} from "lucide-react";
+import CoachLayout from "@/components/coach/CoachLayout";
+import { format } from "date-fns";
+import { it } from "date-fns/locale";
+
+interface WorkoutPlan {
+  id: string;
+  name: string;
+  description: string | null;
+  start_date: string;
+  end_date: string;
+  is_active: boolean;
+  client_id: string;
+  client_name?: string;
+}
+
+const CoachWorkoutsPage = () => {
+  const { profile } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [plans, setPlans] = useState<WorkoutPlan[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterActive, setFilterActive] = useState<boolean | null>(true);
+
+  useEffect(() => {
+    if (profile?.user_id) {
+      fetchPlans();
+    }
+  }, [profile?.user_id]);
+
+  const fetchPlans = async () => {
+    setLoading(true);
+    
+    const { data: plansData } = await supabase
+      .from("workout_plans")
+      .select("*")
+      .eq("coach_id", profile?.user_id)
+      .order("created_at", { ascending: false });
+
+    if (plansData && plansData.length > 0) {
+      const clientIds = [...new Set(plansData.map(p => p.client_id))];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, first_name, last_name")
+        .in("user_id", clientIds);
+
+      const clientMap = new Map(profiles?.map(p => [p.user_id, `${p.first_name} ${p.last_name}`]) || []);
+
+      setPlans(plansData.map(p => ({
+        ...p,
+        client_name: clientMap.get(p.client_id) || "Cliente sconosciuto"
+      })));
+    }
+
+    setLoading(false);
+  };
+
+  const filteredPlans = plans.filter(p => {
+    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.client_name?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesFilter = filterActive === null || p.is_active === filterActive;
+    return matchesSearch && matchesFilter;
+  });
+
+  return (
+    <CoachLayout title="SCHEDE ALLENAMENTO" icon={<Dumbbell className="w-6 h-6" />}>
+      <div className="space-y-6">
+        {/* Filters */}
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Cerca scheda o cliente..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button 
+              variant={filterActive === true ? "default" : "outline"}
+              size="sm"
+              onClick={() => setFilterActive(filterActive === true ? null : true)}
+            >
+              Attive
+            </Button>
+            <Button 
+              variant={filterActive === false ? "default" : "outline"}
+              size="sm"
+              onClick={() => setFilterActive(filterActive === false ? null : false)}
+            >
+              Archiviate
+            </Button>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        ) : filteredPlans.length === 0 ? (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <Dumbbell className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+              <p className="text-muted-foreground">Nessuna scheda trovata</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {filteredPlans.map(plan => (
+              <Card key={plan.id} className={plan.is_active ? "border-primary/50" : "opacity-70"}>
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <CardTitle className="text-lg">{plan.name}</CardTitle>
+                      {plan.description && (
+                        <CardDescription className="mt-1">{plan.description}</CardDescription>
+                      )}
+                    </div>
+                    {plan.is_active ? (
+                      <Badge variant="default">Attiva</Badge>
+                    ) : (
+                      <Badge variant="secondary">Archiviata</Badge>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <User className="w-4 h-4" />
+                    <span>{plan.client_name}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Calendar className="w-4 h-4" />
+                    <span>
+                      {format(new Date(plan.start_date), "dd MMM", { locale: it })} - {format(new Date(plan.end_date), "dd MMM yyyy", { locale: it })}
+                    </span>
+                  </div>
+                  <Button variant="outline" size="sm" className="w-full gap-2">
+                    <Eye className="w-4 h-4" />
+                    Visualizza Dettagli
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    </CoachLayout>
+  );
+};
+
+export default CoachWorkoutsPage;
