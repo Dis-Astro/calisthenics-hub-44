@@ -15,15 +15,16 @@ import {
   Dumbbell, 
   Calendar,
   Phone,
-  Mail,
   MapPin,
   AlertTriangle,
   CheckCircle,
   Clock,
   Euro,
-  FileText
+  FileText,
+  Plus
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
+import CreateWorkoutPlanDialog from "@/components/admin/CreateWorkoutPlanDialog";
 import type { Database } from "@/integrations/supabase/types";
 import { format, differenceInDays, isPast } from "date-fns";
 import { it } from "date-fns/locale";
@@ -98,6 +99,9 @@ const ClientDetailPage = () => {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [workoutPlans, setWorkoutPlans] = useState<WorkoutPlan[]>([]);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  
+  // Dialog state for creating workout plan
+  const [isCreatePlanOpen, setIsCreatePlanOpen] = useState(false);
 
   useEffect(() => {
     if (userId) {
@@ -332,15 +336,29 @@ const ClientDetailPage = () => {
         {/* Tab Schede Allenamento */}
         <TabsContent value="workout">
           <Card>
-            <CardHeader>
-              <CardTitle className="font-display tracking-wider">Schede di Allenamento</CardTitle>
-              <CardDescription>Schede create per questo cliente</CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="font-display tracking-wider">Schede di Allenamento</CardTitle>
+                <CardDescription>Schede create per questo cliente</CardDescription>
+              </div>
+              <Button className="gap-2" onClick={() => setIsCreatePlanOpen(true)}>
+                <Plus className="w-4 h-4" />
+                Nuova Scheda
+              </Button>
             </CardHeader>
             <CardContent>
               {workoutPlans.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Dumbbell className="w-12 h-12 mx-auto mb-4 opacity-50" />
                   <p>Nessuna scheda assegnata</p>
+                  <Button 
+                    variant="outline" 
+                    className="mt-4 gap-2"
+                    onClick={() => setIsCreatePlanOpen(true)}
+                  >
+                    <Plus className="w-4 h-4" />
+                    Crea la prima scheda
+                  </Button>
                 </div>
               ) : (
                 <div className="grid gap-4">
@@ -468,6 +486,17 @@ const ClientDetailPage = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Create Workout Plan Dialog */}
+      {profile && (
+        <CreateWorkoutPlanDialog
+          open={isCreatePlanOpen}
+          onOpenChange={setIsCreatePlanOpen}
+          clientId={profile.user_id}
+          clientName={`${profile.first_name} ${profile.last_name}`}
+          onSuccess={fetchClientData}
+        />
+      )}
     </AdminLayout>
   );
 };

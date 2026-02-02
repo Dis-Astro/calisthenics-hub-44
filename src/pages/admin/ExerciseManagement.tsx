@@ -12,7 +12,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Dumbbell, Plus, Search, Loader2, Edit, Trash2 } from "lucide-react";
+import { Dumbbell, Plus, Search, Loader2, Edit, Trash2, Video } from "lucide-react";
+import ExerciseVideoManager from "@/components/admin/ExerciseVideoManager";
 
 interface Exercise {
   id: string;
@@ -21,6 +22,7 @@ interface Exercise {
   muscle_group: string | null;
   difficulty: string | null;
   created_at: string;
+  video_count?: number;
 }
 
 const muscleGroups = [
@@ -41,6 +43,10 @@ const ExerciseManagement = () => {
   const [saving, setSaving] = useState(false);
   const [editingExercise, setEditingExercise] = useState<Exercise | null>(null);
   
+  // Video manager state
+  const [videoManagerOpen, setVideoManagerOpen] = useState(false);
+  const [selectedExerciseForVideo, setSelectedExerciseForVideo] = useState<Exercise | null>(null);
+  
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -54,16 +60,35 @@ const ExerciseManagement = () => {
 
   const fetchExercises = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    
+    // Fetch exercises with video count
+    const { data: exercisesData, error } = await supabase
       .from("exercises")
       .select("*")
       .order("name");
 
     if (error) {
       toast({ title: "Errore", description: "Impossibile caricare gli esercizi", variant: "destructive" });
-    } else {
-      setExercises(data || []);
+      setLoading(false);
+      return;
     }
+
+    // Get video counts
+    const { data: videoCounts } = await supabase
+      .from("exercise_videos")
+      .select("exercise_id");
+
+    const countMap = new Map<string, number>();
+    (videoCounts || []).forEach(v => {
+      countMap.set(v.exercise_id, (countMap.get(v.exercise_id) || 0) + 1);
+    });
+
+    const exercisesWithCount = (exercisesData || []).map(ex => ({
+      ...ex,
+      video_count: countMap.get(ex.id) || 0
+    }));
+
+    setExercises(exercisesWithCount);
     setLoading(false);
   };
 
@@ -82,6 +107,11 @@ const ExerciseManagement = () => {
       difficulty: exercise.difficulty || ""
     });
     setIsDialogOpen(true);
+  };
+
+  const openVideoManager = (exercise: Exercise) => {
+    setSelectedExerciseForVideo(exercise);
+    setVideoManagerOpen(true);
   };
 
   const saveExercise = async () => {
@@ -263,6 +293,7 @@ const ExerciseManagement = () => {
                   <TableHead>Nome</TableHead>
                   <TableHead>Gruppo Muscolare</TableHead>
                   <TableHead>Difficoltà</TableHead>
+                  <TableHead>Video</TableHead>
                   <TableHead className="text-right">Azioni</TableHead>
                 </TableRow>
               </TableHeader>
@@ -280,6 +311,17 @@ const ExerciseManagement = () => {
                         <Badge variant="outline">{exercise.difficulty}</Badge>
                       ) : "-"}
                     </TableCell>
+                    <TableCell>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="gap-1"
+                        onClick={() => openVideoManager(exercise)}
+                      >
+                        <Video className="w-4 h-4" />
+                        {exercise.video_count || 0}
+                      </Button>
+                    </TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="icon" onClick={() => openEditDialog(exercise)}>
                         <Edit className="w-4 h-4" />
@@ -295,6 +337,21 @@ const ExerciseManagement = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Video Manager Dialog */}
+      {selectedExerciseForVideo && (
+        <ExerciseVideoManager
+          exerciseId={selectedExerciseForVideo.id}
+          exerciseName={selectedExerciseForVideo.name}
+          open={videoManagerOpen}
+          onOpenChange={(open) => {
+            setVideoManagerOpen(open);
+            if (!open) {
+              fetchExercises(); // Refresh counts
+            }
+          }}
+        />
+      )}
     </AdminLayout>
   );
 };
