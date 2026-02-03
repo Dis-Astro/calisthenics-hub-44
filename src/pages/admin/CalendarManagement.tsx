@@ -11,8 +11,34 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, Plus, ChevronLeft, ChevronRight, Loader2, Clock, User, ExternalLink } from "lucide-react";
-import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, isSameDay, parseISO, addHours } from "date-fns";
+import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Calendar, Plus, ChevronLeft, ChevronRight, Loader2, Clock, User, ExternalLink, Trash2, Dumbbell } from "lucide-react";
+import { 
+  format, 
+  startOfWeek, 
+  endOfWeek, 
+  startOfMonth, 
+  endOfMonth, 
+  eachDayOfInterval, 
+  addWeeks, 
+  subWeeks, 
+  addMonths, 
+  subMonths,
+  isSameDay, 
+  isSameMonth,
+  parseISO, 
+  addHours 
+} from "date-fns";
 import { it } from "date-fns/locale";
 
 interface Profile {
@@ -54,13 +80,24 @@ interface CourseSession {
   course?: Course;
 }
 
+interface WorkoutPlan {
+  id: string;
+  name: string;
+  client_id: string;
+  end_date: string;
+}
+
+type ViewMode = 'weekly' | 'monthly';
+
 const CalendarManagement = () => {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const { toast } = useToast();
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [viewMode, setViewMode] = useState<ViewMode>('weekly');
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [courseSessions, setCourseSessions] = useState<CourseSession[]>([]);
+  const [workoutDeadlines, setWorkoutDeadlines] = useState<WorkoutPlan[]>([]);
   const [coaches, setCoaches] = useState<Profile[]>([]);
   const [clients, setClients] = useState<Profile[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -69,6 +106,7 @@ const CalendarManagement = () => {
   // Dialog states
   const [isAppointmentDialogOpen, setIsAppointmentDialogOpen] = useState(false);
   const [isCourseSessionDialogOpen, setIsCourseSessionDialogOpen] = useState(false);
+  const [deleteAppointmentId, setDeleteAppointmentId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   
   // Form states
@@ -89,26 +127,40 @@ const CalendarManagement = () => {
     end_time: ""
   });
 
-  const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
-  const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
-  const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
+  // Calculate date ranges based on view mode
+  const getDateRange = () => {
+    if (viewMode === 'weekly') {
+      return {
+        start: startOfWeek(currentDate, { weekStartsOn: 1 }),
+        end: endOfWeek(currentDate, { weekStartsOn: 1 })
+      };
+    }
+    return {
+      start: startOfMonth(currentDate),
+      end: endOfMonth(currentDate)
+    };
+  };
+
+  const { start: rangeStart, end: rangeEnd } = getDateRange();
+  const days = eachDayOfInterval({ start: rangeStart, end: rangeEnd });
 
   useEffect(() => {
     fetchData();
-  }, [currentDate]);
+  }, [currentDate, viewMode]);
 
   const fetchData = async () => {
     setLoading(true);
     
-    const startRange = format(weekStart, "yyyy-MM-dd");
-    const endRange = format(addHours(weekEnd, 24), "yyyy-MM-dd");
+    const startRange = format(rangeStart, "yyyy-MM-dd");
+    const endRange = format(addHours(rangeEnd, 24), "yyyy-MM-dd");
 
-    const [appointmentsRes, sessionsRes, coachesRes, clientsRes, coursesRes] = await Promise.all([
+    const [appointmentsRes, sessionsRes, coachesRes, clientsRes, coursesRes, workoutRes] = await Promise.all([
       supabase.from("appointments").select("*").gte("start_time", startRange).lte("start_time", endRange),
       supabase.from("course_sessions").select("*, course:courses(*)").gte("start_time", startRange).lte("start_time", endRange),
       supabase.from("profiles").select("*").in("role", ["admin", "coach"]),
       supabase.from("profiles").select("*").in("role", ["cliente_palestra", "cliente_coaching"]),
-      supabase.from("courses").select("*").eq("is_active", true)
+      supabase.from("courses").select("*").eq("is_active", true),
+      supabase.from("workout_plans").select("id, name, client_id, end_date").gte("end_date", startRange).lte("end_date", endRange).eq("is_active", true)
     ]);
 
     if (appointmentsRes.data) setAppointments(appointmentsRes.data);
@@ -116,6 +168,7 @@ const CalendarManagement = () => {
     if (coachesRes.data) setCoaches(coachesRes.data);
     if (clientsRes.data) setClients(clientsRes.data);
     if (coursesRes.data) setCourses(coursesRes.data);
+    if (workoutRes.data) setWorkoutDeadlines(workoutRes.data);
 
     setLoading(false);
   };
@@ -149,6 +202,20 @@ const CalendarManagement = () => {
     setSaving(false);
   };
 
+  const deleteAppointment = async () => {
+    if (!deleteAppointmentId) return;
+
+    const { error } = await supabase.from("appointments").delete().eq("id", deleteAppointmentId);
+
+    if (error) {
+      toast({ title: "Errore", description: "Impossibile eliminare l'appuntamento", variant: "destructive" });
+    } else {
+      toast({ title: "Eliminato", description: "Appuntamento eliminato" });
+      fetchData();
+    }
+    setDeleteAppointmentId(null);
+  };
+
   const createCourseSession = async () => {
     if (!newCourseSession.course_id || !newCourseSession.start_time || !newCourseSession.end_time) {
       toast({ title: "Errore", description: "Compila tutti i campi", variant: "destructive" });
@@ -176,7 +243,8 @@ const CalendarManagement = () => {
   const getEventsForDay = (day: Date) => {
     const dayAppointments = appointments.filter(a => isSameDay(parseISO(a.start_time), day));
     const daySessions = courseSessions.filter(s => isSameDay(parseISO(s.start_time), day));
-    return { appointments: dayAppointments, sessions: daySessions };
+    const dayDeadlines = workoutDeadlines.filter(w => isSameDay(parseISO(w.end_date), day));
+    return { appointments: dayAppointments, sessions: daySessions, deadlines: dayDeadlines };
   };
 
   const getClientName = (clientId: string | null) => {
@@ -185,9 +253,18 @@ const CalendarManagement = () => {
     return client ? `${client.first_name} ${client.last_name}` : null;
   };
 
-  const handleAppointmentClick = (apt: Appointment) => {
+  const handleAppointmentClick = (apt: Appointment, e: React.MouseEvent) => {
+    e.stopPropagation();
     if (apt.client_id) {
       navigate(`/admin/utenti/${apt.client_id}`);
+    }
+  };
+
+  const handleNavigate = (direction: 'prev' | 'next') => {
+    if (viewMode === 'weekly') {
+      setCurrentDate(direction === 'prev' ? subWeeks(currentDate, 1) : addWeeks(currentDate, 1));
+    } else {
+      setCurrentDate(direction === 'prev' ? subMonths(currentDate, 1) : addMonths(currentDate, 1));
     }
   };
 
@@ -198,19 +275,42 @@ const CalendarManagement = () => {
       {/* Controls */}
       <div className="flex flex-col md:flex-row gap-4 mb-6 items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="outline" size="icon" onClick={() => setCurrentDate(subWeeks(currentDate, 1))}>
+          <Button variant="outline" size="icon" onClick={() => handleNavigate('prev')}>
             <ChevronLeft className="w-4 h-4" />
           </Button>
           <h2 className="font-display text-lg tracking-wider min-w-[200px] text-center">
-            {format(weekStart, "d MMM", { locale: it })} - {format(weekEnd, "d MMM yyyy", { locale: it })}
+            {viewMode === 'weekly' 
+              ? `${format(rangeStart, "d MMM", { locale: it })} - ${format(rangeEnd, "d MMM yyyy", { locale: it })}`
+              : format(currentDate, "MMMM yyyy", { locale: it })
+            }
           </h2>
-          <Button variant="outline" size="icon" onClick={() => setCurrentDate(addWeeks(currentDate, 1))}>
+          <Button variant="outline" size="icon" onClick={() => handleNavigate('next')}>
             <ChevronRight className="w-4 h-4" />
           </Button>
           <Button variant="outline" onClick={() => setCurrentDate(new Date())}>Oggi</Button>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          {/* View Mode Toggle */}
+          <div className="flex border rounded-md overflow-hidden">
+            <Button 
+              variant={viewMode === 'weekly' ? 'default' : 'ghost'} 
+              size="sm"
+              className="rounded-none"
+              onClick={() => setViewMode('weekly')}
+            >
+              Settimana
+            </Button>
+            <Button 
+              variant={viewMode === 'monthly' ? 'default' : 'ghost'} 
+              size="sm"
+              className="rounded-none"
+              onClick={() => setViewMode('monthly')}
+            >
+              Mese
+            </Button>
+          </div>
+
           <Dialog open={isAppointmentDialogOpen} onOpenChange={setIsAppointmentDialogOpen}>
             <DialogTrigger asChild>
               <Button className="gap-2"><Plus className="w-4 h-4" />Appuntamento</Button>
@@ -329,14 +429,15 @@ const CalendarManagement = () => {
         <div className="flex items-center justify-center py-20">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
-      ) : (
+      ) : viewMode === 'weekly' ? (
+        /* Weekly View */
         <Card>
           <CardContent className="p-0 overflow-x-auto">
             <div className="min-w-[800px]">
               {/* Header */}
               <div className="grid grid-cols-8 border-b border-border">
                 <div className="p-3 text-sm text-muted-foreground text-center border-r border-border">Ora</div>
-                {weekDays.map((day) => (
+                {days.map((day) => (
                   <div key={day.toISOString()} className={`p-3 text-center border-r border-border last:border-r-0 ${isSameDay(day, new Date()) ? 'bg-primary/10' : ''}`}>
                     <div className="text-xs text-muted-foreground uppercase">{format(day, "EEE", { locale: it })}</div>
                     <div className={`text-lg font-display ${isSameDay(day, new Date()) ? 'text-primary' : ''}`}>{format(day, "d")}</div>
@@ -350,7 +451,7 @@ const CalendarManagement = () => {
                   <div className="p-2 text-xs text-muted-foreground text-center border-r border-border">
                     {hour}:00
                   </div>
-                  {weekDays.map((day) => {
+                  {days.map((day) => {
                     const events = getEventsForDay(day);
                     const hourAppointments = events.appointments.filter(a => new Date(a.start_time).getHours() === hour);
                     const hourSessions = events.sessions.filter(s => new Date(s.start_time).getHours() === hour);
@@ -362,10 +463,10 @@ const CalendarManagement = () => {
                           return (
                             <div
                               key={apt.id}
-                              className="text-xs p-1.5 rounded mb-1 text-white cursor-pointer hover:opacity-90 group"
+                              className="text-xs p-1.5 rounded mb-1 text-white cursor-pointer hover:opacity-90 group relative"
                               style={{ backgroundColor: apt.color }}
                               title={`${apt.title}${clientName ? ` - ${clientName}` : ''}`}
-                              onClick={() => handleAppointmentClick(apt)}
+                              onClick={(e) => handleAppointmentClick(apt, e)}
                             >
                               <div className="flex items-center gap-1">
                                 <User className="w-3 h-3 flex-shrink-0" />
@@ -377,6 +478,12 @@ const CalendarManagement = () => {
                                   {clientName}
                                 </div>
                               )}
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setDeleteAppointmentId(apt.id); }}
+                                className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/20 rounded p-0.5"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
                             </div>
                           );
                         })}
@@ -401,7 +508,128 @@ const CalendarManagement = () => {
             </div>
           </CardContent>
         </Card>
+      ) : (
+        /* Monthly View */
+        <Card>
+          <CardContent className="p-4">
+            <div className="grid grid-cols-7 gap-1">
+              {/* Day headers */}
+              {['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'].map(day => (
+                <div key={day} className="p-2 text-center text-sm font-medium text-muted-foreground">
+                  {day}
+                </div>
+              ))}
+              
+              {/* Calendar days */}
+              {days.map((day) => {
+                const events = getEventsForDay(day);
+                const isToday = isSameDay(day, new Date());
+                const isCurrentMonth = isSameMonth(day, currentDate);
+                
+                return (
+                  <div 
+                    key={day.toISOString()} 
+                    className={`min-h-[100px] p-2 border rounded-lg ${
+                      isToday ? 'bg-primary/10 border-primary' : 'border-border'
+                    } ${!isCurrentMonth ? 'opacity-40' : ''}`}
+                  >
+                    <div className={`text-sm font-medium mb-1 ${isToday ? 'text-primary' : ''}`}>
+                      {format(day, "d")}
+                    </div>
+                    
+                    <div className="space-y-1">
+                      {events.appointments.slice(0, 2).map(apt => {
+                        const clientName = getClientName(apt.client_id);
+                        return (
+                          <div
+                            key={apt.id}
+                            className="text-[10px] p-1 rounded text-white truncate cursor-pointer hover:opacity-90 group relative"
+                            style={{ backgroundColor: apt.color }}
+                            onClick={(e) => handleAppointmentClick(apt, e)}
+                          >
+                            {apt.title}
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setDeleteAppointmentId(apt.id); }}
+                              className="absolute top-0.5 right-0.5 opacity-0 group-hover:opacity-100"
+                            >
+                              <Trash2 className="w-2 h-2" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                      
+                      {events.sessions.slice(0, 2).map(session => (
+                        <div
+                          key={session.id}
+                          className="text-[10px] p-1 rounded text-white truncate"
+                          style={{ backgroundColor: session.course?.color || '#10B981' }}
+                        >
+                          {session.course?.name}
+                        </div>
+                      ))}
+                      
+                      {/* Workout deadlines */}
+                      {events.deadlines.map(deadline => (
+                        <div
+                          key={deadline.id}
+                          className="text-[10px] p-1 rounded bg-destructive/20 text-destructive truncate flex items-center gap-1"
+                          title={`Scadenza scheda: ${deadline.name}`}
+                        >
+                          <Dumbbell className="w-2 h-2" />
+                          Scad. Scheda
+                        </div>
+                      ))}
+                      
+                      {(events.appointments.length + events.sessions.length) > 4 && (
+                        <div className="text-[10px] text-muted-foreground">
+                          +{events.appointments.length + events.sessions.length - 4} altri
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
       )}
+
+      {/* Legend */}
+      <div className="mt-4 flex gap-4 text-sm">
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded bg-[#3B82F6]"></div>
+          <span className="text-muted-foreground">Appuntamenti</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded bg-[#10B981]"></div>
+          <span className="text-muted-foreground">Corsi</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded bg-destructive/50"></div>
+          <span className="text-muted-foreground">Scadenza Schede</span>
+        </div>
+      </div>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteAppointmentId} onOpenChange={() => setDeleteAppointmentId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare l'appuntamento?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Questa azione non può essere annullata. L'appuntamento verrà rimosso dal calendario.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={deleteAppointment}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AdminLayout>
   );
 };

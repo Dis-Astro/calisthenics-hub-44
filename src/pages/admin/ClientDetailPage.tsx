@@ -41,6 +41,7 @@ import EditWorkoutPlanDialog from "@/components/admin/EditWorkoutPlanDialog";
 import WorkoutPlanViewDialog from "@/components/admin/WorkoutPlanViewDialog";
 import WorkoutPlanCard from "@/components/admin/WorkoutPlanCard";
 import CoachAssignmentManager from "@/components/admin/CoachAssignmentManager";
+import PasswordResetDialog from "@/components/admin/PasswordResetDialog";
 import type { Database } from "@/integrations/supabase/types";
 import { format, differenceInDays, isPast } from "date-fns";
 import { it } from "date-fns/locale";
@@ -266,9 +267,15 @@ const ClientDetailPage = () => {
                   Iscritto dal {format(new Date(profile.created_at), "dd MMM yyyy", { locale: it })}
                 </div>
               </div>
-            </div>
+              {/* Password Reset Button */}
+              <div className="mt-4">
+                <PasswordResetDialog 
+                  userId={profile.user_id}
+                  userName={`${profile.first_name} ${profile.last_name}`}
+                />
+              </div>
 
-            {/* Stats rapide */}
+            </div>
             <div className="flex gap-4">
               <div className="text-center p-4 bg-muted rounded-lg">
                 <p className="text-2xl font-display text-primary">

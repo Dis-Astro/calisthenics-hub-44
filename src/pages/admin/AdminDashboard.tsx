@@ -16,7 +16,8 @@ import {
   Dumbbell,
   Clock,
   BookOpen,
-  ChevronRight
+  ChevronRight,
+  MessageSquare
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 
@@ -39,7 +40,9 @@ const AdminDashboard = () => {
     { icon: Users, label: "Utenti", href: "/admin/utenti" },
     { icon: Calendar, label: "Calendario", href: "/admin/calendario" },
     { icon: CreditCard, label: "Abbonamenti", href: "/admin/abbonamenti" },
+    { icon: CreditCard, label: "Piani", href: "/admin/piani" },
     { icon: BookOpen, label: "Corsi", href: "/admin/corsi" },
+    { icon: MessageSquare, label: "Segnalazioni", href: "/admin/segnalazioni" },
     { icon: Dumbbell, label: "Esercizi", href: "/admin/esercizi" },
     { icon: Clock, label: "Orari Palestra", href: "/admin/orari" },
   ];
