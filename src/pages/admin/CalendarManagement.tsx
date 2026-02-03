@@ -76,6 +76,7 @@ interface Course {
   color: string;
   max_participants: number | null;
   duration_minutes: number;
+  is_active: boolean;
 }
 
 interface CourseSession {
@@ -184,7 +185,13 @@ const CalendarManagement = () => {
     ]);
 
     if (appointmentsRes.data) setAppointments(appointmentsRes.data);
-    if (sessionsRes.data) setCourseSessions(sessionsRes.data as CourseSession[]);
+    // Filter out sessions from inactive courses
+    if (sessionsRes.data) {
+      const activeSessions = (sessionsRes.data as CourseSession[]).filter(
+        session => session.course?.is_active !== false
+      );
+      setCourseSessions(activeSessions);
+    }
     if (coachesRes.data) setCoaches(coachesRes.data);
     if (clientsRes.data) setClients(clientsRes.data);
     if (coursesRes.data) setCourses(coursesRes.data);
