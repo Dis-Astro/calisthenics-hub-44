@@ -17,6 +17,7 @@ interface Coach {
   user_id: string;
   first_name: string;
   last_name: string;
+  role?: string;
 }
 
 interface Assignment {
@@ -49,11 +50,11 @@ const CoachAssignmentManager = ({ clientId, clientRole, onUpdate }: CoachAssignm
   const fetchData = async () => {
     setLoading(true);
 
-    // Fetch all coaches
+    // Fetch all coaches AND admins (both can be assigned as coach)
     const { data: coachProfiles } = await supabase
       .from("profiles")
-      .select("user_id, first_name, last_name")
-      .eq("role", "coach");
+      .select("user_id, first_name, last_name, role")
+      .in("role", ["coach", "admin"]);
 
     setCoaches(coachProfiles || []);
 
@@ -243,6 +244,7 @@ const CoachAssignmentManager = ({ clientId, clientRole, onUpdate }: CoachAssignm
                     {availableCoaches.map(coach => (
                       <SelectItem key={coach.user_id} value={coach.user_id}>
                         {coach.first_name} {coach.last_name}
+                        {coach.role === 'admin' && ' (Admin)'}
                       </SelectItem>
                     ))}
                   </SelectContent>

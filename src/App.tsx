@@ -24,6 +24,8 @@ import CalendarManagement from "./pages/admin/CalendarManagement";
 import ExerciseManagement from "./pages/admin/ExerciseManagement";
 import GymHoursManagement from "./pages/admin/GymHoursManagement";
 import CourseManagement from "./pages/admin/CourseManagement";
+import MembershipPlanManagement from "./pages/admin/MembershipPlanManagement";
+import AdminReportsPage from "./pages/admin/AdminReportsPage";
 
 // Coach pages
 import CoachDashboard from "./pages/coach/CoachDashboard";
@@ -108,6 +110,16 @@ const App = () => (
             <Route path="/admin/corsi" element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <CourseManagement />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/piani" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <MembershipPlanManagement />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/segnalazioni" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminReportsPage />
               </ProtectedRoute>
             } />
             

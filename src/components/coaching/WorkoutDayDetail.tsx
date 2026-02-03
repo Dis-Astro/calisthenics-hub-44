@@ -6,13 +6,20 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { 
   Loader2, 
   ArrowLeft, 
   Play, 
   MessageSquare,
   CheckCircle2,
-  Save
+  Save,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import { toast } from "sonner";
 import LightningRating from "./LightningRating";
@@ -60,6 +67,7 @@ const WorkoutDayDetail = () => {
   const [saving, setSaving] = useState<string | null>(null);
   const [exercises, setExercises] = useState<ExerciseWithSets[]>([]);
   const [planName, setPlanName] = useState("");
+  const [openExercises, setOpenExercises] = useState<Set<string>>(new Set());
 
   const dayNumber = parseInt(dayId || "1");
 
@@ -149,6 +157,18 @@ const WorkoutDayDetail = () => {
     setLoading(false);
   };
 
+  const toggleExercise = (exerciseId: string) => {
+    setOpenExercises(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(exerciseId)) {
+        newSet.delete(exerciseId);
+      } else {
+        newSet.add(exerciseId);
+      }
+      return newSet;
+    });
+  };
+
   const updateSetCompletion = (exerciseId: string, setNumber: number, field: 'client_notes' | 'difficulty_rating', value: string | number) => {
     setExercises(prev => prev.map(ex => {
       if (ex.id !== exerciseId) return ex;
@@ -209,7 +229,7 @@ const WorkoutDayDetail = () => {
 
       toast.success("Salvato!");
       
-      // Mark as saved
+      // Mark as saved and close the exercise accordion
       setExercises(prev => prev.map(ex => {
         if (ex.id !== exerciseId) return ex;
         return {
@@ -220,11 +240,24 @@ const WorkoutDayDetail = () => {
           })
         };
       }));
+
+      // Auto-close accordion after saving
+      setOpenExercises(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(exerciseId);
+        return newSet;
+      });
     } catch (error) {
       toast.error("Errore nel salvataggio");
     }
 
     setSaving(null);
+  };
+
+  const getExerciseCompletionStatus = (exercise: ExerciseWithSets) => {
+    const completed = exercise.setCompletions.filter(s => s.saved).length;
+    const total = exercise.setCompletions.length;
+    return { completed, total, isComplete: completed === total };
   };
 
   if (loading) {
@@ -236,7 +269,7 @@ const WorkoutDayDetail = () => {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-2xl mx-auto space-y-4">
       {/* Header */}
       <div className="flex items-center gap-4">
         <Link to="/coaching/scheda">
@@ -250,115 +283,146 @@ const WorkoutDayDetail = () => {
         </div>
       </div>
 
-      {/* Exercises List */}
-      <div className="space-y-6">
-        {exercises.map((exercise, index) => (
-          <Card key={exercise.id} className="overflow-hidden border-border">
-            {/* Exercise Header */}
-            <div className="bg-gradient-to-r from-card to-muted/30 p-4 border-b border-border">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Badge variant="outline" className="text-xs">
-                      {exercise.exercise.muscle_group || "Generale"}
-                    </Badge>
-                  </div>
-                  <h3 className="font-display text-xl tracking-wider">
-                    {exercise.exercise.name}
-                  </h3>
-                  <p className="text-primary font-medium mt-1">
-                    {exercise.sets}x{exercise.reps}
-                  </p>
-                </div>
-                
-                {exercise.video && (
-                  <a 
-                    href={exercise.video.video_url} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                  >
-                    <Button variant="outline" size="sm" className="gap-2">
-                      <Play className="w-4 h-4" />
-                      Video
-                    </Button>
-                  </a>
-                )}
-              </div>
+      {/* Exercises List - Collapsible */}
+      <div className="space-y-3">
+        {exercises.map((exercise, index) => {
+          const status = getExerciseCompletionStatus(exercise);
+          const isOpen = openExercises.has(exercise.id);
 
-              {/* Coach Notes - Read Only */}
-              {exercise.notes && (
-                <div className="mt-4 p-3 bg-muted/50 rounded-lg opacity-80">
-                  <div className="flex items-center gap-2 text-sm font-medium mb-1">
-                    <MessageSquare className="w-4 h-4" />
-                    Nota del Coach
+          return (
+            <Collapsible key={exercise.id} open={isOpen} onOpenChange={() => toggleExercise(exercise.id)}>
+              <Card className="overflow-hidden border-border">
+                {/* Exercise Header - Always visible, clickable */}
+                <CollapsibleTrigger className="w-full">
+                  <div className="bg-gradient-to-r from-card to-muted/30 p-4 flex items-center justify-between cursor-pointer hover:bg-muted/50 transition-colors">
+                    <div className="flex items-center gap-4 text-left">
+                      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                        <span className="font-display text-lg text-primary">{index + 1}</span>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <Badge variant="outline" className="text-xs">
+                            {exercise.exercise.muscle_group || "Generale"}
+                          </Badge>
+                          {status.isComplete && (
+                            <Badge variant="default" className="text-xs gap-1">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Completato
+                            </Badge>
+                          )}
+                        </div>
+                        <h3 className="font-display text-lg tracking-wider">
+                          {exercise.exercise.name}
+                        </h3>
+                        <p className="text-primary font-medium text-sm">
+                          {exercise.sets}x{exercise.reps}
+                          <span className="text-muted-foreground ml-2">
+                            ({status.completed}/{status.total} set)
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      {exercise.video && (
+                        <a 
+                          href={exercise.video.video_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Button variant="outline" size="sm" className="gap-2">
+                            <Play className="w-4 h-4" />
+                            Video
+                          </Button>
+                        </a>
+                      )}
+                      {isOpen ? (
+                        <ChevronUp className="w-5 h-5 text-muted-foreground" />
+                      ) : (
+                        <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                      )}
+                    </div>
                   </div>
-                  <p className="text-sm text-muted-foreground">{exercise.notes}</p>
-                </div>
-              )}
-            </div>
+                </CollapsibleTrigger>
 
-            {/* Sets - Client Editable */}
-            <CardContent className="p-4 space-y-4">
-              {exercise.setCompletions.map((set) => (
-                <div 
-                  key={set.set_number} 
-                  className={`
-                    p-4 rounded-lg border transition-all
-                    ${set.saved 
-                      ? 'bg-primary/5 border-primary/30' 
-                      : 'bg-muted/30 border-border'
-                    }
-                  `}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="font-display text-lg">
-                      Set {String(set.set_number).padStart(2, '0')}
-                    </span>
-                    {set.saved && (
-                      <CheckCircle2 className="w-5 h-5 text-primary" />
-                    )}
-                  </div>
+                <CollapsibleContent>
+                  {/* Coach Notes - Read Only */}
+                  {exercise.notes && (
+                    <div className="px-4 py-3 bg-muted/50 border-t border-border">
+                      <div className="flex items-center gap-2 text-sm font-medium mb-1">
+                        <MessageSquare className="w-4 h-4" />
+                        Nota del Coach
+                      </div>
+                      <p className="text-sm text-muted-foreground">{exercise.notes}</p>
+                    </div>
+                  )}
 
-                  {/* Rating */}
-                  <div className="mb-3">
-                    <label className="text-sm text-muted-foreground block mb-2">
-                      Come ti sei sentito? (1-10)
-                    </label>
-                    <LightningRating
-                      value={set.difficulty_rating}
-                      onChange={(val) => updateSetCompletion(exercise.id, set.set_number, 'difficulty_rating', val)}
-                    />
-                  </div>
+                  {/* Sets - Client Editable */}
+                  <CardContent className="p-4 space-y-4">
+                    {exercise.setCompletions.map((set) => (
+                      <div 
+                        key={set.set_number} 
+                        className={`
+                          p-4 rounded-lg border transition-all
+                          ${set.saved 
+                            ? 'bg-primary/5 border-primary/30' 
+                            : 'bg-muted/30 border-border'
+                          }
+                        `}
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="font-display text-lg">
+                            Set {String(set.set_number).padStart(2, '0')}
+                          </span>
+                          {set.saved && (
+                            <CheckCircle2 className="w-5 h-5 text-primary" />
+                          )}
+                        </div>
 
-                  {/* Notes */}
-                  <div className="mb-3">
-                    <Textarea
-                      placeholder="Note su questo set (opzionale)..."
-                      value={set.client_notes}
-                      onChange={(e) => updateSetCompletion(exercise.id, set.set_number, 'client_notes', e.target.value)}
-                      className="min-h-[60px] resize-none"
-                    />
-                  </div>
+                        {/* Rating */}
+                        <div className="mb-3">
+                          <label className="text-sm text-muted-foreground block mb-2">
+                            Come ti sei sentito? (1-10)
+                          </label>
+                          <LightningRating
+                            value={set.difficulty_rating}
+                            onChange={(val) => updateSetCompletion(exercise.id, set.set_number, 'difficulty_rating', val)}
+                          />
+                        </div>
 
-                  {/* Save Button */}
-                  <Button
-                    size="sm"
-                    onClick={() => saveSetCompletion(exercise.id, set.set_number)}
-                    disabled={saving === `${exercise.id}-${set.set_number}` || (set.saved && !set.client_notes && set.difficulty_rating === 0)}
-                    className="w-full gap-2"
-                  >
-                    {saving === `${exercise.id}-${set.set_number}` ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Save className="w-4 h-4" />
-                    )}
-                    {set.saved ? "Aggiorna" : "Salva Set"}
-                  </Button>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        ))}
+                        {/* Notes */}
+                        <div className="mb-3">
+                          <Textarea
+                            placeholder="Note su questo set (opzionale)..."
+                            value={set.client_notes}
+                            onChange={(e) => updateSetCompletion(exercise.id, set.set_number, 'client_notes', e.target.value)}
+                            className="min-h-[60px] resize-none"
+                          />
+                        </div>
+
+                        {/* Save Button */}
+                        <Button
+                          size="sm"
+                          onClick={() => saveSetCompletion(exercise.id, set.set_number)}
+                          disabled={saving === `${exercise.id}-${set.set_number}` || (set.saved && !set.client_notes && set.difficulty_rating === 0)}
+                          className="w-full gap-2"
+                        >
+                          {saving === `${exercise.id}-${set.set_number}` ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Save className="w-4 h-4" />
+                          )}
+                          {set.saved ? "Aggiorna" : "Salva Set"}
+                        </Button>
+                      </div>
+                    ))}
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
+          );
+        })}
       </div>
 
       {exercises.length === 0 && (
