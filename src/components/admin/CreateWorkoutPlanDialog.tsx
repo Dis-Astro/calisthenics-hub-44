@@ -194,7 +194,7 @@ const CreateWorkoutPlanDialog = ({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {[2, 4, 6, 8, 12].map(w => (
+                  {[2, 5, 6, 7, 8].map(w => (
                     <SelectItem key={w} value={w.toString()}>{w} settimane</SelectItem>
                   ))}
                 </SelectContent>
