@@ -33,6 +33,7 @@ import {
   endOfWeek, 
   startOfMonth, 
   endOfMonth, 
+  startOfDay,
   eachDayOfInterval, 
   addWeeks, 
   subWeeks, 
@@ -270,25 +271,32 @@ const CalendarManagement = () => {
     
     // Find the next occurrence of each selected day starting from today
     for (const dayOfWeek of selectedDays) {
-      let currentDate = new Date(today);
+      // Start from today at midnight (local time)
+      let currentDate = startOfDay(today);
       
       // Find the next occurrence of this day of week
-      while (currentDate.getDay() !== dayOfWeek) {
-        currentDate = addDays(currentDate, 1);
-      }
+      const currentDayOfWeek = currentDate.getDay();
+      let daysToAdd = dayOfWeek - currentDayOfWeek;
+      if (daysToAdd < 0) daysToAdd += 7; // If the day has passed this week, go to next week
+      currentDate = addDays(currentDate, daysToAdd);
       
       // Create sessions for this day for 1 year
       while (currentDate <= oneYearFromNow) {
-        const startDateTime = setMinutes(setHours(new Date(currentDate), startH), startM);
-        const endDateTime = setMinutes(setHours(new Date(currentDate), endH), endM);
+        // Build date strings manually to avoid timezone issues
+        const year = currentDate.getFullYear();
+        const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+        const day = String(currentDate.getDate()).padStart(2, '0');
+        
+        const startDateTimeStr = `${year}-${month}-${day}T${courseSessionStartTime}:00`;
+        const endDateTimeStr = `${year}-${month}-${day}T${courseSessionEndTime}:00`;
         
         sessionsToCreate.push({
           course_id: newCourseSession.course_id,
-          start_time: startDateTime.toISOString(),
-          end_time: endDateTime.toISOString()
+          start_time: new Date(startDateTimeStr).toISOString(),
+          end_time: new Date(endDateTimeStr).toISOString()
         });
         
-        // Move to next week
+        // Move to next week (exactly 7 days)
         currentDate = addDays(currentDate, 7);
       }
     }
