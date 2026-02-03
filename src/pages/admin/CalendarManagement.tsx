@@ -130,14 +130,22 @@ const CalendarManagement = () => {
     location: ""
   });
   
-  const [courseSessionDate, setCourseSessionDate] = useState<Date | undefined>();
   const [courseSessionStartTime, setCourseSessionStartTime] = useState("09:00");
   const [courseSessionEndTime, setCourseSessionEndTime] = useState("10:00");
-  const [isRecurring, setIsRecurring] = useState(false);
-  const [recurringWeeks, setRecurringWeeks] = useState("4");
+  const [selectedDays, setSelectedDays] = useState<number[]>([]);
   const [newCourseSession, setNewCourseSession] = useState({
     course_id: ""
   });
+
+  const weekDays = [
+    { value: 1, label: "Lunedì", short: "Lun" },
+    { value: 2, label: "Martedì", short: "Mar" },
+    { value: 3, label: "Mercoledì", short: "Mer" },
+    { value: 4, label: "Giovedì", short: "Gio" },
+    { value: 5, label: "Venerdì", short: "Ven" },
+    { value: 6, label: "Sabato", short: "Sab" },
+    { value: 0, label: "Domenica", short: "Dom" }
+  ];
 
   // Calculate date ranges based on view mode
   const getDateRange = () => {
@@ -238,49 +246,69 @@ const CalendarManagement = () => {
   };
 
   const createCourseSession = async () => {
-    if (!newCourseSession.course_id || !courseSessionDate) {
-      toast({ title: "Errore", description: "Compila tutti i campi", variant: "destructive" });
+    if (!newCourseSession.course_id || selectedDays.length === 0) {
+      toast({ title: "Errore", description: "Seleziona un corso e almeno un giorno della settimana", variant: "destructive" });
       return;
     }
 
-    // Build datetime from date + time
     const [startH, startM] = courseSessionStartTime.split(":").map(Number);
     const [endH, endM] = courseSessionEndTime.split(":").map(Number);
     
     setSaving(true);
 
-    // Generate sessions (single or recurring)
+    // Generate sessions for 1 year (52 weeks) for each selected day
     const sessionsToCreate = [];
-    const weeks = isRecurring ? parseInt(recurringWeeks) : 1;
+    const today = new Date();
+    const oneYearFromNow = addDays(today, 365);
     
-    for (let i = 0; i < weeks; i++) {
-      const sessionDate = addDays(courseSessionDate, i * 7);
-      const startDateTime = setMinutes(setHours(sessionDate, startH), startM);
-      const endDateTime = setMinutes(setHours(sessionDate, endH), endM);
+    // Find the next occurrence of each selected day starting from today
+    for (const dayOfWeek of selectedDays) {
+      let currentDate = new Date(today);
       
-      sessionsToCreate.push({
-        course_id: newCourseSession.course_id,
-        start_time: startDateTime.toISOString(),
-        end_time: endDateTime.toISOString()
-      });
+      // Find the next occurrence of this day of week
+      while (currentDate.getDay() !== dayOfWeek) {
+        currentDate = addDays(currentDate, 1);
+      }
+      
+      // Create sessions for this day for 1 year
+      while (currentDate <= oneYearFromNow) {
+        const startDateTime = setMinutes(setHours(new Date(currentDate), startH), startM);
+        const endDateTime = setMinutes(setHours(new Date(currentDate), endH), endM);
+        
+        sessionsToCreate.push({
+          course_id: newCourseSession.course_id,
+          start_time: startDateTime.toISOString(),
+          end_time: endDateTime.toISOString()
+        });
+        
+        // Move to next week
+        currentDate = addDays(currentDate, 7);
+      }
     }
 
     const { error } = await supabase.from("course_sessions").insert(sessionsToCreate);
 
     if (error) {
-      toast({ title: "Errore", description: "Impossibile creare la/le sessione/i", variant: "destructive" });
+      toast({ title: "Errore", description: "Impossibile creare le sessioni", variant: "destructive" });
     } else {
-      toast({ title: "Successo", description: isRecurring ? `Create ${weeks} sessioni ricorrenti` : "Sessione corso creata" });
+      const daysText = selectedDays.map(d => weekDays.find(w => w.value === d)?.short).join(", ");
+      toast({ title: "Successo", description: `Create ${sessionsToCreate.length} sessioni per ${daysText} (1 anno)` });
       setIsCourseSessionDialogOpen(false);
       setNewCourseSession({ course_id: "" });
-      setCourseSessionDate(undefined);
+      setSelectedDays([]);
       setCourseSessionStartTime("09:00");
       setCourseSessionEndTime("10:00");
-      setIsRecurring(false);
-      setRecurringWeeks("4");
       fetchData();
     }
     setSaving(false);
+  };
+
+  const toggleDay = (day: number) => {
+    setSelectedDays(prev => 
+      prev.includes(day) 
+        ? prev.filter(d => d !== day)
+        : [...prev, day]
+    );
   };
 
   const deleteCourseSession = async () => {
@@ -490,32 +518,34 @@ const CalendarManagement = () => {
                   </Select>
                 </div>
                 
-                {/* Date Picker */}
+                {/* Days of Week Selection */}
                 <div className="space-y-2">
-                  <Label>Data *</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
+                  <Label className="flex items-center gap-2">
+                    <Repeat className="w-4 h-4" />
+                    Giorni della settimana *
+                  </Label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Seleziona i giorni in cui si ripete il corso (verranno create sessioni per 1 anno)
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {weekDays.map((day) => (
                       <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !courseSessionDate && "text-muted-foreground"
-                        )}
+                        key={day.value}
+                        type="button"
+                        variant={selectedDays.includes(day.value) ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => toggleDay(day.value)}
+                        className="min-w-[50px]"
                       >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {courseSessionDate ? format(courseSessionDate, "PPP", { locale: it }) : "Seleziona data"}
+                        {day.short}
                       </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <CalendarComponent
-                        mode="single"
-                        selected={courseSessionDate}
-                        onSelect={setCourseSessionDate}
-                        initialFocus
-                        className="p-3 pointer-events-auto"
-                      />
-                    </PopoverContent>
-                  </Popover>
+                    ))}
+                  </div>
+                  {selectedDays.length > 0 && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Selezionati: {selectedDays.map(d => weekDays.find(w => w.value === d)?.label).join(", ")}
+                    </p>
+                  )}
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4">
@@ -527,39 +557,6 @@ const CalendarManagement = () => {
                     <Label>Ora Fine *</Label>
                     <Input type="time" value={courseSessionEndTime} onChange={(e) => setCourseSessionEndTime(e.target.value)} />
                   </div>
-                </div>
-                
-                {/* Recurring option */}
-                <div className="space-y-3 pt-2 border-t">
-                  <div className="flex items-center gap-3">
-                    <Switch
-                      checked={isRecurring}
-                      onCheckedChange={setIsRecurring}
-                    />
-                    <Label className="flex items-center gap-2">
-                      <Repeat className="w-4 h-4" />
-                      Evento ricorrente
-                    </Label>
-                  </div>
-                  
-                  {isRecurring && (
-                    <div className="space-y-2">
-                      <Label>Ripeti per quante settimane?</Label>
-                      <Select value={recurringWeeks} onValueChange={setRecurringWeeks}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="2">2 settimane</SelectItem>
-                          <SelectItem value="4">4 settimane</SelectItem>
-                          <SelectItem value="8">8 settimane</SelectItem>
-                          <SelectItem value="12">12 settimane</SelectItem>
-                          <SelectItem value="16">16 settimane</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground">
-                        Verranno create {recurringWeeks} sessioni, una per settimana a partire dalla data selezionata
-                      </p>
-                    </div>
-                  )}
                 </div>
               </div>
               <DialogFooter>
