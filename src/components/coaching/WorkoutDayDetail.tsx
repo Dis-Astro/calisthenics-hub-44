@@ -405,7 +405,7 @@ const WorkoutDayDetail = () => {
                         <Button
                           size="sm"
                           onClick={() => saveSetCompletion(exercise.id, set.set_number)}
-                          disabled={saving === `${exercise.id}-${set.set_number}` || (set.saved && !set.client_notes && set.difficulty_rating === 0)}
+                          disabled={saving === `${exercise.id}-${set.set_number}` || set.difficulty_rating === 0}
                           className="w-full gap-2"
                         >
                           {saving === `${exercise.id}-${set.set_number}` ? (
