@@ -117,9 +117,46 @@ const CoachingDashboard = () => {
 
     if (appointments) setUpcomingAppointments(appointments);
 
-    // Calculate week progress (mock for now - would need actual completion data)
-    setWeekProgress(Math.floor(Math.random() * 100));
-    setCompletedWorkouts(Math.floor(Math.random() * 5));
+    // Calculate actual week progress from workout_completions
+    if (plans && plans.length > 0) {
+      const planId = plans[0].id;
+      
+      // Get all exercises in the plan
+      const { data: planExercises } = await supabase
+        .from("workout_plan_exercises")
+        .select("id, sets")
+        .eq("workout_plan_id", planId);
+      
+      if (planExercises && planExercises.length > 0) {
+        // Calculate total expected sets
+        const totalExpectedSets = planExercises.reduce((sum, ex) => sum + (ex.sets || 3), 0);
+        
+        // Get completions for this week
+        const weekStart = new Date();
+        weekStart.setDate(weekStart.getDate() - weekStart.getDay()); // Start of week (Sunday)
+        weekStart.setHours(0, 0, 0, 0);
+        
+        const exerciseIds = planExercises.map(e => e.id);
+        const { data: completions } = await supabase
+          .from("workout_completions")
+          .select("id")
+          .eq("client_id", userId!)
+          .in("workout_plan_exercise_id", exerciseIds)
+          .gte("completed_at", weekStart.toISOString());
+        
+        const completedSets = completions?.length || 0;
+        const progress = totalExpectedSets > 0 ? Math.round((completedSets / totalExpectedSets) * 100) : 0;
+        
+        setWeekProgress(Math.min(progress, 100));
+        setCompletedWorkouts(completedSets);
+      } else {
+        setWeekProgress(0);
+        setCompletedWorkouts(0);
+      }
+    } else {
+      setWeekProgress(0);
+      setCompletedWorkouts(0);
+    }
 
     setLoading(false);
   };
