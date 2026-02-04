@@ -112,7 +112,7 @@ const Contatti = () => {
                 <div>
                   <h3 className="font-display text-lg text-foreground">Email</h3>
                   <a href="mailto:socialpowergym@gmail.com" className="text-muted-foreground hover:text-primary transition-colors">
-                    socialpowergym@gmail.com
+                    mariano@superpowergym.it
                   </a>
                 </div>
               </div>
