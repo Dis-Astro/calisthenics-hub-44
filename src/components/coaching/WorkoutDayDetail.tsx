@@ -373,7 +373,7 @@ const WorkoutDayDetail = () => {
                       >
                         <div className="flex items-center justify-between mb-3">
                           <span className="font-display text-lg">
-                            Set {String(set.set_number).padStart(2, '0')}
+                            Serie {set.set_number}
                           </span>
                           {set.saved && (
                             <CheckCircle2 className="w-5 h-5 text-primary" />
