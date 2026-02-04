@@ -48,16 +48,23 @@ interface WorkoutPlanExercise {
   video: ExerciseVideo | null;
 }
 
-interface SetCompletion {
+interface WeekCompletion {
   id?: string;
-  set_number: number;
+  week_number: number;
   client_notes: string;
   difficulty_rating: number;
   saved: boolean;
 }
 
-interface ExerciseWithSets extends WorkoutPlanExercise {
-  setCompletions: SetCompletion[];
+interface ExerciseWithWeeks extends WorkoutPlanExercise {
+  weekCompletions: WeekCompletion[];
+}
+
+interface WorkoutPlan {
+  id: string;
+  name: string;
+  start_date: string;
+  end_date: string;
 }
 
 const WorkoutDayDetail = () => {
@@ -65,11 +72,31 @@ const WorkoutDayDetail = () => {
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
-  const [exercises, setExercises] = useState<ExerciseWithSets[]>([]);
-  const [planName, setPlanName] = useState("");
+  const [exercises, setExercises] = useState<ExerciseWithWeeks[]>([]);
+  const [plan, setPlan] = useState<WorkoutPlan | null>(null);
+  const [currentWeek, setCurrentWeek] = useState(1);
+  const [totalWeeks, setTotalWeeks] = useState(1);
   const [openExercises, setOpenExercises] = useState<Set<string>>(new Set());
 
   const dayNumber = parseInt(dayId || "1");
+
+  // Calculate current week number based on plan start date
+  const calculateCurrentWeek = (startDate: string): number => {
+    const start = new Date(startDate);
+    const today = new Date();
+    const diffTime = today.getTime() - start.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    return Math.max(1, Math.floor(diffDays / 7) + 1);
+  };
+
+  // Calculate total weeks in the plan
+  const calculateTotalWeeks = (startDate: string, endDate: string): number => {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diffTime = end.getTime() - start.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    return Math.max(1, Math.ceil(diffDays / 7));
+  };
 
   useEffect(() => {
     if (profile?.user_id) {
@@ -82,10 +109,10 @@ const WorkoutDayDetail = () => {
     const userId = profile?.user_id;
     const today = new Date().toISOString().split('T')[0];
 
-    // Fetch active workout plan
+    // Fetch active workout plan with dates
     const { data: plans } = await supabase
       .from("workout_plans")
-      .select("id, name")
+      .select("id, name, start_date, end_date")
       .eq("client_id", userId)
       .eq("is_active", true)
       .lte("start_date", today)
@@ -98,7 +125,13 @@ const WorkoutDayDetail = () => {
       return;
     }
 
-    setPlanName(plans[0].name);
+    const activePlan = plans[0];
+    setPlan(activePlan);
+    
+    const weeks = calculateTotalWeeks(activePlan.start_date, activePlan.end_date);
+    const current = Math.min(calculateCurrentWeek(activePlan.start_date), weeks);
+    setTotalWeeks(weeks);
+    setCurrentWeek(current);
 
     // Fetch exercises for this day
     const { data: planExercises } = await supabase
@@ -113,12 +146,12 @@ const WorkoutDayDetail = () => {
         exercise:exercises(id, name, description, muscle_group),
         video:exercise_videos(id, title, video_url)
       `)
-      .eq("workout_plan_id", plans[0].id)
+      .eq("workout_plan_id", activePlan.id)
       .eq("day_of_week", dayNumber)
       .order("order_index");
 
     if (planExercises) {
-      // Fetch existing completions
+      // Fetch existing completions (now using set_number as week_number)
       const exerciseIds = planExercises.map(e => e.id);
       const { data: completions } = await supabase
         .from("workout_completions")
@@ -126,17 +159,17 @@ const WorkoutDayDetail = () => {
         .eq("client_id", userId!)
         .in("workout_plan_exercise_id", exerciseIds);
 
-      // Map exercises with their set completions
-      const exercisesWithSets: ExerciseWithSets[] = planExercises.map(ex => {
-        const numSets = ex.sets || 3;
+      // Map exercises with their week completions
+      const exercisesWithWeeks: ExerciseWithWeeks[] = planExercises.map(ex => {
         const existingCompletions = completions?.filter(c => c.workout_plan_exercise_id === ex.id) || [];
         
-        const setCompletions: SetCompletion[] = [];
-        for (let i = 1; i <= numSets; i++) {
-          const existing = existingCompletions.find(c => c.set_number === i);
-          setCompletions.push({
+        // Create week slots for all weeks of the plan
+        const weekCompletions: WeekCompletion[] = [];
+        for (let w = 1; w <= weeks; w++) {
+          const existing = existingCompletions.find(c => c.set_number === w);
+          weekCompletions.push({
             id: existing?.id,
-            set_number: i,
+            week_number: w,
             client_notes: existing?.client_notes || "",
             difficulty_rating: existing?.difficulty_rating || 0,
             saved: !!existing
@@ -147,11 +180,11 @@ const WorkoutDayDetail = () => {
           ...ex,
           exercise: ex.exercise as unknown as Exercise,
           video: ex.video as unknown as ExerciseVideo | null,
-          setCompletions
+          weekCompletions
         };
       });
 
-      setExercises(exercisesWithSets);
+      setExercises(exercisesWithWeeks);
     }
 
     setLoading(false);
@@ -169,46 +202,46 @@ const WorkoutDayDetail = () => {
     });
   };
 
-  const updateSetCompletion = (exerciseId: string, setNumber: number, field: 'client_notes' | 'difficulty_rating', value: string | number) => {
+  const updateWeekCompletion = (exerciseId: string, weekNumber: number, field: 'client_notes' | 'difficulty_rating', value: string | number) => {
     setExercises(prev => prev.map(ex => {
       if (ex.id !== exerciseId) return ex;
       return {
         ...ex,
-        setCompletions: ex.setCompletions.map(set => {
-          if (set.set_number !== setNumber) return set;
-          return { ...set, [field]: value, saved: false };
+        weekCompletions: ex.weekCompletions.map(week => {
+          if (week.week_number !== weekNumber) return week;
+          return { ...week, [field]: value, saved: false };
         })
       };
     }));
   };
 
-  const saveSetCompletion = async (exerciseId: string, setNumber: number) => {
+  const saveWeekCompletion = async (exerciseId: string, weekNumber: number) => {
     const exercise = exercises.find(e => e.id === exerciseId);
-    const setData = exercise?.setCompletions.find(s => s.set_number === setNumber);
-    if (!exercise || !setData || !profile?.user_id) return;
+    const weekData = exercise?.weekCompletions.find(w => w.week_number === weekNumber);
+    if (!exercise || !weekData || !profile?.user_id) return;
 
-    setSaving(`${exerciseId}-${setNumber}`);
+    setSaving(`${exerciseId}-${weekNumber}`);
 
     try {
-      if (setData.id) {
+      if (weekData.id) {
         // Update existing
         await supabase
           .from("workout_completions")
           .update({
-            client_notes: setData.client_notes,
-            difficulty_rating: setData.difficulty_rating
+            client_notes: weekData.client_notes,
+            difficulty_rating: weekData.difficulty_rating
           })
-          .eq("id", setData.id);
+          .eq("id", weekData.id);
       } else {
-        // Insert new
+        // Insert new - using set_number field to store week_number
         const { data } = await supabase
           .from("workout_completions")
           .insert({
             workout_plan_exercise_id: exerciseId,
             client_id: profile.user_id,
-            set_number: setNumber,
-            client_notes: setData.client_notes,
-            difficulty_rating: setData.difficulty_rating
+            set_number: weekNumber, // Reusing set_number as week_number
+            client_notes: weekData.client_notes,
+            difficulty_rating: weekData.difficulty_rating
           })
           .select()
           .single();
@@ -218,9 +251,9 @@ const WorkoutDayDetail = () => {
             if (ex.id !== exerciseId) return ex;
             return {
               ...ex,
-              setCompletions: ex.setCompletions.map(set => {
-                if (set.set_number !== setNumber) return set;
-                return { ...set, id: data.id, saved: true };
+              weekCompletions: ex.weekCompletions.map(week => {
+                if (week.week_number !== weekNumber) return week;
+                return { ...week, id: data.id, saved: true };
               })
             };
           }));
@@ -229,14 +262,14 @@ const WorkoutDayDetail = () => {
 
       toast.success("Salvato!");
       
-      // Mark as saved and close the exercise accordion
+      // Mark as saved
       setExercises(prev => prev.map(ex => {
         if (ex.id !== exerciseId) return ex;
         return {
           ...ex,
-          setCompletions: ex.setCompletions.map(set => {
-            if (set.set_number !== setNumber) return set;
-            return { ...set, saved: true };
+          weekCompletions: ex.weekCompletions.map(week => {
+            if (week.week_number !== weekNumber) return week;
+            return { ...week, saved: true };
           })
         };
       }));
@@ -254,10 +287,15 @@ const WorkoutDayDetail = () => {
     setSaving(null);
   };
 
-  const getExerciseCompletionStatus = (exercise: ExerciseWithSets) => {
-    const completed = exercise.setCompletions.filter(s => s.saved).length;
-    const total = exercise.setCompletions.length;
+  const getExerciseCompletionStatus = (exercise: ExerciseWithWeeks) => {
+    const completed = exercise.weekCompletions.filter(w => w.saved).length;
+    const total = exercise.weekCompletions.length;
     return { completed, total, isComplete: completed === total };
+  };
+
+  // Check if a week can be rated (only current or past weeks)
+  const canRateWeek = (weekNumber: number): boolean => {
+    return weekNumber <= currentWeek;
   };
 
   if (loading) {
@@ -279,7 +317,9 @@ const WorkoutDayDetail = () => {
         </Link>
         <div>
           <h1 className="font-display text-3xl tracking-wider">Giorno {dayNumber}</h1>
-          <p className="text-sm text-muted-foreground">{planName}</p>
+          <p className="text-sm text-muted-foreground">
+            {plan?.name} • Settimana {currentWeek} di {totalWeeks}
+          </p>
         </div>
       </div>
 
@@ -307,7 +347,7 @@ const WorkoutDayDetail = () => {
                           {status.isComplete && (
                             <Badge variant="default" className="text-xs gap-1">
                               <CheckCircle2 className="w-3 h-3" />
-                              Completato
+                              Tutte le settimane
                             </Badge>
                           )}
                         </div>
@@ -317,7 +357,7 @@ const WorkoutDayDetail = () => {
                         <p className="text-primary font-medium text-sm">
                           {exercise.sets}x{exercise.reps}
                           <span className="text-muted-foreground ml-2">
-                            ({status.completed}/{status.total} set)
+                            ({status.completed}/{status.total} sett. valutate)
                           </span>
                         </p>
                       </div>
@@ -358,65 +398,95 @@ const WorkoutDayDetail = () => {
                     </div>
                   )}
 
-                  {/* Sets - Client Editable */}
+                  {/* Weeks - Client Editable */}
                   <CardContent className="p-4 space-y-4">
-                    {exercise.setCompletions.map((set) => (
-                      <div 
-                        key={set.set_number} 
-                        className={`
-                          p-4 rounded-lg border transition-all
-                          ${set.saved 
-                            ? 'bg-primary/5 border-primary/30' 
-                            : 'bg-muted/30 border-border'
-                          }
-                        `}
-                      >
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="font-display text-lg">
-                            Serie {set.set_number}
-                          </span>
-                          {set.saved && (
-                            <CheckCircle2 className="w-5 h-5 text-primary" />
-                          )}
-                        </div>
+                    {exercise.weekCompletions.map((week) => {
+                      const isCurrentWeek = week.week_number === currentWeek;
+                      const isPastWeek = week.week_number < currentWeek;
+                      const isFutureWeek = week.week_number > currentWeek;
 
-                        {/* Rating */}
-                        <div className="mb-3">
-                          <label className="text-sm text-muted-foreground block mb-2">
-                            Come ti sei sentito? (1-10)
-                          </label>
-                          <LightningRating
-                            value={set.difficulty_rating}
-                            onChange={(val) => updateSetCompletion(exercise.id, set.set_number, 'difficulty_rating', val)}
-                          />
-                        </div>
-
-                        {/* Notes */}
-                        <div className="mb-3">
-                          <Textarea
-                            placeholder="Note su questo set (opzionale)..."
-                            value={set.client_notes}
-                            onChange={(e) => updateSetCompletion(exercise.id, set.set_number, 'client_notes', e.target.value)}
-                            className="min-h-[60px] resize-none"
-                          />
-                        </div>
-
-                        {/* Save Button */}
-                        <Button
-                          size="sm"
-                          onClick={() => saveSetCompletion(exercise.id, set.set_number)}
-                          disabled={saving === `${exercise.id}-${set.set_number}` || set.difficulty_rating === 0}
-                          className="w-full gap-2"
+                      return (
+                        <div 
+                          key={week.week_number} 
+                          className={`
+                            p-4 rounded-lg border transition-all
+                            ${week.saved 
+                              ? 'bg-primary/5 border-primary/30' 
+                              : isCurrentWeek
+                                ? 'bg-accent/10 border-accent/50 ring-2 ring-accent/30'
+                                : isFutureWeek
+                                  ? 'bg-muted/20 border-border/50 opacity-60'
+                                  : 'bg-muted/30 border-border'
+                            }
+                          `}
                         >
-                          {saving === `${exercise.id}-${set.set_number}` ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <span className="font-display text-lg">
+                                Settimana {week.week_number}
+                              </span>
+                              {isCurrentWeek && !week.saved && (
+                                <Badge variant="secondary" className="text-xs">
+                                  Corrente
+                                </Badge>
+                              )}
+                              {isFutureWeek && (
+                                <Badge variant="outline" className="text-xs">
+                                  Non ancora disponibile
+                                </Badge>
+                              )}
+                            </div>
+                            {week.saved && (
+                              <CheckCircle2 className="w-5 h-5 text-primary" />
+                            )}
+                          </div>
+
+                          {canRateWeek(week.week_number) ? (
+                            <>
+                              {/* Rating */}
+                              <div className="mb-3">
+                                <label className="text-sm text-muted-foreground block mb-2">
+                                  Come è andato l'esercizio questa settimana? (1-10)
+                                </label>
+                                <LightningRating
+                                  value={week.difficulty_rating}
+                                  onChange={(val) => updateWeekCompletion(exercise.id, week.week_number, 'difficulty_rating', val)}
+                                />
+                              </div>
+
+                              {/* Notes */}
+                              <div className="mb-3">
+                                <Textarea
+                                  placeholder="Note sulla settimana (opzionale)..."
+                                  value={week.client_notes}
+                                  onChange={(e) => updateWeekCompletion(exercise.id, week.week_number, 'client_notes', e.target.value)}
+                                  className="min-h-[60px] resize-none"
+                                />
+                              </div>
+
+                              {/* Save Button */}
+                              <Button
+                                size="sm"
+                                onClick={() => saveWeekCompletion(exercise.id, week.week_number)}
+                                disabled={saving === `${exercise.id}-${week.week_number}` || week.difficulty_rating === 0}
+                                className="w-full gap-2"
+                              >
+                                {saving === `${exercise.id}-${week.week_number}` ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <Save className="w-4 h-4" />
+                                )}
+                                {week.saved ? "Aggiorna valutazione" : "Salva valutazione"}
+                              </Button>
+                            </>
                           ) : (
-                            <Save className="w-4 h-4" />
+                            <p className="text-sm text-muted-foreground italic">
+                              Potrai valutare questa settimana quando sarà iniziata
+                            </p>
                           )}
-                          {set.saved ? "Aggiorna" : "Salva Set"}
-                        </Button>
-                      </div>
-                    ))}
+                        </div>
+                      );
+                    })}
                   </CardContent>
                 </CollapsibleContent>
               </Card>
