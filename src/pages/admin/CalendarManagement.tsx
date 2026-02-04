@@ -158,8 +158,9 @@ const CalendarManagement = () => {
       };
     }
     return {
-      start: startOfMonth(currentDate),
-      end: endOfMonth(currentDate)
+      // For the month grid we need padding days to align weekdays (Mon-Sun)
+      start: startOfWeek(startOfMonth(currentDate), { weekStartsOn: 1 }),
+      end: endOfWeek(endOfMonth(currentDate), { weekStartsOn: 1 })
     };
   };
 
@@ -343,9 +344,16 @@ const CalendarManagement = () => {
     setDeleteCourseSessionId(null);
   };
 
+  // Helpers to make course session placement stable across timezone/DST.
+  // Sessions are created using a YYYY-MM-DD date string; we should match by that date part
+  // rather than relying on Date parsing which can shift the day in some timezones.
+  const isoDatePart = (iso: string) => iso.slice(0, 10); // YYYY-MM-DD
+  const isoHourPart = (iso: string) => Number(iso.slice(11, 13)); // HH
+
   const getEventsForDay = (day: Date) => {
     const dayAppointments = appointments.filter(a => isSameDay(parseISO(a.start_time), day));
-    const daySessions = courseSessions.filter(s => isSameDay(parseISO(s.start_time), day));
+    const dayKey = format(day, "yyyy-MM-dd");
+    const daySessions = courseSessions.filter(s => isoDatePart(s.start_time) === dayKey);
     const dayDeadlines = workoutDeadlines.filter(w => isSameDay(parseISO(w.end_date), day));
     return { appointments: dayAppointments, sessions: daySessions, deadlines: dayDeadlines };
   };
@@ -618,7 +626,7 @@ const CalendarManagement = () => {
                   {days.map((day) => {
                     const events = getEventsForDay(day);
                     const hourAppointments = events.appointments.filter(a => new Date(a.start_time).getHours() === hour);
-                    const hourSessions = events.sessions.filter(s => new Date(s.start_time).getHours() === hour);
+                    const hourSessions = events.sessions.filter(s => isoHourPart(s.start_time) === hour);
 
                     return (
                       <div key={`${day.toISOString()}-${hour}`} className="p-1 min-h-[60px] border-r border-border last:border-r-0 relative">
@@ -688,6 +696,11 @@ const CalendarManagement = () => {
                 <div key={day} className="p-2 text-center text-sm font-medium text-muted-foreground">
                   {day}
                 </div>
+              ))}
+
+              {/* Empty cells for days before the first visible day (month padding) */}
+              {Array.from({ length: (days[0].getDay() + 6) % 7 }).map((_, i) => (
+                <div key={`empty-${i}`} className="min-h-[100px]" />
               ))}
               
               {/* Calendar days */}
