@@ -68,41 +68,46 @@ const WorkoutPlanDays = () => {
         .order("order_index");
 
       if (exercises) {
-        // Fetch completions
+        // Fetch completions - count all saved sets
         const exerciseIds = exercises.map(e => e.id);
         const { data: completions } = await supabase
           .from("workout_completions")
-          .select("workout_plan_exercise_id")
+          .select("workout_plan_exercise_id, set_number")
           .eq("client_id", userId!)
           .in("workout_plan_exercise_id", exerciseIds);
 
-        const completedSet = new Set(completions?.map(c => c.workout_plan_exercise_id) || []);
+        // Build a map of exercise_id -> count of completed sets
+        const completedSetsPerExercise = new Map<string, number>();
+        completions?.forEach(c => {
+          const current = completedSetsPerExercise.get(c.workout_plan_exercise_id) || 0;
+          completedSetsPerExercise.set(c.workout_plan_exercise_id, current + 1);
+        });
 
-        // Group exercises by day
-        const dayMap = new Map<number, { exercises: ExerciseInfo[], completedCount: number }>();
+        // Group exercises by day - track total sets expected and completed
+        const dayMap = new Map<number, { exercises: ExerciseInfo[], totalSets: number, completedSets: number }>();
         
         exercises.forEach(ex => {
           const day = ex.day_of_week ?? 1;
           if (!dayMap.has(day)) {
-            dayMap.set(day, { exercises: [], completedCount: 0 });
+            dayMap.set(day, { exercises: [], totalSets: 0, completedSets: 0 });
           }
           const dayData = dayMap.get(day)!;
+          const exerciseSets = ex.sets || 3;
           dayData.exercises.push({
             id: ex.id,
             name: (ex.exercise as any)?.name || "Esercizio",
             sets: ex.sets,
             reps: ex.reps
           });
-          if (completedSet.has(ex.id)) {
-            dayData.completedCount++;
-          }
+          dayData.totalSets += exerciseSets;
+          dayData.completedSets += completedSetsPerExercise.get(ex.id) || 0;
         });
 
         const days: DayExercise[] = Array.from(dayMap.entries())
           .map(([day, data]) => ({
             day_of_week: day,
-            exercise_count: data.exercises.length,
-            completed_count: data.completedCount,
+            exercise_count: data.totalSets,
+            completed_count: data.completedSets,
             exercises: data.exercises
           }))
           .sort((a, b) => a.day_of_week - b.day_of_week);
@@ -206,7 +211,7 @@ const WorkoutPlanDays = () => {
                       />
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {day.completed_count}/{day.exercise_count} completati
+                      {day.completed_count}/{day.exercise_count} set completati
                     </p>
                   </div>
                 </CardContent>

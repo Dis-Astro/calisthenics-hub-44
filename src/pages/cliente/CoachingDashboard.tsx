@@ -64,7 +64,6 @@ const CoachingDashboard = () => {
   const navigationItems = [
     { icon: Target, label: "Dashboard", href: "/coaching" },
     { icon: Dumbbell, label: "La Mia Scheda", href: "/coaching/scheda" },
-    { icon: Play, label: "Video Esercizi", href: "/coaching/video" },
     { icon: TrendingUp, label: "I Miei Progressi", href: "/coaching/progressi" },
     { icon: Calendar, label: "Appuntamenti", href: "/coaching/appuntamenti" },
     { icon: MessageSquare, label: "Segnala Problema", href: "/coaching/segnala" },
@@ -402,15 +401,15 @@ const CoachingDashboard = () => {
                       Azioni Rapide
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-3">
+                <CardContent className="space-y-3">
                     <Link to="/coaching/scheda">
                       <Button className="w-full justify-start gap-3" variant="secondary">
                         <Dumbbell className="w-5 h-5" />Vedi Scheda Allenamento
                       </Button>
                     </Link>
-                    <Link to="/coaching/video">
+                    <Link to="/coaching/progressi">
                       <Button className="w-full justify-start gap-3" variant="secondary">
-                        <Play className="w-5 h-5" />Video Esercizi
+                        <TrendingUp className="w-5 h-5" />I Miei Progressi
                       </Button>
                     </Link>
                     <Link to="/coaching/segnala">

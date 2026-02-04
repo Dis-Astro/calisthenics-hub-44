@@ -38,7 +38,7 @@ import CoachReportsPage from "./pages/coach/CoachReportsPage";
 import PalestraDashboard from "./pages/cliente/PalestraDashboard";
 import CoachingDashboard from "./pages/cliente/CoachingDashboard";
 import WorkoutPlanPage from "./pages/cliente/WorkoutPlanPage";
-import VideoLibraryPage from "./pages/cliente/VideoLibraryPage";
+
 import ProgressPage from "./pages/cliente/ProgressPage";
 import AppointmentsPage from "./pages/cliente/AppointmentsPage";
 import ReportIssuePage from "./pages/cliente/ReportIssuePage";
@@ -181,11 +181,6 @@ const App = () => (
             <Route path="/coaching/scheda/:dayId" element={
               <ProtectedRoute allowedRoles={['cliente_coaching']}>
                 <WorkoutPlanPage />
-              </ProtectedRoute>
-            } />
-            <Route path="/coaching/video" element={
-              <ProtectedRoute allowedRoles={['cliente_coaching']}>
-                <VideoLibraryPage />
               </ProtectedRoute>
             } />
             <Route path="/coaching/progressi" element={
