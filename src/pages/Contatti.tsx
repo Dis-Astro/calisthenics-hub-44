@@ -111,7 +111,7 @@ const Contatti = () => {
                 </div>
                 <div>
                   <h3 className="font-display text-lg text-foreground">Email</h3>
-                  <a href="mailto:socialpowergym@gmail.com" className="text-muted-foreground hover:text-primary transition-colors">
+                  <a href="mailto:mariano@superpowergym.it" className="text-muted-foreground hover:text-primary transition-colors">
                     mariano@superpowergym.it
                   </a>
                 </div>
