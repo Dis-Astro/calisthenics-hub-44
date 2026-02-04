@@ -283,17 +283,20 @@ const CalendarManagement = () => {
       // Create sessions for this day for 1 year
       while (currentDate <= oneYearFromNow) {
         // Build date strings manually to avoid timezone issues
+        // Use the DATE part from currentDate and keep the time exactly as selected
         const year = currentDate.getFullYear();
         const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-        const day = String(currentDate.getDate()).padStart(2, '0');
+        const dayNum = String(currentDate.getDate()).padStart(2, '0');
         
-        const startDateTimeStr = `${year}-${month}-${day}T${courseSessionStartTime}:00`;
-        const endDateTimeStr = `${year}-${month}-${day}T${courseSessionEndTime}:00`;
+        // Create ISO strings with timezone offset to prevent conversion issues
+        // Format: YYYY-MM-DDTHH:MM:SS (will be stored as-is by Supabase)
+        const startDateTimeISO = `${year}-${month}-${dayNum}T${courseSessionStartTime}:00.000Z`;
+        const endDateTimeISO = `${year}-${month}-${dayNum}T${courseSessionEndTime}:00.000Z`;
         
         sessionsToCreate.push({
           course_id: newCourseSession.course_id,
-          start_time: new Date(startDateTimeStr).toISOString(),
-          end_time: new Date(endDateTimeStr).toISOString()
+          start_time: startDateTimeISO,
+          end_time: endDateTimeISO
         });
         
         // Move to next week (exactly 7 days)
