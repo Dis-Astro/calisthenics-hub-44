@@ -9,7 +9,6 @@ import {
   CreditCard, 
   UserPlus,
   BarChart3,
-  Bell,
   LogOut,
   Menu,
   X,
@@ -40,11 +39,9 @@ const AdminDashboard = () => {
     { icon: Users, label: "Utenti", href: "/admin/utenti" },
     { icon: Calendar, label: "Calendario", href: "/admin/calendario" },
     { icon: CreditCard, label: "Abbonamenti", href: "/admin/abbonamenti" },
-    { icon: CreditCard, label: "Piani", href: "/admin/piani" },
     { icon: BookOpen, label: "Corsi", href: "/admin/corsi" },
-    { icon: MessageSquare, label: "Segnalazioni", href: "/admin/segnalazioni" },
-    { icon: Dumbbell, label: "Esercizi", href: "/admin/esercizi" },
     { icon: Clock, label: "Orari Palestra", href: "/admin/orari" },
+    { icon: MessageSquare, label: "Segnalazioni", href: "/admin/segnalazioni" },
   ];
 
   useEffect(() => {
@@ -250,20 +247,20 @@ const AdminDashboard = () => {
                 <CardDescription>Altre sezioni</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Link to="/admin/esercizi">
-                  <Button className="w-full justify-between" variant="outline">
-                    <span className="flex items-center gap-3">
-                      <Dumbbell className="w-5 h-5" />
-                      Libreria Esercizi
-                    </span>
-                    <ChevronRight className="w-4 h-4" />
-                  </Button>
-                </Link>
                 <Link to="/admin/orari">
                   <Button className="w-full justify-between" variant="outline">
                     <span className="flex items-center gap-3">
                       <Clock className="w-5 h-5" />
                       Orari Palestra
+                    </span>
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </Link>
+                <Link to="/admin/segnalazioni">
+                  <Button className="w-full justify-between" variant="outline">
+                    <span className="flex items-center gap-3">
+                      <MessageSquare className="w-5 h-5" />
+                      Segnalazioni
                     </span>
                     <ChevronRight className="w-4 h-4" />
                   </Button>
