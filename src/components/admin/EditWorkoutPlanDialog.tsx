@@ -10,19 +10,13 @@ import { Loader2, Plus, Trash2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import ExerciseNameInput from "@/components/admin/ExerciseNameInput";
-import type { ExerciseSuggestion } from "@/components/admin/ExerciseNameInput";
-import ColoredNoteInput from "@/components/admin/ColoredNoteInput";
-
-type Exercise = ExerciseSuggestion;
 
 interface PlanExercise {
   id?: string;
-  exercise_id: string | null;
   exercise_name_free: string;
   day_of_week: number;
   sets: number;
   reps: string;
-  notes: string;
   order_index: number;
   isNew?: boolean;
   isDeleted?: boolean;
@@ -37,17 +31,16 @@ interface EditWorkoutPlanDialogProps {
 
 const dayLabels = ["Giorno 1", "Giorno 2", "Giorno 3", "Giorno 4", "Giorno 5", "Giorno 6", "Giorno 7"];
 
-const EditWorkoutPlanDialog = ({ 
+const EditWorkoutPlanDialog = ({
   planId,
-  open, 
-  onOpenChange, 
-  onSuccess 
+  open,
+  onOpenChange,
+  onSuccess
 }: EditWorkoutPlanDialogProps) => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [exercises, setExercises] = useState<Exercise[]>([]);
-  
+
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -65,17 +58,14 @@ const EditWorkoutPlanDialog = ({
     if (!planId) return;
     setLoading(true);
 
-    const [exercisesRes, planRes, planExercisesRes] = await Promise.all([
-      supabase.from("exercises").select("id, name, muscle_group").order("name"),
+    const [planRes, planExercisesRes] = await Promise.all([
       supabase.from("workout_plans").select("*").eq("id", planId).single(),
       supabase
         .from("workout_plan_exercises")
-        .select("id, exercise_id, exercise_name, day_of_week, sets, reps, notes, order_index")
+        .select("id, exercise_name, day_of_week, sets, reps, order_index")
         .eq("workout_plan_id", planId)
         .order("day_of_week").order("order_index")
     ]);
-
-    setExercises(exercisesRes.data || []);
 
     if (planRes.data) {
       setFormData({
@@ -87,16 +77,12 @@ const EditWorkoutPlanDialog = ({
     }
 
     if (planExercisesRes.data) {
-      // Mappa exercise_name dal DB o, se mancante, cerca nel dizionario esercizi
-      const exMap = new Map((exercisesRes.data || []).map(e => [e.id, e.name]));
       setPlanExercises(planExercisesRes.data.map(ex => ({
         id: ex.id,
-        exercise_id: ex.exercise_id,
-        exercise_name_free: (ex as any).exercise_name || (ex.exercise_id ? exMap.get(ex.exercise_id) || "" : ""),
+        exercise_name_free: (ex as any).exercise_name || "",
         day_of_week: ex.day_of_week || 1,
         sets: ex.sets || 3,
         reps: ex.reps || "10",
-        notes: ex.notes || "",
         order_index: ex.order_index
       })));
     }
@@ -106,67 +92,30 @@ const EditWorkoutPlanDialog = ({
 
   const addExercise = () => {
     const maxOrder = Math.max(0, ...planExercises.map(e => e.order_index));
-    setPlanExercises([
-      ...planExercises,
-      { exercise_id: null, exercise_name_free: "", day_of_week: 1, sets: 3, reps: "10", notes: "", order_index: maxOrder + 1, isNew: true }
+    setPlanExercises(prev => [
+      ...prev,
+      { exercise_name_free: "", day_of_week: 1, sets: 3, reps: "10", order_index: maxOrder + 1, isNew: true }
     ]);
   };
 
   const removeExercise = (index: number) => {
-    const updated = [...planExercises];
-    if (updated[index].id) {
-      updated[index].isDeleted = true;
-    } else {
-      updated.splice(index, 1);
-    }
-    setPlanExercises(updated);
+    setPlanExercises(prev => {
+      const updated = [...prev];
+      if (updated[index].id) {
+        updated[index] = { ...updated[index], isDeleted: true };
+      } else {
+        updated.splice(index, 1);
+      }
+      return updated;
+    });
   };
 
-  const updateExercise = (index: number, field: keyof PlanExercise, value: string | number | null | boolean) => {
+  const updateExercise = (index: number, field: keyof PlanExercise, value: string | number) => {
     setPlanExercises(prev => {
       const updated = [...prev];
       updated[index] = { ...updated[index], [field]: value };
       return updated;
     });
-  };
-
-  // Aggiorna nome esercizio in modo atomico
-  const handleExerciseNameChange = (index: number, val: string) => {
-    setPlanExercises(prev => {
-      const updated = [...prev];
-      const matchedInDb = exercises.find(e => e.name === val);
-      updated[index] = {
-        ...updated[index],
-        exercise_name_free: val,
-        exercise_id: matchedInDb ? matchedInDb.id : null,
-      };
-      return updated;
-    });
-  };
-
-  const handleSelectSuggestion = (index: number, ex: Exercise) => {
-    setPlanExercises(prev => {
-      const updated = [...prev];
-      updated[index] = { ...updated[index], exercise_id: ex.id, exercise_name_free: ex.name };
-      return updated;
-    });
-  };
-
-  const resolveExerciseId = async (ex: PlanExercise): Promise<string | null> => {
-    if (ex.exercise_id) return ex.exercise_id;
-    if (!ex.exercise_name_free.trim()) return null;
-
-    // Cerca tra esercizi esistenti (case insensitive)
-    const found = exercises.find(e => e.name.toLowerCase() === ex.exercise_name_free.toLowerCase().trim());
-    if (found) return found.id;
-
-    // Crea nuovo esercizio
-    const { data } = await supabase
-      .from("exercises")
-      .insert({ name: ex.exercise_name_free.trim() })
-      .select("id")
-      .single();
-    return data?.id || null;
   };
 
   const handleSubmit = async () => {
@@ -189,10 +138,15 @@ const EditWorkoutPlanDialog = ({
 
     setSaving(true);
 
-    // Update plan
     const { error: planError } = await supabase
       .from("workout_plans")
-      .update({ name: formData.name, description: formData.description || null, coach_notes: formData.coach_notes || null, is_active: formData.is_active, updated_at: new Date().toISOString() })
+      .update({
+        name: formData.name,
+        description: formData.description || null,
+        coach_notes: formData.coach_notes || null,
+        is_active: formData.is_active,
+        updated_at: new Date().toISOString()
+      })
       .eq("id", planId);
 
     if (planError) {
@@ -210,14 +164,13 @@ const EditWorkoutPlanDialog = ({
     // Update existing
     const toUpdate = planExercises.filter(e => !e.isDeleted && !e.isNew && e.id);
     for (const ex of toUpdate) {
-      const exerciseId = await resolveExerciseId(ex);
       await supabase.from("workout_plan_exercises").update({
-        exercise_id: exerciseId,
+        exercise_id: null,
         exercise_name: ex.exercise_name_free.trim(),
         day_of_week: ex.day_of_week,
         sets: ex.sets,
         reps: ex.reps,
-        notes: ex.notes || null,
+        notes: null,
         order_index: ex.order_index
       }).eq("id", ex.id!);
     }
@@ -225,17 +178,18 @@ const EditWorkoutPlanDialog = ({
     // Insert new
     const toInsert = planExercises.filter(e => !e.isDeleted && e.isNew);
     if (toInsert.length > 0) {
-      const insertData = await Promise.all(toInsert.map(async ex => ({
-        workout_plan_id: planId,
-        exercise_id: await resolveExerciseId(ex),
-        exercise_name: ex.exercise_name_free.trim(),
-        day_of_week: ex.day_of_week,
-        sets: ex.sets,
-        reps: ex.reps,
-        notes: ex.notes || null,
-        order_index: ex.order_index
-      })));
-      await supabase.from("workout_plan_exercises").insert(insertData);
+      await supabase.from("workout_plan_exercises").insert(
+        toInsert.map(ex => ({
+          workout_plan_id: planId,
+          exercise_id: null,
+          exercise_name: ex.exercise_name_free.trim(),
+          day_of_week: ex.day_of_week,
+          sets: ex.sets,
+          reps: ex.reps,
+          notes: null,
+          order_index: ex.order_index
+        }))
+      );
     }
 
     toast({ title: "Scheda aggiornata!" });
@@ -287,7 +241,9 @@ const EditWorkoutPlanDialog = ({
                 <div className="flex items-center justify-between">
                   <div>
                     <Label className="text-base">Esercizi della Scheda</Label>
-                    <p className="text-xs text-muted-foreground mt-0.5">Scrivi liberamente il nome — il suggerimento è opzionale</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Scrivi liberamente — includi il colore dell'elastico nel nome (es. "Elastico arancione - Squat")
+                    </p>
                   </div>
                   <Button type="button" variant="outline" size="sm" onClick={addExercise} className="gap-2">
                     <Plus className="w-4 h-4" />
@@ -308,21 +264,19 @@ const EditWorkoutPlanDialog = ({
                       if (ex.isDeleted) return null;
                       const visibleIndex = visibleExercises.indexOf(ex);
                       return (
-                        <div key={ex.id || `new-${index}`} className="p-3 border rounded-lg space-y-3 bg-muted/30">
+                        <div key={ex.id || `new-${index}`} className="p-3 border rounded-lg space-y-2 bg-muted/30">
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-medium text-muted-foreground w-5">#{visibleIndex + 1}</span>
                             <ExerciseNameInput
                               value={ex.exercise_name_free}
-                              onChange={(val) => handleExerciseNameChange(index, val)}
-                              suggestions={exercises}
-                              onSelectSuggestion={(e) => handleSelectSuggestion(index, e)}
+                              onChange={(val) => updateExercise(index, "exercise_name_free", val)}
                             />
                             <Button type="button" variant="ghost" size="icon" onClick={() => removeExercise(index)}>
                               <Trash2 className="w-4 h-4 text-destructive" />
                             </Button>
                           </div>
 
-                          <div className="grid grid-cols-4 gap-2">
+                          <div className="grid grid-cols-3 gap-2 pl-7">
                             <div className="space-y-1">
                               <Label className="text-xs">Giorno</Label>
                               <Select value={ex.day_of_week.toString()} onValueChange={(v) => updateExercise(index, "day_of_week", parseInt(v))}>
@@ -341,13 +295,6 @@ const EditWorkoutPlanDialog = ({
                             <div className="space-y-1">
                               <Label className="text-xs">Ripetizioni</Label>
                               <Input value={ex.reps} onChange={(e) => updateExercise(index, "reps", e.target.value)} placeholder="10-12" className="h-8 text-sm" />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-xs">Note (colore: arancione/azzurro/verde/giallo)</Label>
-                              <ColoredNoteInput
-                                value={ex.notes}
-                                onChange={(val) => updateExercise(index, "notes", val)}
-                              />
                             </div>
                           </div>
                         </div>
