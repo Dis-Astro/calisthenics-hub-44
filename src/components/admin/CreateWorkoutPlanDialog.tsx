@@ -11,18 +11,12 @@ import { Loader2, Plus, Trash2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
 import ExerciseNameInput from "@/components/admin/ExerciseNameInput";
-import type { ExerciseSuggestion } from "@/components/admin/ExerciseNameInput";
-import ColoredNoteInput from "@/components/admin/ColoredNoteInput";
-
-type Exercise = ExerciseSuggestion;
 
 interface PlanExercise {
-  exercise_id: string | null;
   exercise_name_free: string;
   day_of_week: number;
   sets: number;
   reps: string;
-  notes: string;
 }
 
 interface CreateWorkoutPlanDialogProps {
@@ -35,18 +29,17 @@ interface CreateWorkoutPlanDialogProps {
 
 const dayLabels = ["Giorno 1", "Giorno 2", "Giorno 3", "Giorno 4", "Giorno 5", "Giorno 6", "Giorno 7"];
 
-const CreateWorkoutPlanDialog = ({ 
-  open, 
-  onOpenChange, 
-  clientId, 
+const CreateWorkoutPlanDialog = ({
+  open,
+  onOpenChange,
+  clientId,
   clientName,
-  onSuccess 
+  onSuccess
 }: CreateWorkoutPlanDialogProps) => {
   const { profile } = useAuth();
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
-  const [exercises, setExercises] = useState<Exercise[]>([]);
-  
+
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -58,54 +51,28 @@ const CreateWorkoutPlanDialog = ({
 
   useEffect(() => {
     if (open) {
-      fetchExercises();
       setFormData({ name: "", description: "", duration_weeks: "4", coach_notes: "" });
       setPlanExercises([]);
     }
   }, [open]);
 
-  const fetchExercises = async () => {
-    const { data } = await supabase.from("exercises").select("id, name, muscle_group").order("name");
-    setExercises(data || []);
-  };
-
   const addExercise = () => {
-    setPlanExercises([
-      ...planExercises,
-      { exercise_id: null, exercise_name_free: "", day_of_week: 1, sets: 3, reps: "10", notes: "" }
+    setPlanExercises(prev => [
+      ...prev,
+      { exercise_name_free: "", day_of_week: 1, sets: 3, reps: "10" }
     ]);
   };
 
   const removeExercise = (index: number) => {
-    setPlanExercises(planExercises.filter((_, i) => i !== index));
+    setPlanExercises(prev => prev.filter((_, i) => i !== index));
   };
 
-  const updateExercise = (index: number, field: keyof PlanExercise, value: string | number | null) => {
+  const updateExercise = (index: number, field: keyof PlanExercise, value: string | number) => {
     setPlanExercises(prev => {
       const updated = [...prev];
       updated[index] = { ...updated[index], [field]: value };
       return updated;
     });
-  };
-
-  // Aggiorna nome esercizio in modo atomico (evita doppio setState)
-  const handleExerciseNameChange = (index: number, val: string) => {
-    setPlanExercises(prev => {
-      const updated = [...prev];
-      const matchedInDb = exercises.find(e => e.name === val);
-      updated[index] = {
-        ...updated[index],
-        exercise_name_free: val,
-        exercise_id: matchedInDb ? matchedInDb.id : null,
-      };
-      return updated;
-    });
-  };
-
-  const handleSelectSuggestion = (index: number, ex: Exercise) => {
-    const updated = [...planExercises];
-    updated[index] = { ...updated[index], exercise_id: ex.id, exercise_name_free: ex.name };
-    setPlanExercises(updated);
   };
 
   const handleSubmit = async () => {
@@ -128,7 +95,7 @@ const CreateWorkoutPlanDialog = ({
     const startDate = new Date();
     const weeks = parseInt(formData.duration_weeks) || 4;
     const endDate = new Date(startDate);
-    endDate.setDate(endDate.getDate() + (weeks * 7));
+    endDate.setDate(endDate.getDate() + weeks * 7);
 
     const { data: plan, error: planError } = await supabase
       .from("workout_plans")
@@ -151,30 +118,15 @@ const CreateWorkoutPlanDialog = ({
       return;
     }
 
-    // Prepara gli esercizi: se esercizio non è nel DB, exercise_id è null
-    const exercisesToInsert = await Promise.all(planExercises.map(async (ex, index) => {
-      let exerciseId = ex.exercise_id;
-
-      // Se non esiste nel DB, crealo
-      if (!exerciseId && ex.exercise_name_free.trim()) {
-        const { data: newEx } = await supabase
-          .from("exercises")
-          .insert({ name: ex.exercise_name_free.trim() })
-          .select("id")
-          .single();
-        exerciseId = newEx?.id || null;
-      }
-
-      return {
-        workout_plan_id: plan.id,
-        exercise_id: exerciseId,
-        exercise_name: ex.exercise_name_free.trim(),
-        day_of_week: ex.day_of_week,
-        sets: ex.sets,
-        reps: ex.reps,
-        notes: ex.notes || null,
-        order_index: index
-      };
+    const exercisesToInsert = planExercises.map((ex, index) => ({
+      workout_plan_id: plan.id,
+      exercise_id: null,
+      exercise_name: ex.exercise_name_free.trim(),
+      day_of_week: ex.day_of_week,
+      sets: ex.sets,
+      reps: ex.reps,
+      notes: null,
+      order_index: index
     }));
 
     const { error: exercisesError } = await supabase
@@ -238,7 +190,9 @@ const CreateWorkoutPlanDialog = ({
             <div className="flex items-center justify-between">
               <div>
                 <Label className="text-base">Esercizi della Scheda</Label>
-                <p className="text-xs text-muted-foreground mt-0.5">Scrivi liberamente il nome — il suggerimento è opzionale</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Scrivi liberamente — includi il colore dell'elastico nel nome (es. "Elastico arancione - Squat")
+                </p>
               </div>
               <Button type="button" variant="outline" size="sm" onClick={addExercise} className="gap-2">
                 <Plus className="w-4 h-4" />
@@ -256,21 +210,19 @@ const CreateWorkoutPlanDialog = ({
             ) : (
               <div className="space-y-3">
                 {planExercises.map((ex, index) => (
-                  <div key={index} className="p-3 border rounded-lg space-y-3 bg-muted/30">
+                  <div key={index} className="p-3 border rounded-lg space-y-2 bg-muted/30">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-muted-foreground w-5">#{index + 1}</span>
                       <ExerciseNameInput
                         value={ex.exercise_name_free}
-                        onChange={(val) => handleExerciseNameChange(index, val)}
-                        suggestions={exercises}
-                        onSelectSuggestion={(e) => handleSelectSuggestion(index, e)}
+                        onChange={(val) => updateExercise(index, "exercise_name_free", val)}
                       />
                       <Button type="button" variant="ghost" size="icon" onClick={() => removeExercise(index)}>
                         <Trash2 className="w-4 h-4 text-destructive" />
                       </Button>
                     </div>
 
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="grid grid-cols-3 gap-2 pl-7">
                       <div className="space-y-1">
                         <Label className="text-xs">Giorno</Label>
                         <Select value={ex.day_of_week.toString()} onValueChange={(v) => updateExercise(index, "day_of_week", parseInt(v))}>
@@ -289,13 +241,6 @@ const CreateWorkoutPlanDialog = ({
                       <div className="space-y-1">
                         <Label className="text-xs">Ripetizioni</Label>
                         <Input value={ex.reps} onChange={(e) => updateExercise(index, "reps", e.target.value)} placeholder="10-12" className="h-8 text-sm" />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Note (colore: arancione/azzurro/verde/giallo)</Label>
-                        <ColoredNoteInput
-                          value={ex.notes}
-                          onChange={(val) => updateExercise(index, "notes", val)}
-                        />
                       </div>
                     </div>
                   </div>
