@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import ExerciseNameInput from "@/components/admin/ExerciseNameInput";
 import type { ExerciseSuggestion } from "@/components/admin/ExerciseNameInput";
+import ColoredNoteInput from "@/components/admin/ColoredNoteInput";
 
 type Exercise = ExerciseSuggestion;
 
@@ -122,15 +123,33 @@ const EditWorkoutPlanDialog = ({
   };
 
   const updateExercise = (index: number, field: keyof PlanExercise, value: string | number | null | boolean) => {
-    const updated = [...planExercises];
-    updated[index] = { ...updated[index], [field]: value };
-    setPlanExercises(updated);
+    setPlanExercises(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
+  };
+
+  // Aggiorna nome esercizio in modo atomico
+  const handleExerciseNameChange = (index: number, val: string) => {
+    setPlanExercises(prev => {
+      const updated = [...prev];
+      const matchedInDb = exercises.find(e => e.name === val);
+      updated[index] = {
+        ...updated[index],
+        exercise_name_free: val,
+        exercise_id: matchedInDb ? matchedInDb.id : null,
+      };
+      return updated;
+    });
   };
 
   const handleSelectSuggestion = (index: number, ex: Exercise) => {
-    const updated = [...planExercises];
-    updated[index] = { ...updated[index], exercise_id: ex.id, exercise_name_free: ex.name };
-    setPlanExercises(updated);
+    setPlanExercises(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], exercise_id: ex.id, exercise_name_free: ex.name };
+      return updated;
+    });
   };
 
   const resolveExerciseId = async (ex: PlanExercise): Promise<string | null> => {
@@ -294,12 +313,7 @@ const EditWorkoutPlanDialog = ({
                             <span className="text-sm font-medium text-muted-foreground w-5">#{visibleIndex + 1}</span>
                             <ExerciseNameInput
                               value={ex.exercise_name_free}
-                              onChange={(val) => {
-                                updateExercise(index, "exercise_name_free", val);
-                                if (exercises.find(e => e.name === val) === undefined) {
-                                  updateExercise(index, "exercise_id", null);
-                                }
-                              }}
+                              onChange={(val) => handleExerciseNameChange(index, val)}
                               suggestions={exercises}
                               onSelectSuggestion={(e) => handleSelectSuggestion(index, e)}
                             />
@@ -329,8 +343,11 @@ const EditWorkoutPlanDialog = ({
                               <Input value={ex.reps} onChange={(e) => updateExercise(index, "reps", e.target.value)} placeholder="10-12" className="h-8 text-sm" />
                             </div>
                             <div className="space-y-1">
-                              <Label className="text-xs">Note</Label>
-                              <Input value={ex.notes} onChange={(e) => updateExercise(index, "notes", e.target.value)} placeholder="Tecnica..." className="h-8 text-sm" />
+                              <Label className="text-xs">Note (colore: arancione/azzurro/verde/giallo)</Label>
+                              <ColoredNoteInput
+                                value={ex.notes}
+                                onChange={(val) => updateExercise(index, "notes", val)}
+                              />
                             </div>
                           </div>
                         </div>
