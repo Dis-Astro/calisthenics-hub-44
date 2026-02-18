@@ -77,6 +77,7 @@ const WorkoutPlanViewDialog = ({ planId, open, onOpenChange }: WorkoutPlanViewDi
           reps,
           notes,
           order_index,
+          exercise_name,
           exercise:exercises(id, name, muscle_group)
         `)
         .eq("workout_plan_id", planId)
@@ -157,7 +158,7 @@ const WorkoutPlanViewDialog = ({ planId, open, onOpenChange }: WorkoutPlanViewDi
                               {idx + 1}
                             </span>
                             <div>
-                              <p className="font-medium">{ex.exercise?.name || "Esercizio"}</p>
+                              <p className="font-medium">{(ex as any).exercise_name || ex.exercise?.name || "Esercizio"}</p>
                               {ex.exercise?.muscle_group && (
                                 <Badge variant="outline" className="text-xs mt-0.5">
                                   {ex.exercise.muscle_group}

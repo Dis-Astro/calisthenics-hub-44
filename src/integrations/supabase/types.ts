@@ -669,7 +669,8 @@ export type Database = {
         Row: {
           created_at: string
           day_of_week: number | null
-          exercise_id: string
+          exercise_id: string | null
+          exercise_name: string | null
           id: string
           notes: string | null
           order_index: number
@@ -682,7 +683,8 @@ export type Database = {
         Insert: {
           created_at?: string
           day_of_week?: number | null
-          exercise_id: string
+          exercise_id?: string | null
+          exercise_name?: string | null
           id?: string
           notes?: string | null
           order_index?: number
@@ -695,7 +697,8 @@ export type Database = {
         Update: {
           created_at?: string
           day_of_week?: number | null
-          exercise_id?: string
+          exercise_id?: string | null
+          exercise_name?: string | null
           id?: string
           notes?: string | null
           order_index?: number

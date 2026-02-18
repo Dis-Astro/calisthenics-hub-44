@@ -143,6 +143,7 @@ const WorkoutDayDetail = () => {
         notes,
         rest_seconds,
         order_index,
+        exercise_name,
         exercise:exercises(id, name, description, muscle_group),
         video:exercise_videos(id, title, video_url)
       `)
@@ -176,9 +177,16 @@ const WorkoutDayDetail = () => {
           });
         }
 
+        // Usa exercise_name libero se disponibile, altrimenti il nome dal DB
+        const exerciseFromDB = ex.exercise as unknown as Exercise | null;
+        const exerciseName = (ex as any).exercise_name || exerciseFromDB?.name || "Esercizio";
+        const exerciseObj: Exercise = exerciseFromDB
+          ? { ...exerciseFromDB, name: exerciseName }
+          : { id: ex.id, name: exerciseName, description: null, muscle_group: null };
+
         return {
           ...ex,
-          exercise: ex.exercise as unknown as Exercise,
+          exercise: exerciseObj,
           video: ex.video as unknown as ExerciseVideo | null,
           weekCompletions
         };
