@@ -63,7 +63,7 @@ const WorkoutPlanDays = () => {
       // Fetch exercises grouped by day WITH exercise names
       const { data: exercises } = await supabase
         .from("workout_plan_exercises")
-        .select("id, day_of_week, sets, reps, order_index, exercise:exercises(id, name)")
+        .select("id, day_of_week, sets, reps, order_index, exercise_name, exercise:exercises(id, name)")
         .eq("workout_plan_id", plans[0].id)
         .order("order_index");
 
@@ -95,7 +95,7 @@ const WorkoutPlanDays = () => {
           const exerciseSets = ex.sets || 3;
           dayData.exercises.push({
             id: ex.id,
-            name: (ex.exercise as any)?.name || "Esercizio",
+            name: (ex as any).exercise_name || (ex.exercise as any)?.name || "Esercizio",
             sets: ex.sets,
             reps: ex.reps
           });
