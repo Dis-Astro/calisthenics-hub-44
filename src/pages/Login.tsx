@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Lock, Mail, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -25,11 +25,14 @@ const Login = () => {
   const [authError, setAuthError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Redirect if already logged in
-  if (user && !authLoading) {
-    navigate("/dashboard", { replace: true });
-    return null;
-  }
+  // Redirect if already logged in - use useEffect to avoid calling navigate during render
+  useEffect(() => {
+    if (user && !authLoading) {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [user, authLoading, navigate]);
+
+  if (authLoading) return null;
 
   const handleChange = (field: keyof LoginFormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));

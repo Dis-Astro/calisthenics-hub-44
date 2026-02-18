@@ -5,13 +5,10 @@ import {
   Users, 
   Calendar, 
   Dumbbell,
-  FileText,
-  Bell,
   LogOut,
   Menu,
   X,
   ClipboardList,
-  Video,
   MessageSquare
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
@@ -26,11 +23,8 @@ const navigationItems = [
   { icon: ClipboardList, label: "Dashboard", href: "/coach" },
   { icon: Users, label: "I Miei Clienti", href: "/coach/clienti" },
   { icon: Dumbbell, label: "Schede Allenamento", href: "/coach/schede" },
-  { icon: Video, label: "Video Esercizi", href: "/coach/video" },
   { icon: Calendar, label: "Calendario", href: "/coach/calendario" },
   { icon: MessageSquare, label: "Segnalazioni", href: "/coach/segnalazioni" },
-  { icon: FileText, label: "Documenti", href: "/coach/documenti" },
-  { icon: Bell, label: "Notifiche", href: "/coach/notifiche" },
 ];
 
 const CoachLayout = ({ children, title, icon }: CoachLayoutProps) => {

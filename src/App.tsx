@@ -21,7 +21,7 @@ import UserManagement from "./pages/admin/UserManagement";
 import ClientDetailPage from "./pages/admin/ClientDetailPage";
 import SubscriptionManagement from "./pages/admin/SubscriptionManagement";
 import CalendarManagement from "./pages/admin/CalendarManagement";
-import ExerciseManagement from "./pages/admin/ExerciseManagement";
+
 import GymHoursManagement from "./pages/admin/GymHoursManagement";
 import CourseManagement from "./pages/admin/CourseManagement";
 import MembershipPlanManagement from "./pages/admin/MembershipPlanManagement";
@@ -95,11 +95,6 @@ const App = () => (
             <Route path="/admin/calendario" element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <CalendarManagement />
-              </ProtectedRoute>
-            } />
-            <Route path="/admin/esercizi" element={
-              <ProtectedRoute allowedRoles={['admin']}>
-                <ExerciseManagement />
               </ProtectedRoute>
             } />
             <Route path="/admin/orari" element={
