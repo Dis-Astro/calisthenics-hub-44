@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -7,19 +7,17 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Plus, Trash2, ChevronDown } from "lucide-react";
+import { Loader2, Plus, Trash2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
+import ExerciseNameInput from "@/components/admin/ExerciseNameInput";
+import type { ExerciseSuggestion } from "@/components/admin/ExerciseNameInput";
 
-interface Exercise {
-  id: string;
-  name: string;
-  muscle_group: string | null;
-}
+type Exercise = ExerciseSuggestion;
 
 interface PlanExercise {
-  exercise_id: string | null;    // null se nome libero
-  exercise_name_free: string;    // nome scritto liberamente
+  exercise_id: string | null;
+  exercise_name_free: string;
   day_of_week: number;
   sets: number;
   reps: string;
@@ -35,70 +33,6 @@ interface CreateWorkoutPlanDialogProps {
 }
 
 const dayLabels = ["Giorno 1", "Giorno 2", "Giorno 3", "Giorno 4", "Giorno 5", "Giorno 6", "Giorno 7"];
-
-// Campo esercizio con autosuggest opzionale
-const ExerciseNameInput = ({
-  value,
-  onChange,
-  suggestions,
-  onSelectSuggestion,
-}: {
-  value: string;
-  onChange: (val: string) => void;
-  suggestions: Exercise[];
-  onSelectSuggestion: (ex: Exercise) => void;
-}) => {
-  const [open, setOpen] = useState(false);
-  const [filtered, setFiltered] = useState<Exercise[]>([]);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (value.length >= 2) {
-      const f = suggestions.filter(s => s.name.toLowerCase().includes(value.toLowerCase()));
-      setFiltered(f.slice(0, 6));
-      setOpen(f.length > 0);
-    } else {
-      setOpen(false);
-    }
-  }, [value, suggestions]);
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  return (
-    <div ref={containerRef} className="relative flex-1">
-      <Input
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder="Es. Squat sotto 90° lento con pausa..."
-        className="w-full"
-      />
-      {open && (
-        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border border-border rounded-md shadow-lg max-h-44 overflow-auto">
-          {filtered.map(ex => (
-            <button
-              key={ex.id}
-              type="button"
-              className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors flex items-center justify-between"
-              onMouseDown={() => {
-                onSelectSuggestion(ex);
-                setOpen(false);
-              }}
-            >
-              <span>{ex.name}</span>
-              {ex.muscle_group && <span className="text-xs text-muted-foreground">{ex.muscle_group}</span>}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
 
 const CreateWorkoutPlanDialog = ({ 
   open, 
