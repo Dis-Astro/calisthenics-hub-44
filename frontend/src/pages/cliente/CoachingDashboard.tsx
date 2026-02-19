@@ -147,7 +147,8 @@ const CoachingDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex">
+    <ClientLayout title="LA TUA GIORNATA">
+      <div className="space-y-6">
       {/* Premium Sidebar */}
       <aside className={`
         fixed inset-y-0 left-0 z-50 w-72 
