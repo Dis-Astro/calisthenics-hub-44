@@ -151,20 +151,8 @@ const CoachingDashboard = () => {
       <div className="space-y-6">
 
 
-      {sidebarOpen && <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />}
 
-      <main className="flex-1 flex flex-col min-h-screen overflow-x-hidden">
-        <header className="h-16 bg-gradient-to-r from-card to-background border-b border-border flex items-center px-6">
-          <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-foreground mr-4">
-            <Menu className="w-6 h-6" />
-          </button>
-          <div className="flex items-center gap-3">
-            <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-            <h1 className="font-display text-xl tracking-wider">LA TUA GIORNATA</h1>
-          </div>
-        </header>
 
-        <div className="flex-1 p-6 space-y-6">
           {loading ? (
             <div className="flex items-center justify-center py-20">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
