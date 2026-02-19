@@ -164,10 +164,10 @@ const PalestraDashboard = () => {
                     )}
                   </div>
                 ) : (
-                  <div className="text-center py-6 text-muted-foreground">
-                    <AlertCircle className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <div className="flex flex-col items-center gap-2 text-center py-6 text-muted-foreground">
+                    <AlertCircle className="w-12 h-12 mx-auto mb-2 opacity-50" />
                     <p>Nessun abbonamento attivo</p>
-                    <p className="text-sm mt-2">Contatta la reception per attivare</p>
+                    <p className="text-sm">Contatta la reception per attivare</p>
                   </div>
                 )}
               </CardContent>
