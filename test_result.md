@@ -106,15 +106,18 @@
 ## backend:
 ##   - task: "Pulizia dipendenze backend (rimozione emergentintegrations)"
 ##     implemented: true
-##     working: "NA"
+##     working: true
 ##     file: "backend/requirements.txt"
 ##     stuck_count: 0
 ##     priority: "low"
-##     needs_retesting: true
+##     needs_retesting: false
 ##     status_history:
 ##       - working: "NA"
 ##         agent: "main"
 ##         comment: "Rimosso emergentintegrations da requirements.txt"
+##       - working: true
+##         agent: "testing"
+##         comment: "Backend test completato con successo. Tutte le API funzionano correttamente: root endpoint (✅), creazione status checks (✅), lettura status checks (✅), connessione MongoDB (✅). Server avviato senza errori dopo rimozione emergentintegrations."
 ## frontend:
 ##   - task: "Debranding Lovable + navigazione coerente + dashboard cliccabile + UX"
 ##     implemented: true
