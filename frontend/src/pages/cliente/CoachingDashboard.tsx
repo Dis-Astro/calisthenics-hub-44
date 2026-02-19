@@ -314,7 +314,7 @@ const CoachingDashboard = () => {
             </>
           )}
         </div>
-    </ClientLayout>
+      </ClientLayout>
   );
 };
 
