@@ -43,24 +43,13 @@ interface Coach {
 }
 
 const CoachingDashboard = () => {
-  const { profile, signOut } = useAuth();
-  const location = useLocation();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [activePlan, setActivePlan] = useState<WorkoutPlan | null>(null);
   const [upcomingAppointments, setUpcomingAppointments] = useState<Appointment[]>([]);
   const [myCoach, setMyCoach] = useState<Coach | null>(null);
   const [weekProgress, setWeekProgress] = useState(0);
   const [completedWorkouts, setCompletedWorkouts] = useState(0);
-
-  const navigationItems = [
-    { icon: Target, label: "Dashboard", href: "/coaching" },
-    { icon: Dumbbell, label: "La Mia Scheda", href: "/coaching/scheda" },
-    { icon: TrendingUp, label: "I Miei Progressi", href: "/coaching/progressi" },
-    { icon: Calendar, label: "Appuntamenti", href: "/coaching/appuntamenti" },
-    { icon: MessageSquare, label: "Segnala Problema", href: "/coaching/segnala" },
-    { icon: FileText, label: "Documenti", href: "/coaching/documenti" },
-  ];
 
   useEffect(() => {
     if (profile?.user_id) {
