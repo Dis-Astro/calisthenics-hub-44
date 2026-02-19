@@ -120,9 +120,12 @@ const ClientLayout = ({ children, title }: ClientLayoutProps) => {
           <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-foreground mr-4">
             <Menu className="w-6 h-6" />
           </button>
-          <div className="flex items-center gap-3">
-            <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-            <h1 className="font-display text-xl tracking-wider">{title}</h1>
+          <div className="flex flex-col">
+            <span className="text-xs text-muted-foreground tracking-widest uppercase">Coaching / {title}</span>
+            <div className="flex items-center gap-3">
+              <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+              <h1 className="font-display text-xl tracking-wider">{title}</h1>
+            </div>
           </div>
         </header>
 
