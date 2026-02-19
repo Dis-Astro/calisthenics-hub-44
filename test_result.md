@@ -101,3 +101,44 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+## user_problem_statement: "Pulizia riferimenti Lovable/Emergent, navigazione coerente, pulsanti dashboard cliccabili, miglioramenti UX"
+## backend:
+##   - task: "Pulizia dipendenze backend (rimozione emergentintegrations)"
+##     implemented: true
+##     working: "NA"
+##     file: "backend/requirements.txt"
+##     stuck_count: 0
+##     priority: "low"
+##     needs_retesting: true
+##     status_history:
+##       - working: "NA"
+##         agent: "main"
+##         comment: "Rimosso emergentintegrations da requirements.txt"
+## frontend:
+##   - task: "Debranding Lovable + navigazione coerente + dashboard cliccabile + UX"
+##     implemented: true
+##     working: "NA"
+##     file: "frontend/src (multiple)"
+##     stuck_count: 0
+##     priority: "high"
+##     needs_retesting: true
+##     status_history:
+##       - working: "NA"
+##         agent: "main"
+##         comment: "Rimossi riferimenti Lovable, menu uniformi, breadcrumb, focus ring, hover e card KPI cliccabili"
+## metadata:
+##   created_by: "main_agent"
+##   version: "1.0"
+##   test_sequence: 1
+##   run_ui: false
+## test_plan:
+##   current_focus:
+##     - "Pulizia dipendenze backend (rimozione emergentintegrations)"
+##     - "Debranding Lovable + navigazione coerente + dashboard cliccabile + UX"
+##   stuck_tasks: []
+##   test_all: false
+##   test_priority: "high_first"
+## agent_communication:
+##   - agent: "main"
+##     message: "Aggiornate dipendenze backend e UX frontend; avviare test backend prima di eventuali test UI"
