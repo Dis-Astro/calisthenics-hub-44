@@ -29,8 +29,13 @@ const AdminLayout = ({ children, title, icon, showBackLink = false }: AdminLayou
           >
             <Menu className="w-6 h-6" />
           </button>
-          {icon && <span className="mr-3 text-primary">{icon}</span>}
-          <h1 className="font-display text-2xl tracking-wider">{title}</h1>
+          <div className="flex flex-col">
+            <span className="text-xs text-muted-foreground tracking-widest uppercase">Admin / {title}</span>
+            <div className="flex items-center gap-3">
+              {icon && <span className="text-primary">{icon}</span>}
+              <h1 className="font-display text-2xl tracking-wider">{title}</h1>
+            </div>
+          </div>
         </header>
 
         {/* Content */}
