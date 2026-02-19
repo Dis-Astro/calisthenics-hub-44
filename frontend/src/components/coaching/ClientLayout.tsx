@@ -59,7 +59,7 @@ const ClientLayout = ({ children, title }: ClientLayoutProps) => {
                 <span className="text-xs text-primary font-medium tracking-widest">PREMIUM</span>
               </div>
             </Link>
-            <button onClick={() => setSidebarOpen(false)} className="ml-auto lg:hidden text-sidebar-foreground">
+            <button onClick={() => setSidebarOpen(false)} className="ml-auto lg:hidden text-sidebar-foreground" aria-label="Chiudi menu">
               <X className="w-5 h-5" />
             </button>
           </div>
