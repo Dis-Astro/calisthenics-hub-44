@@ -203,7 +203,7 @@ const AdminReportsPage = () => {
                           setSelectedReport(report);
                           setResponse(report.coach_response || "");
                         }}
-                        className={`w-full p-3 rounded-lg border text-left transition-colors hover:border-primary/50 ${
+                        className={`w-full p-3 rounded-lg border text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background hover:border-primary/50 hover:shadow-sm ${
                           selectedReport?.id === report.id ? 'border-primary bg-primary/5' : ''
                         }`}
                       >
