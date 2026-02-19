@@ -101,7 +101,10 @@ const PalestraDashboard = () => {
       {/* Simple Header */}
       <header className="bg-card border-b border-border">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="font-display text-xl tracking-wider">AREA CLIENTI</h1>
+          <div className="flex flex-col">
+            <span className="text-xs text-muted-foreground tracking-widest uppercase">Clienti / Dashboard</span>
+            <h1 className="font-display text-xl tracking-wider">AREA CLIENTI</h1>
+          </div>
           <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-destructive" onClick={signOut}>
             <LogOut className="w-4 h-4" />Esci
           </Button>
