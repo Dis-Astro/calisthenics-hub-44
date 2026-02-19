@@ -143,7 +143,7 @@
 ##   run_ui: true
 ## test_plan:
 ##   current_focus:
-##     - "AdminReportsPage empty states testo secondario (opzionale)"
+##     - "Frontend UX enhancements (aria-label, focus ring, empty states AdminReportsPage)"
 ##   stuck_tasks: []
 ##   test_all: false
 ##   test_priority: "high_first"
