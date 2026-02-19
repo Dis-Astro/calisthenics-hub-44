@@ -93,9 +93,12 @@ const CoachLayout = ({ children, title, icon }: CoachLayoutProps) => {
           <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-foreground mr-4">
             <Menu className="w-6 h-6" />
           </button>
-          <div className="flex items-center gap-3">
-            {icon}
-            <h1 className="font-display text-2xl tracking-wider">{title}</h1>
+          <div className="flex flex-col">
+            <span className="text-xs text-muted-foreground tracking-widest uppercase">Coach / {title}</span>
+            <div className="flex items-center gap-3">
+              {icon}
+              <h1 className="font-display text-2xl tracking-wider">{title}</h1>
+            </div>
           </div>
         </header>
 
