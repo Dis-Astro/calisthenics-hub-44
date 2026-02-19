@@ -1,32 +1,24 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Dumbbell, 
-  Calendar, 
+import {
+  Dumbbell,
+  Calendar,
   TrendingUp,
   Play,
-  FileText,
   MessageSquare,
-  LogOut,
-  Menu,
-  X,
-  Flame,
-  Target,
-  Trophy,
-  ChevronRight,
   Clock,
-  Star,
   Loader2,
-  User
+  User,
 } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
-import { format, isSameDay, parseISO, differenceInDays } from "date-fns";
+import { Link } from "react-router-dom";
+import { format, parseISO, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
+import ClientLayout from "@/components/coaching/ClientLayout";
 
 interface WorkoutPlan {
   id: string;
