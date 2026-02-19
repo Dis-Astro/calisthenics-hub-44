@@ -91,7 +91,10 @@ const ClientLayout = ({ children, title }: ClientLayoutProps) => {
                 <Link
                   key={item.label}
                   to={item.href}
-                  className={`flex items-center gap-3 px-4 py-3.5 rounded-lg transition-all duration-200 ${
+                  className={`flex items-center gap-3 px-4 py-3.5 rounded-lg transition-all duration-200
+                    focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background
+                    hover:translate-x-0.5
+                    ${
                     isActive 
                       ? 'bg-gradient-to-r from-primary/20 to-primary/5 text-primary border-l-2 border-primary' 
                       : 'text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-foreground'
