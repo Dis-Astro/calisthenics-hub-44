@@ -54,6 +54,7 @@ const AdminSidebar = ({ isOpen, onClose, showBackLink = false }: AdminSidebarPro
             <button 
               onClick={onClose} 
               className="ml-auto lg:hidden text-sidebar-foreground"
+              aria-label="Chiudi menu"
             >
               <X className="w-5 h-5" />
             </button>
