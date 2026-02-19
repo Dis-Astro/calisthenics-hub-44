@@ -188,7 +188,10 @@ const AdminReportsPage = () => {
                   <Loader2 className="w-6 h-6 animate-spin text-primary" />
                 </div>
               ) : openReports.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">Nessuna segnalazione aperta</p>
+                <div className="flex flex-col items-center gap-2 text-center text-muted-foreground py-8">
+                  <p>Nessuna segnalazione aperta</p>
+                  <p className="text-sm">Le segnalazioni aperte appariranno qui.</p>
+                </div>
               ) : (
                 <div className="space-y-3">
                   {openReports.map(report => {
