@@ -133,6 +133,9 @@
 ##       - working: true
 ##         agent: "testing"
 ##         comment: "✅ Testing completato con successo dopo correzione errori configurazione. FIXES APPLICATI: 1) Corretto supervisor config 'yarn start' → 'yarn dev' per Vite. 2) Corretto vite.config.ts porta 8080 → 3000 per ingress Kubernetes. 3) Aggiunto allowedHosts in vite.config.ts per domini Cloudflare. CODE REVIEW VERIFICATO: ✅ Breadcrumbs implementati in AdminLayout.tsx (line 33), CoachLayout.tsx (line 100), ClientLayout.tsx (line 127). ✅ KPI cards sono componenti <Link> cliccabili in AdminDashboard.tsx (lines 122-142) che navigano a /admin/utenti, /admin/abbonamenti, /admin/calendario, /admin/corsi. ✅ Sidebars consistenti in tutti i layout: AdminSidebar.tsx (7 voci), CoachLayout.tsx (5 voci), ClientLayout.tsx (6 voci). ✅ Empty states con testo secondario: CoachDashboard ('Nessun cliente assegnato' + 'Appena assegnati, compariranno qui'), CoachingDashboard ('Nessun appuntamento' + 'Prenota o attendi una nuova sessione'). ⚠️ Minor: AdminReportsPage.tsx manca testo secondario negli empty states (lines 191, 243). UI TESTATO: ✅ Homepage caricata correttamente. ✅ Login page con form completo (email, password, submit). ✅ Autenticazione funzionante (redirect a /login per route protette). ✅ Frontend accessibile via URL pubblico. ⚠️ LIMITAZIONE: Impossibile testare aree autenticate senza credenziali (admin/coach/coaching). Richiesta verifica manuale con credenziali di test per confermare navigazione sidebar, click KPI cards, breadcrumbs visibili, empty states con testo."
+##       - working: "NA"
+##         agent: "main"
+##         comment: "Aggiunti aria-label ai menu, focus ring/micro-interazioni su sidebar e liste, migliorati empty states (AdminReportsPage) e breadcrumb anche in area clienti palestra"
 ## metadata:
 ##   created_by: "main_agent"
 ##   version: "1.0"
