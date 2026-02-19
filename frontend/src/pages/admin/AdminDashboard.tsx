@@ -123,7 +123,7 @@ const AdminDashboard = () => {
             key={stat.label}
             to={stat.href}
             aria-label={`Vai a ${stat.label}`}
-            className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm"
+            className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-sm"
           >
             <Card className="bg-card border-border cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-sm">
               <CardContent className="p-6">
