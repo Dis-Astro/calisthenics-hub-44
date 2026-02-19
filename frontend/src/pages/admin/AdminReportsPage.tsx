@@ -243,7 +243,10 @@ const AdminReportsPage = () => {
             </CardHeader>
             <CardContent>
               {closedReports.length === 0 ? (
-                <p className="text-center text-muted-foreground py-4">Nessuna segnalazione risolta</p>
+                <div className="flex flex-col items-center gap-2 text-center text-muted-foreground py-4">
+                  <p>Nessuna segnalazione risolta</p>
+                  <p className="text-sm">Lo storico delle segnalazioni risolte apparirà qui.</p>
+                </div>
               ) : (
                 <div className="space-y-2 max-h-60 overflow-y-auto">
                   {closedReports.slice(0, 10).map(report => (
