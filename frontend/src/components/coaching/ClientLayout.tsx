@@ -120,7 +120,7 @@ const ClientLayout = ({ children, title }: ClientLayoutProps) => {
 
       <main className="flex-1 flex flex-col min-h-screen overflow-x-hidden">
         <header className="h-16 bg-gradient-to-r from-card to-background border-b border-border flex items-center px-6">
-          <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-foreground mr-4">
+          <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-foreground mr-4" aria-label="Apri menu">
             <Menu className="w-6 h-6" />
           </button>
           <div className="flex flex-col">
