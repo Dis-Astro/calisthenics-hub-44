@@ -61,7 +61,10 @@ const CoachLayout = ({ children, title, icon }: CoachLayoutProps) => {
                 <Link
                   key={item.label}
                   to={item.href}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-sm transition-colors ${
+                  className={`flex items-center gap-3 px-4 py-3 rounded-sm transition-all duration-200
+                    focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background
+                    hover:translate-x-0.5
+                    ${
                     isActive 
                       ? 'bg-sidebar-accent text-sidebar-primary' 
                       : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
