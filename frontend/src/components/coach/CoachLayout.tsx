@@ -48,7 +48,7 @@ const CoachLayout = ({ children, title, icon }: CoachLayoutProps) => {
               </div>
               <span className="font-display text-xl tracking-wider text-sidebar-foreground">COACH</span>
             </Link>
-            <button onClick={() => setSidebarOpen(false)} className="ml-auto lg:hidden text-sidebar-foreground">
+            <button onClick={() => setSidebarOpen(false)} className="ml-auto lg:hidden text-sidebar-foreground" aria-label="Chiudi menu">
               <X className="w-5 h-5" />
             </button>
           </div>
