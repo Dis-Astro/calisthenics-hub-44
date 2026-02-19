@@ -75,7 +75,8 @@ const AdminSidebar = ({ isOpen, onClose, showBackLink = false }: AdminSidebarPro
           {/* Navigation */}
           <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
             {navigationItems.map((item) => {
-              const isActive = location.pathname === item.href;
+              const isActive = location.pathname === item.href ||
+                (item.href !== "/admin"  location.pathname.startsWith(item.href + "/"));
               return (
                 <Link
                   key={item.label}
