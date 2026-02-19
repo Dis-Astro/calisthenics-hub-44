@@ -253,7 +253,7 @@ const AdminReportsPage = () => {
                     <button
                       key={report.id}
                       onClick={() => setSelectedReport(report)}
-                      className="w-full p-2 rounded text-left text-sm hover:bg-muted/50"
+                      className="w-full p-2 rounded text-left text-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background hover:bg-muted/50 hover:shadow-sm"
                     >
                       <span className="font-medium">{report.title}</span>
                       <span className="text-muted-foreground ml-2">- {report.client_name}</span>
