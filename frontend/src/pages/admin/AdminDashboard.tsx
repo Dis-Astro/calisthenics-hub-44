@@ -125,7 +125,7 @@ const AdminDashboard = () => {
             aria-label={`Vai a ${stat.label}`}
             className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm"
           >
-            <Card className="bg-card border-border transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-sm">
+            <Card className="bg-card border-border cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-sm">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
