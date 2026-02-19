@@ -150,9 +150,6 @@ const CoachingDashboard = () => {
     <ClientLayout title="LA TUA GIORNATA">
       <div className="space-y-6">
 
-
-
-
           {loading ? (
             <div className="flex items-center justify-center py-20">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
