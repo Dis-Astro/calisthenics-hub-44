@@ -167,9 +167,10 @@ const CoachDashboard = () => {
               </CardHeader>
               <CardContent>
                 {myClients.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <div className="flex flex-col items-center gap-2 text-center py-8 text-muted-foreground">
+                    <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
                     <p>Nessun cliente assegnato</p>
+                    <p className="text-sm">Appena assegnati, compariranno qui.</p>
                   </div>
                 ) : (
                   <div className="space-y-2">
