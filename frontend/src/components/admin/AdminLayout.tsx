@@ -26,6 +26,7 @@ const AdminLayout = ({ children, title, icon, showBackLink = false }: AdminLayou
           <button 
             onClick={() => setSidebarOpen(true)} 
             className="lg:hidden text-foreground mr-4"
+            aria-label="Apri menu"
           >
             <Menu className="w-6 h-6" />
           </button>
