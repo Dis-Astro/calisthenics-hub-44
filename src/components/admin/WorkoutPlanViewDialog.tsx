@@ -2,33 +2,40 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Dumbbell } from "lucide-react";
+import { Loader2, Dumbbell, Pause, Play, CheckCircle } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+
+const COLOR_MAP: Record<string, string> = {
+  arancione: "#f97316",
+  azzurro:   "#38bdf8",
+  verde:     "#22c55e",
+  giallo:    "#eab308",
+  rosso:     "#ef4444",
+  blu:       "#3b82f6",
+  viola:     "#a855f7",
+};
+
+function renderColoredText(value: string) {
+  const tokens = value.split(/(\s+)/);
+  return tokens.map((token, i) => {
+    const color = COLOR_MAP[token.toLowerCase().replace(/[^a-zàèéìòù]/gi, "")];
+    if (color) return <span key={i} style={{ color, fontWeight: 700 }}>{token}</span>;
+    return <span key={i}>{token}</span>;
+  });
+}
 
 interface WorkoutPlanExercise {
   id: string;
   day_of_week: number | null;
-  sets: number | null;
-  reps: string | null;
-  notes: string | null;
+  exercise_name: string | null;
   order_index: number;
-  exercise: {
-    id: string;
-    name: string;
-    muscle_group: string | null;
-  };
 }
 
-interface WorkoutPlan {
-  id: string;
-  name: string;
-  description: string | null;
-  coach_notes: string | null;
-  start_date: string;
-  end_date: string;
-  is_active: boolean;
-}
+const dayLabels: Record<number, string> = {
+  1: "Giorno 1", 2: "Giorno 2", 3: "Giorno 3", 4: "Giorno 4",
+  5: "Giorno 5", 6: "Giorno 6", 7: "Giorno 7"
+};
 
 interface WorkoutPlanViewDialogProps {
   planId: string | null;
@@ -36,72 +43,48 @@ interface WorkoutPlanViewDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const dayLabels: Record<number, string> = {
-  1: "Giorno 1",
-  2: "Giorno 2",
-  3: "Giorno 3",
-  4: "Giorno 4",
-  5: "Giorno 5",
-  6: "Giorno 6",
-  7: "Giorno 7"
-};
-
 const WorkoutPlanViewDialog = ({ planId, open, onOpenChange }: WorkoutPlanViewDialogProps) => {
   const [loading, setLoading] = useState(true);
-  const [plan, setPlan] = useState<WorkoutPlan | null>(null);
+  const [plan, setPlan] = useState<any | null>(null);
   const [exercises, setExercises] = useState<WorkoutPlanExercise[]>([]);
 
   useEffect(() => {
-    if (open && planId) {
-      fetchPlanDetails();
-    }
+    if (open && planId) fetchPlanDetails();
   }, [open, planId]);
 
   const fetchPlanDetails = async () => {
     if (!planId) return;
-    
     setLoading(true);
 
     const [planRes, exercisesRes] = await Promise.all([
-      supabase
-        .from("workout_plans")
-        .select("*")
-        .eq("id", planId)
-        .single(),
-      supabase
-        .from("workout_plan_exercises")
-        .select(`
-          id,
-          day_of_week,
-          sets,
-          reps,
-          notes,
-          order_index,
-          exercise_name,
-          exercise:exercises(id, name, muscle_group)
-        `)
+      supabase.from("workout_plans").select("*").eq("id", planId).single(),
+      supabase.from("workout_plan_exercises")
+        .select("id, day_of_week, exercise_name, order_index")
         .eq("workout_plan_id", planId)
-        .order("day_of_week")
-        .order("order_index")
+        .order("day_of_week").order("order_index")
     ]);
 
-    if (planRes.data) {
-      setPlan(planRes.data);
-    }
-    if (exercisesRes.data) {
-      setExercises(exercisesRes.data as unknown as WorkoutPlanExercise[]);
-    }
-    
+    if (planRes.data) setPlan(planRes.data);
+    if (exercisesRes.data) setExercises(exercisesRes.data);
     setLoading(false);
   };
 
-  // Group exercises by day
   const exercisesByDay = exercises.reduce((acc, ex) => {
     const day = ex.day_of_week || 1;
     if (!acc[day]) acc[day] = [];
     acc[day].push(ex);
     return acc;
   }, {} as Record<number, WorkoutPlanExercise[]>);
+
+  const status = plan?.status || (plan?.is_active ? "attiva" : "conclusa");
+  const statusBadge = () => {
+    switch (status) {
+      case "attiva": return <Badge variant="default" className="gap-1"><Play className="w-3 h-3" />Attiva</Badge>;
+      case "in_pausa": return <Badge variant="secondary" className="gap-1 bg-yellow-500/20 text-yellow-700 border-yellow-500/30"><Pause className="w-3 h-3" />In Pausa</Badge>;
+      case "conclusa": return <Badge variant="outline" className="gap-1"><CheckCircle className="w-3 h-3" />Conclusa</Badge>;
+      default: return null;
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -115,7 +98,7 @@ const WorkoutPlanViewDialog = ({ planId, open, onOpenChange }: WorkoutPlanViewDi
             <DialogHeader>
               <div className="flex items-center gap-2">
                 <DialogTitle className="font-display tracking-wider">{plan.name}</DialogTitle>
-                {plan.is_active && <Badge variant="default">Attiva</Badge>}
+                {statusBadge()}
               </div>
               <DialogDescription>
                 Dal {format(new Date(plan.start_date), "d MMMM yyyy", { locale: it })} al {format(new Date(plan.end_date), "d MMMM yyyy", { locale: it })}
@@ -152,30 +135,11 @@ const WorkoutPlanViewDialog = ({ planId, open, onOpenChange }: WorkoutPlanViewDi
                     </div>
                     <div className="divide-y">
                       {dayExercises.map((ex, idx) => (
-                        <div key={ex.id} className="p-3 flex items-center justify-between hover:bg-muted/50">
-                          <div className="flex items-center gap-3">
-                            <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-medium">
-                              {idx + 1}
-                            </span>
-                            <div>
-                              <p className="font-medium">{(ex as any).exercise_name || ex.exercise?.name || "Esercizio"}</p>
-                              {ex.exercise?.muscle_group && (
-                                <Badge variant="outline" className="text-xs mt-0.5">
-                                  {ex.exercise.muscle_group}
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-mono text-sm">
-                              {ex.sets} × {ex.reps}
-                            </p>
-                            {ex.notes && (
-                              <p className="text-xs text-muted-foreground italic max-w-[200px] truncate">
-                                {ex.notes}
-                              </p>
-                            )}
-                          </div>
+                        <div key={ex.id} className="p-3 flex items-center gap-3 hover:bg-muted/50">
+                          <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-medium">
+                            {idx + 1}
+                          </span>
+                          <p className="font-medium">{ex.exercise_name ? renderColoredText(ex.exercise_name) : "Esercizio"}</p>
                         </div>
                       ))}
                     </div>

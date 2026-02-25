@@ -12,11 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { format } from "date-fns";
 import ExerciseNameInput from "@/components/admin/ExerciseNameInput";
 
-interface PlanExercise {
-  exercise_name_free: string;
-  day_of_week: number;
-  sets: number;
-  reps: string;
+interface DayBlock {
+  day_number: number;
+  exercises: { exercise_name_free: string }[];
 }
 
 interface CreateWorkoutPlanDialogProps {
@@ -26,8 +24,6 @@ interface CreateWorkoutPlanDialogProps {
   clientName: string;
   onSuccess: () => void;
 }
-
-const dayLabels = ["Giorno 1", "Giorno 2", "Giorno 3", "Giorno 4", "Giorno 5", "Giorno 6", "Giorno 7"];
 
 const CreateWorkoutPlanDialog = ({
   open,
@@ -47,32 +43,43 @@ const CreateWorkoutPlanDialog = ({
     coach_notes: ""
   });
 
-  const [planExercises, setPlanExercises] = useState<PlanExercise[]>([]);
+  const [days, setDays] = useState<DayBlock[]>([]);
 
   useEffect(() => {
     if (open) {
       setFormData({ name: "", description: "", duration_weeks: "4", coach_notes: "" });
-      setPlanExercises([]);
+      setDays([{ day_number: 1, exercises: [{ exercise_name_free: "" }] }]);
     }
   }, [open]);
 
-  const addExercise = () => {
-    setPlanExercises(prev => [
-      ...prev,
-      { exercise_name_free: "", day_of_week: 1, sets: 3, reps: "10" }
-    ]);
+  const addDay = () => {
+    const nextDay = days.length > 0 ? Math.max(...days.map(d => d.day_number)) + 1 : 1;
+    setDays(prev => [...prev, { day_number: nextDay, exercises: [{ exercise_name_free: "" }] }]);
   };
 
-  const removeExercise = (index: number) => {
-    setPlanExercises(prev => prev.filter((_, i) => i !== index));
+  const removeDay = (dayIndex: number) => {
+    setDays(prev => prev.filter((_, i) => i !== dayIndex));
   };
 
-  const updateExercise = (index: number, field: keyof PlanExercise, value: string | number) => {
-    setPlanExercises(prev => {
-      const updated = [...prev];
-      updated[index] = { ...updated[index], [field]: value };
-      return updated;
-    });
+  const addExerciseToDay = (dayIndex: number) => {
+    setDays(prev => prev.map((day, i) => 
+      i === dayIndex ? { ...day, exercises: [...day.exercises, { exercise_name_free: "" }] } : day
+    ));
+  };
+
+  const removeExerciseFromDay = (dayIndex: number, exIndex: number) => {
+    setDays(prev => prev.map((day, i) => 
+      i === dayIndex ? { ...day, exercises: day.exercises.filter((_, j) => j !== exIndex) } : day
+    ));
+  };
+
+  const updateExerciseName = (dayIndex: number, exIndex: number, value: string) => {
+    setDays(prev => prev.map((day, i) => {
+      if (i !== dayIndex) return day;
+      const exercises = [...day.exercises];
+      exercises[exIndex] = { ...exercises[exIndex], exercise_name_free: value };
+      return { ...day, exercises };
+    }));
   };
 
   const handleSubmit = async () => {
@@ -80,12 +87,13 @@ const CreateWorkoutPlanDialog = ({
       toast({ title: "Errore", description: "Inserisci un nome per la scheda", variant: "destructive" });
       return;
     }
-    if (planExercises.length === 0) {
+    const allExercises = days.flatMap(d => d.exercises);
+    if (allExercises.length === 0) {
       toast({ title: "Errore", description: "Aggiungi almeno un esercizio", variant: "destructive" });
       return;
     }
-    const invalidExercises = planExercises.filter(e => !e.exercise_name_free.trim());
-    if (invalidExercises.length > 0) {
+    const invalid = allExercises.filter(e => !e.exercise_name_free.trim());
+    if (invalid.length > 0) {
       toast({ title: "Errore", description: "Scrivi il nome per ogni esercizio", variant: "destructive" });
       return;
     }
@@ -108,7 +116,7 @@ const CreateWorkoutPlanDialog = ({
         start_date: format(startDate, "yyyy-MM-dd"),
         end_date: format(endDate, "yyyy-MM-dd"),
         is_active: true
-      })
+      } as any)
       .select()
       .single();
 
@@ -118,16 +126,19 @@ const CreateWorkoutPlanDialog = ({
       return;
     }
 
-    const exercisesToInsert = planExercises.map((ex, index) => ({
-      workout_plan_id: plan.id,
-      exercise_id: null,
-      exercise_name: ex.exercise_name_free.trim(),
-      day_of_week: ex.day_of_week,
-      sets: ex.sets,
-      reps: ex.reps,
-      notes: null,
-      order_index: index
-    }));
+    let orderIndex = 0;
+    const exercisesToInsert = days.flatMap(day =>
+      day.exercises.map(ex => ({
+        workout_plan_id: plan.id,
+        exercise_id: null,
+        exercise_name: ex.exercise_name_free.trim(),
+        day_of_week: day.day_number,
+        sets: null,
+        reps: null,
+        notes: null,
+        order_index: orderIndex++
+      }))
+    );
 
     const { error: exercisesError } = await supabase
       .from("workout_plan_exercises")
@@ -185,68 +196,51 @@ const CreateWorkoutPlanDialog = ({
             <Textarea value={formData.coach_notes} onChange={(e) => setFormData({ ...formData, coach_notes: e.target.value })} placeholder="Note tecniche che il cliente vedrà..." rows={2} />
           </div>
 
-          {/* Esercizi */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <Label className="text-base">Esercizi della Scheda</Label>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Scrivi liberamente — includi il colore dell'elastico nel nome (es. "Elastico arancione - Squat")
-                </p>
-              </div>
-              <Button type="button" variant="outline" size="sm" onClick={addExercise} className="gap-2">
-                <Plus className="w-4 h-4" />
-                Aggiungi
-              </Button>
+          {/* Days + Exercises */}
+          <div className="space-y-4">
+            <div>
+              <Label className="text-base">Giorni ed Esercizi</Label>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Scrivi liberamente — includi serie, rep e colore elastico nel nome (es. "3x12 Squat elastico arancione")
+              </p>
             </div>
 
-            {planExercises.length === 0 ? (
-              <div className="text-center py-8 border-2 border-dashed rounded-lg text-muted-foreground">
-                <p className="text-sm">Nessun esercizio aggiunto</p>
-                <Button type="button" variant="ghost" size="sm" onClick={addExercise} className="mt-2">
-                  + Aggiungi il primo esercizio
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {planExercises.map((ex, index) => (
-                  <div key={index} className="p-3 border rounded-lg space-y-2 bg-muted/30">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-muted-foreground w-5">#{index + 1}</span>
+            {days.map((day, dayIndex) => (
+              <div key={dayIndex} className="border rounded-lg overflow-hidden">
+                <div className="bg-muted px-4 py-2 flex items-center justify-between">
+                  <h4 className="font-medium text-sm">Giorno {day.day_number}</h4>
+                  {days.length > 1 && (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => removeDay(dayIndex)} className="h-7 text-destructive hover:text-destructive">
+                      <Trash2 className="w-3 h-3 mr-1" /> Rimuovi giorno
+                    </Button>
+                  )}
+                </div>
+                <div className="p-3 space-y-2">
+                  {day.exercises.map((ex, exIndex) => (
+                    <div key={exIndex} className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-muted-foreground w-5">#{exIndex + 1}</span>
                       <ExerciseNameInput
                         value={ex.exercise_name_free}
-                        onChange={(val) => updateExercise(index, "exercise_name_free", val)}
+                        onChange={(val) => updateExerciseName(dayIndex, exIndex, val)}
+                        placeholder="Es. 3x12 Squat elastico arancione"
                       />
-                      <Button type="button" variant="ghost" size="icon" onClick={() => removeExercise(index)}>
-                        <Trash2 className="w-4 h-4 text-destructive" />
-                      </Button>
+                      {day.exercises.length > 1 && (
+                        <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeExerciseFromDay(dayIndex, exIndex)}>
+                          <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                        </Button>
+                      )}
                     </div>
-
-                    <div className="grid grid-cols-3 gap-2 pl-7">
-                      <div className="space-y-1">
-                        <Label className="text-xs">Giorno</Label>
-                        <Select value={ex.day_of_week.toString()} onValueChange={(v) => updateExercise(index, "day_of_week", parseInt(v))}>
-                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {dayLabels.map((label, i) => (
-                              <SelectItem key={i} value={(i + 1).toString()}>{label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Serie</Label>
-                        <Input type="number" value={ex.sets} onChange={(e) => updateExercise(index, "sets", parseInt(e.target.value) || 3)} min={1} className="h-8 text-sm" />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Ripetizioni</Label>
-                        <Input value={ex.reps} onChange={(e) => updateExercise(index, "reps", e.target.value)} placeholder="10-12" className="h-8 text-sm" />
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                  <Button type="button" variant="ghost" size="sm" onClick={() => addExerciseToDay(dayIndex)} className="gap-1 text-primary w-full justify-center mt-1">
+                    <Plus className="w-3.5 h-3.5" /> Nuovo esercizio
+                  </Button>
+                </div>
               </div>
-            )}
+            ))}
+
+            <Button type="button" variant="outline" onClick={addDay} className="w-full gap-2 sticky bottom-0 bg-background z-10">
+              <Plus className="w-4 h-4" /> Aggiungi Giorno
+            </Button>
           </div>
         </div>
 

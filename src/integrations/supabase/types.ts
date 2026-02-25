@@ -743,7 +743,10 @@ export type Database = {
           id: string
           is_active: boolean
           name: string
+          paused_at: string | null
           start_date: string
+          status: Database["public"]["Enums"]["workout_plan_status"]
+          total_paused_days: number
           updated_at: string
         }
         Insert: {
@@ -756,7 +759,10 @@ export type Database = {
           id?: string
           is_active?: boolean
           name: string
+          paused_at?: string | null
           start_date?: string
+          status?: Database["public"]["Enums"]["workout_plan_status"]
+          total_paused_days?: number
           updated_at?: string
         }
         Update: {
@@ -769,7 +775,10 @@ export type Database = {
           id?: string
           is_active?: boolean
           name?: string
+          paused_at?: string | null
           start_date?: string
+          status?: Database["public"]["Enums"]["workout_plan_status"]
+          total_paused_days?: number
           updated_at?: string
         }
         Relationships: []
@@ -800,6 +809,7 @@ export type Database = {
       payment_status: "completato" | "in_attesa" | "fallito" | "rimborsato"
       subscription_status: "attivo" | "scaduto" | "sospeso" | "cancellato"
       user_role: "admin" | "coach" | "cliente_palestra" | "cliente_coaching"
+      workout_plan_status: "attiva" | "in_pausa" | "conclusa"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -931,6 +941,7 @@ export const Constants = {
       payment_status: ["completato", "in_attesa", "fallito", "rimborsato"],
       subscription_status: ["attivo", "scaduto", "sospeso", "cancellato"],
       user_role: ["admin", "coach", "cliente_palestra", "cliente_coaching"],
+      workout_plan_status: ["attiva", "in_pausa", "conclusa"],
     },
   },
 } as const
