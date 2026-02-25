@@ -1,334 +1,181 @@
 import { useState, useEffect } from "react";
-import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
 import { 
   MessageSquare, 
   User,
-  Calendar,
   Loader2,
-  CheckCircle,
-  Clock,
-  AlertCircle,
-  Send
+  Zap,
+  Dumbbell,
+  Calendar
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
-import { useToast } from "@/hooks/use-toast";
-import type { Database } from "@/integrations/supabase/types";
 
-type ErrorReportStatus = Database["public"]["Enums"]["error_report_status"];
-
-interface ErrorReport {
+interface FeedbackItem {
   id: string;
-  title: string;
-  description: string;
-  status: ErrorReportStatus;
-  reported_at: string;
-  resolved_at: string | null;
-  coach_response: string | null;
+  client_notes: string | null;
+  difficulty_rating: number | null;
+  completed_at: string;
+  set_number: number;
   client_id: string;
-  coach_id: string;
-  client_name?: string;
-  coach_name?: string;
-  exercise_name?: string;
+  client_name: string;
+  coach_name: string;
+  exercise_name: string;
+  plan_name: string;
 }
 
-const statusConfig: Record<ErrorReportStatus, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon: typeof AlertCircle }> = {
-  aperta: { label: "Aperta", variant: "destructive", icon: AlertCircle },
-  in_lavorazione: { label: "In lavorazione", variant: "secondary", icon: Clock },
-  risolta: { label: "Risolta", variant: "default", icon: CheckCircle },
-  chiusa: { label: "Chiusa", variant: "outline", icon: CheckCircle },
-};
-
 const AdminReportsPage = () => {
-  const { profile } = useAuth();
-  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
-  const [reports, setReports] = useState<ErrorReport[]>([]);
-  const [selectedReport, setSelectedReport] = useState<ErrorReport | null>(null);
-  const [response, setResponse] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>([]);
 
   useEffect(() => {
-    fetchReports();
+    fetchFeedbacks();
   }, []);
 
-  const fetchReports = async () => {
+  const fetchFeedbacks = async () => {
     setLoading(true);
-    
-    // Admin can see ALL reports
-    const { data: reportsData } = await supabase
-      .from("error_reports")
-      .select("*")
-      .order("reported_at", { ascending: false });
 
-    if (reportsData && reportsData.length > 0) {
-      // Get all unique user IDs (clients and coaches)
-      const clientIds = [...new Set(reportsData.map(r => r.client_id))];
-      const coachIds = [...new Set(reportsData.map(r => r.coach_id))];
-      const allUserIds = [...new Set([...clientIds, ...coachIds])];
+    // Get all workout plans
+    const { data: plans } = await supabase
+      .from("workout_plans")
+      .select("id, name, client_id, coach_id");
 
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, first_name, last_name")
-        .in("user_id", allUserIds);
-
-      const userMap = new Map(profiles?.map(p => [p.user_id, `${p.first_name} ${p.last_name}`]) || []);
-
-      setReports(reportsData.map(r => ({
-        ...r,
-        client_name: userMap.get(r.client_id) || "Cliente",
-        coach_name: userMap.get(r.coach_id) || "Coach"
-      })));
-    } else {
-      setReports([]);
-    }
-
-    setLoading(false);
-  };
-
-  const handleRespond = async (reportId: string, newStatus: ErrorReportStatus) => {
-    if (!response.trim() && newStatus !== "chiusa") {
-      toast({ title: "Errore", description: "Inserisci una risposta", variant: "destructive" });
+    if (!plans || plans.length === 0) {
+      setFeedbacks([]);
+      setLoading(false);
       return;
     }
 
-    setSaving(true);
+    const planIds = plans.map(p => p.id);
+    const allUserIds = [...new Set([...plans.map(p => p.client_id), ...plans.map(p => p.coach_id)])];
 
-    const updateData: {
-      status: ErrorReportStatus;
-      coach_response: string | null;
-      resolved_at: string | null;
-    } = {
-      status: newStatus,
-      coach_response: response.trim() || selectedReport?.coach_response || null,
-      resolved_at: newStatus === "risolta" ? new Date().toISOString() : null
-    };
+    const { data: exercises } = await supabase
+      .from("workout_plan_exercises")
+      .select("id, exercise_name, workout_plan_id")
+      .in("workout_plan_id", planIds);
 
-    const { error } = await supabase
-      .from("error_reports")
-      .update(updateData)
-      .eq("id", reportId);
-
-    if (error) {
-      toast({ title: "Errore", description: "Impossibile aggiornare la segnalazione", variant: "destructive" });
-    } else {
-      toast({ title: "Successo", description: "Segnalazione aggiornata" });
-      setSelectedReport(null);
-      setResponse("");
-      fetchReports();
+    if (!exercises || exercises.length === 0) {
+      setFeedbacks([]);
+      setLoading(false);
+      return;
     }
 
-    setSaving(false);
+    const exerciseIds = exercises.map(e => e.id);
+
+    const { data: completions } = await supabase
+      .from("workout_completions")
+      .select("*")
+      .in("workout_plan_exercise_id", exerciseIds)
+      .not("client_notes", "is", null)
+      .order("completed_at", { ascending: false });
+
+    const { data: ratedOnly } = await supabase
+      .from("workout_completions")
+      .select("*")
+      .in("workout_plan_exercise_id", exerciseIds)
+      .is("client_notes", null)
+      .not("difficulty_rating", "is", null)
+      .gt("difficulty_rating", 0)
+      .order("completed_at", { ascending: false });
+
+    const allCompletions = [...(completions || []), ...(ratedOnly || [])];
+
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("user_id, first_name, last_name")
+      .in("user_id", allUserIds);
+
+    const userMap = new Map(profiles?.map(p => [p.user_id, `${p.first_name} ${p.last_name}`]) || []);
+    const exerciseMap = new Map(exercises.map(e => [e.id, { name: e.exercise_name || "Esercizio", planId: e.workout_plan_id }]));
+    const planMap = new Map(plans.map(p => [p.id, { name: p.name, clientId: p.client_id, coachId: p.coach_id }]));
+
+    const items: FeedbackItem[] = allCompletions.map(c => {
+      const ex = exerciseMap.get(c.workout_plan_exercise_id);
+      const plan = ex ? planMap.get(ex.planId) : null;
+      return {
+        id: c.id,
+        client_notes: c.client_notes,
+        difficulty_rating: c.difficulty_rating,
+        completed_at: c.completed_at,
+        set_number: c.set_number,
+        client_id: c.client_id,
+        client_name: userMap.get(c.client_id) || "Cliente",
+        coach_name: plan ? (userMap.get(plan.coachId) || "Coach") : "Coach",
+        exercise_name: ex?.name || "Esercizio",
+        plan_name: plan?.name || "Scheda",
+      };
+    });
+
+    items.sort((a, b) => new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime());
+    setFeedbacks(items);
+    setLoading(false);
   };
 
-  const openReports = reports.filter(r => r.status === "aperta" || r.status === "in_lavorazione");
-  const closedReports = reports.filter(r => r.status === "risolta" || r.status === "chiusa");
+  const renderRating = (rating: number | null) => {
+    if (!rating) return null;
+    return (
+      <div className="flex items-center gap-1">
+        {Array.from({ length: 10 }, (_, i) => (
+          <Zap key={i} className={`w-3 h-3 ${i < rating ? 'text-primary fill-primary' : 'text-muted-foreground/30'}`} />
+        ))}
+        <span className="text-xs text-muted-foreground ml-1">{rating}/10</span>
+      </div>
+    );
+  };
 
   return (
-    <AdminLayout title="SEGNALAZIONI" icon={<MessageSquare className="w-6 h-6" />}>
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <Card>
-          <CardContent className="p-4 flex items-center gap-4">
-            <AlertCircle className="w-10 h-10 text-destructive" />
-            <div>
-              <p className="text-2xl font-display">{openReports.length}</p>
-              <p className="text-sm text-muted-foreground">Aperte</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-4">
-            <Clock className="w-10 h-10 text-yellow-500" />
-            <div>
-              <p className="text-2xl font-display">{reports.filter(r => r.status === "in_lavorazione").length}</p>
-              <p className="text-sm text-muted-foreground">In Lavorazione</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-4">
-            <CheckCircle className="w-10 h-10 text-green-500" />
-            <div>
-              <p className="text-2xl font-display">{closedReports.length}</p>
-              <p className="text-sm text-muted-foreground">Risolte</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-4">
-            <MessageSquare className="w-10 h-10 text-primary" />
-            <div>
-              <p className="text-2xl font-display">{reports.length}</p>
-              <p className="text-sm text-muted-foreground">Totali</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Reports List */}
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-display tracking-wider flex items-center gap-2">
-                <AlertCircle className="w-5 h-5 text-destructive" />
-                Segnalazioni Aperte ({openReports.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                </div>
-              ) : openReports.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">Nessuna segnalazione aperta</p>
-              ) : (
-                <div className="space-y-3">
-                  {openReports.map(report => {
-                    const config = statusConfig[report.status];
-                    return (
-                      <button
-                        key={report.id}
-                        onClick={() => {
-                          setSelectedReport(report);
-                          setResponse(report.coach_response || "");
-                        }}
-                        className={`w-full p-3 rounded-lg border text-left transition-colors hover:border-primary/50 ${
-                          selectedReport?.id === report.id ? 'border-primary bg-primary/5' : ''
-                        }`}
-                      >
-                        <div className="flex items-start justify-between mb-2">
-                          <h4 className="font-medium">{report.title}</h4>
-                          <Badge variant={config.variant} className="gap-1">
-                            <config.icon className="w-3 h-3" />
-                            {config.label}
-                          </Badge>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <User className="w-3 h-3" />
-                            {report.client_name}
-                          </span>
-                          <span className="text-muted-foreground/50">→</span>
-                          <span>{report.coach_name}</span>
-                          <span className="flex items-center gap-1">
-                            <Calendar className="w-3 h-3" />
-                            {format(parseISO(report.reported_at), "dd/MM/yyyy HH:mm", { locale: it })}
-                          </span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-display tracking-wider flex items-center gap-2">
-                <CheckCircle className="w-5 h-5 text-green-500" />
-                Risolte ({closedReports.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {closedReports.length === 0 ? (
-                <p className="text-center text-muted-foreground py-4">Nessuna segnalazione risolta</p>
-              ) : (
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {closedReports.slice(0, 10).map(report => (
-                    <button
-                      key={report.id}
-                      onClick={() => setSelectedReport(report)}
-                      className="w-full p-2 rounded text-left text-sm hover:bg-muted/50"
-                    >
-                      <span className="font-medium">{report.title}</span>
-                      <span className="text-muted-foreground ml-2">- {report.client_name}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+    <AdminLayout title="FEEDBACK CLIENTI" icon={<MessageSquare className="w-6 h-6" />}>
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
-
-        {/* Report Detail */}
+      ) : feedbacks.length === 0 ? (
         <Card>
-          <CardHeader>
-            <CardTitle className="font-display tracking-wider">
-              {selectedReport ? "Dettaglio Segnalazione" : "Seleziona una segnalazione"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {!selectedReport ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <MessageSquare className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p>Clicca su una segnalazione per visualizzarla</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-lg font-medium">{selectedReport.title}</h3>
-                  <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mt-1">
-                    <span><strong>Cliente:</strong> {selectedReport.client_name}</span>
-                    <span><strong>Coach:</strong> {selectedReport.coach_name}</span>
-                    <span>{format(parseISO(selectedReport.reported_at), "dd MMMM yyyy 'alle' HH:mm", { locale: it })}</span>
-                  </div>
-                </div>
-
-                <div className="p-4 bg-muted/30 rounded-lg">
-                  <p className="text-sm font-medium text-muted-foreground mb-1">Descrizione del problema:</p>
-                  <p>{selectedReport.description}</p>
-                </div>
-
-                {selectedReport.coach_response && (
-                  <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
-                    <p className="text-sm font-medium text-primary mb-1">Risposta del coach:</p>
-                    <p>{selectedReport.coach_response}</p>
-                  </div>
-                )}
-
-                {(selectedReport.status === "aperta" || selectedReport.status === "in_lavorazione") && (
-                  <>
-                    <Textarea
-                      placeholder="Scrivi la risposta..."
-                      value={response}
-                      onChange={(e) => setResponse(e.target.value)}
-                      rows={4}
-                    />
-                    <div className="flex gap-2">
-                      <Button 
-                        onClick={() => handleRespond(selectedReport.id, "in_lavorazione")}
-                        variant="outline"
-                        disabled={saving}
-                      >
-                        {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                        <Clock className="w-4 h-4 mr-2" />
-                        In Lavorazione
-                      </Button>
-                      <Button 
-                        onClick={() => handleRespond(selectedReport.id, "risolta")}
-                        disabled={saving || !response.trim()}
-                      >
-                        {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                        <Send className="w-4 h-4 mr-2" />
-                        Rispondi e Risolvi
-                      </Button>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
+          <CardContent className="py-12 text-center text-muted-foreground">
+            <MessageSquare className="w-12 h-12 mx-auto mb-4 opacity-50" />
+            <p>Nessun feedback ricevuto</p>
           </CardContent>
         </Card>
-      </div>
+      ) : (
+        <div className="space-y-3">
+          {feedbacks.map(fb => (
+            <Card key={fb.id} className="hover:border-primary/30 transition-colors">
+              <CardContent className="p-4">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                  <div className="flex-1 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="outline" className="gap-1">
+                        <User className="w-3 h-3" />
+                        {fb.client_name}
+                      </Badge>
+                      <Badge variant="secondary" className="gap-1">
+                        <Dumbbell className="w-3 h-3" />
+                        {fb.exercise_name}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        Settimana {fb.set_number} • {fb.plan_name} • Coach: {fb.coach_name}
+                      </span>
+                    </div>
+                    {fb.difficulty_rating && fb.difficulty_rating > 0 && renderRating(fb.difficulty_rating)}
+                    {fb.client_notes && (
+                      <p className="text-sm bg-muted/50 rounded-lg p-3 border border-border">
+                        {fb.client_notes}
+                      </p>
+                    )}
+                  </div>
+                  <span className="text-xs text-muted-foreground flex items-center gap-1 whitespace-nowrap">
+                    <Calendar className="w-3 h-3" />
+                    {format(parseISO(fb.completed_at), "dd MMM yyyy", { locale: it })}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </AdminLayout>
   );
 };
