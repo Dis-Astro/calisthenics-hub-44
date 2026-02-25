@@ -12,23 +12,29 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { 
-  Loader2, 
-  ArrowLeft, 
-  Play, 
-  MessageSquare,
-  CheckCircle2,
-  Save,
-  ChevronDown,
-  ChevronUp
+  Loader2, ArrowLeft, Play, MessageSquare,
+  CheckCircle2, Save, ChevronDown, ChevronUp
 } from "lucide-react";
 import { toast } from "sonner";
 import LightningRating from "./LightningRating";
 
-interface Exercise {
-  id: string;
-  name: string;
-  description: string | null;
-  muscle_group: string | null;
+const COLOR_MAP: Record<string, string> = {
+  arancione: "#f97316",
+  azzurro:   "#38bdf8",
+  verde:     "#22c55e",
+  giallo:    "#eab308",
+  rosso:     "#ef4444",
+  blu:       "#3b82f6",
+  viola:     "#a855f7",
+};
+
+function renderColoredText(value: string) {
+  const tokens = value.split(/(\s+)/);
+  return tokens.map((token, i) => {
+    const color = COLOR_MAP[token.toLowerCase().replace(/[^a-zàèéìòù]/gi, "")];
+    if (color) return <span key={i} style={{ color, fontWeight: 700 }}>{token}</span>;
+    return <span key={i}>{token}</span>;
+  });
 }
 
 interface ExerciseVideo {
@@ -39,12 +45,10 @@ interface ExerciseVideo {
 
 interface WorkoutPlanExercise {
   id: string;
-  sets: number | null;
-  reps: string | null;
   notes: string | null;
   rest_seconds: number | null;
   order_index: number;
-  exercise: Exercise;
+  exercise_name: string | null;
   video: ExerciseVideo | null;
 }
 
@@ -80,28 +84,22 @@ const WorkoutDayDetail = () => {
 
   const dayNumber = parseInt(dayId || "1");
 
-  // Calculate current week number based on plan start date
   const calculateCurrentWeek = (startDate: string): number => {
     const start = new Date(startDate);
     const today = new Date();
-    const diffTime = today.getTime() - start.getTime();
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    const diffDays = Math.floor((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
     return Math.max(1, Math.floor(diffDays / 7) + 1);
   };
 
-  // Calculate total weeks in the plan
   const calculateTotalWeeks = (startDate: string, endDate: string): number => {
     const start = new Date(startDate);
     const end = new Date(endDate);
-    const diffTime = end.getTime() - start.getTime();
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    const diffDays = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
     return Math.max(1, Math.ceil(diffDays / 7));
   };
 
   useEffect(() => {
-    if (profile?.user_id) {
-      fetchDayExercises();
-    }
+    if (profile?.user_id) fetchDayExercises();
   }, [profile?.user_id, dayId]);
 
   const fetchDayExercises = async () => {
@@ -109,7 +107,7 @@ const WorkoutDayDetail = () => {
     const userId = profile?.user_id;
     const today = new Date().toISOString().split('T')[0];
 
-    // Fetch active workout plan with dates
+    // Fetch active workout plan - check status field too
     const { data: plans } = await supabase
       .from("workout_plans")
       .select("id, name, start_date, end_date")
@@ -133,26 +131,14 @@ const WorkoutDayDetail = () => {
     setTotalWeeks(weeks);
     setCurrentWeek(current);
 
-    // Fetch exercises for this day
     const { data: planExercises } = await supabase
       .from("workout_plan_exercises")
-      .select(`
-        id,
-        sets,
-        reps,
-        notes,
-        rest_seconds,
-        order_index,
-        exercise_name,
-        exercise:exercises(id, name, description, muscle_group),
-        video:exercise_videos(id, title, video_url)
-      `)
+      .select(`id, notes, rest_seconds, order_index, exercise_name, video:exercise_videos(id, title, video_url)`)
       .eq("workout_plan_id", activePlan.id)
       .eq("day_of_week", dayNumber)
       .order("order_index");
 
     if (planExercises) {
-      // Fetch existing completions (now using set_number as week_number)
       const exerciseIds = planExercises.map(e => e.id);
       const { data: completions } = await supabase
         .from("workout_completions")
@@ -160,11 +146,8 @@ const WorkoutDayDetail = () => {
         .eq("client_id", userId!)
         .in("workout_plan_exercise_id", exerciseIds);
 
-      // Map exercises with their week completions
       const exercisesWithWeeks: ExerciseWithWeeks[] = planExercises.map(ex => {
         const existingCompletions = completions?.filter(c => c.workout_plan_exercise_id === ex.id) || [];
-        
-        // Create week slots for all weeks of the plan
         const weekCompletions: WeekCompletion[] = [];
         for (let w = 1; w <= weeks; w++) {
           const existing = existingCompletions.find(c => c.set_number === w);
@@ -177,16 +160,9 @@ const WorkoutDayDetail = () => {
           });
         }
 
-        // Usa exercise_name libero se disponibile, altrimenti il nome dal DB
-        const exerciseFromDB = ex.exercise as unknown as Exercise | null;
-        const exerciseName = (ex as any).exercise_name || exerciseFromDB?.name || "Esercizio";
-        const exerciseObj: Exercise = exerciseFromDB
-          ? { ...exerciseFromDB, name: exerciseName }
-          : { id: ex.id, name: exerciseName, description: null, muscle_group: null };
-
         return {
           ...ex,
-          exercise: exerciseObj,
+          exercise_name: (ex as any).exercise_name || "Esercizio",
           video: ex.video as unknown as ExerciseVideo | null,
           weekCompletions
         };
@@ -201,11 +177,8 @@ const WorkoutDayDetail = () => {
   const toggleExercise = (exerciseId: string) => {
     setOpenExercises(prev => {
       const newSet = new Set(prev);
-      if (newSet.has(exerciseId)) {
-        newSet.delete(exerciseId);
-      } else {
-        newSet.add(exerciseId);
-      }
+      if (newSet.has(exerciseId)) newSet.delete(exerciseId);
+      else newSet.add(exerciseId);
       return newSet;
     });
   };
@@ -213,13 +186,7 @@ const WorkoutDayDetail = () => {
   const updateWeekCompletion = (exerciseId: string, weekNumber: number, field: 'client_notes' | 'difficulty_rating', value: string | number) => {
     setExercises(prev => prev.map(ex => {
       if (ex.id !== exerciseId) return ex;
-      return {
-        ...ex,
-        weekCompletions: ex.weekCompletions.map(week => {
-          if (week.week_number !== weekNumber) return week;
-          return { ...week, [field]: value, saved: false };
-        })
-      };
+      return { ...ex, weekCompletions: ex.weekCompletions.map(week => week.week_number !== weekNumber ? week : { ...week, [field]: value, saved: false }) };
     }));
   };
 
@@ -232,63 +199,32 @@ const WorkoutDayDetail = () => {
 
     try {
       if (weekData.id) {
-        // Update existing
-        await supabase
-          .from("workout_completions")
-          .update({
-            client_notes: weekData.client_notes,
-            difficulty_rating: weekData.difficulty_rating
-          })
-          .eq("id", weekData.id);
+        await supabase.from("workout_completions").update({ client_notes: weekData.client_notes, difficulty_rating: weekData.difficulty_rating }).eq("id", weekData.id);
       } else {
-        // Insert new - using set_number field to store week_number
-        const { data } = await supabase
-          .from("workout_completions")
-          .insert({
-            workout_plan_exercise_id: exerciseId,
-            client_id: profile.user_id,
-            set_number: weekNumber, // Reusing set_number as week_number
-            client_notes: weekData.client_notes,
-            difficulty_rating: weekData.difficulty_rating
-          })
-          .select()
-          .single();
+        const { data } = await supabase.from("workout_completions").insert({
+          workout_plan_exercise_id: exerciseId,
+          client_id: profile.user_id,
+          set_number: weekNumber,
+          client_notes: weekData.client_notes,
+          difficulty_rating: weekData.difficulty_rating
+        }).select().single();
 
         if (data) {
           setExercises(prev => prev.map(ex => {
             if (ex.id !== exerciseId) return ex;
-            return {
-              ...ex,
-              weekCompletions: ex.weekCompletions.map(week => {
-                if (week.week_number !== weekNumber) return week;
-                return { ...week, id: data.id, saved: true };
-              })
-            };
+            return { ...ex, weekCompletions: ex.weekCompletions.map(week => week.week_number !== weekNumber ? week : { ...week, id: data.id, saved: true }) };
           }));
         }
       }
 
       toast.success("Salvato!");
-      
-      // Mark as saved
       setExercises(prev => prev.map(ex => {
         if (ex.id !== exerciseId) return ex;
-        return {
-          ...ex,
-          weekCompletions: ex.weekCompletions.map(week => {
-            if (week.week_number !== weekNumber) return week;
-            return { ...week, saved: true };
-          })
-        };
+        return { ...ex, weekCompletions: ex.weekCompletions.map(week => week.week_number !== weekNumber ? week : { ...week, saved: true }) };
       }));
 
-      // Auto-close accordion after saving
-      setOpenExercises(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(exerciseId);
-        return newSet;
-      });
-    } catch (error) {
+      setOpenExercises(prev => { const newSet = new Set(prev); newSet.delete(exerciseId); return newSet; });
+    } catch {
       toast.error("Errore nel salvataggio");
     }
 
@@ -301,37 +237,24 @@ const WorkoutDayDetail = () => {
     return { completed, total, isComplete: completed === total };
   };
 
-  // Check if a week can be rated (only current or past weeks)
-  const canRateWeek = (weekNumber: number): boolean => {
-    return weekNumber <= currentWeek;
-  };
+  const canRateWeek = (weekNumber: number): boolean => weekNumber <= currentWeek;
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
+    return <div className="flex items-center justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
   }
 
   return (
     <div className="max-w-2xl mx-auto space-y-4">
-      {/* Header */}
       <div className="flex items-center gap-4">
         <Link to="/coaching/scheda">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
+          <Button variant="ghost" size="icon"><ArrowLeft className="w-5 h-5" /></Button>
         </Link>
         <div>
           <h1 className="font-display text-3xl tracking-wider">Giorno {dayNumber}</h1>
-          <p className="text-sm text-muted-foreground">
-            {plan?.name} • Settimana {currentWeek} di {totalWeeks}
-          </p>
+          <p className="text-sm text-muted-foreground">{plan?.name} • Settimana {currentWeek} di {totalWeeks}</p>
         </div>
       </div>
 
-      {/* Exercises List - Collapsible */}
       <div className="space-y-3">
         {exercises.map((exercise, index) => {
           const status = getExerciseCompletionStatus(exercise);
@@ -340,7 +263,6 @@ const WorkoutDayDetail = () => {
           return (
             <Collapsible key={exercise.id} open={isOpen} onOpenChange={() => toggleExercise(exercise.id)}>
               <Card className="overflow-hidden border-border">
-                {/* Exercise Header - Always visible, clickable */}
                 <CollapsibleTrigger className="w-full">
                   <div className="bg-gradient-to-r from-card to-muted/30 p-4 flex items-center justify-between cursor-pointer hover:bg-muted/50 transition-colors">
                     <div className="flex items-center gap-4 text-left">
@@ -348,149 +270,70 @@ const WorkoutDayDetail = () => {
                         <span className="font-display text-lg text-primary">{index + 1}</span>
                       </div>
                       <div>
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <Badge variant="outline" className="text-xs">
-                            {exercise.exercise.muscle_group || "Generale"}
+                        {status.isComplete && (
+                          <Badge variant="default" className="text-xs gap-1 mb-0.5">
+                            <CheckCircle2 className="w-3 h-3" /> Tutte le settimane
                           </Badge>
-                          {status.isComplete && (
-                            <Badge variant="default" className="text-xs gap-1">
-                              <CheckCircle2 className="w-3 h-3" />
-                              Tutte le settimane
-                            </Badge>
-                          )}
-                        </div>
+                        )}
                         <h3 className="font-display text-lg tracking-wider">
-                          {exercise.exercise.name}
+                          {exercise.exercise_name ? renderColoredText(exercise.exercise_name) : "Esercizio"}
                         </h3>
-                        <p className="text-primary font-medium text-sm">
-                          {exercise.sets}x{exercise.reps}
-                          <span className="text-muted-foreground ml-2">
-                            ({status.completed}/{status.total} sett. valutate)
-                          </span>
+                        <p className="text-muted-foreground text-sm">
+                          ({status.completed}/{status.total} sett. valutate)
                         </p>
                       </div>
                     </div>
-                    
                     <div className="flex items-center gap-2">
                       {exercise.video && (
-                        <a 
-                          href={exercise.video.video_url} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Button variant="outline" size="sm" className="gap-2">
-                            <Play className="w-4 h-4" />
-                            Video
-                          </Button>
+                        <a href={(exercise.video as any).video_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+                          <Button variant="outline" size="sm" className="gap-2"><Play className="w-4 h-4" />Video</Button>
                         </a>
                       )}
-                      {isOpen ? (
-                        <ChevronUp className="w-5 h-5 text-muted-foreground" />
-                      ) : (
-                        <ChevronDown className="w-5 h-5 text-muted-foreground" />
-                      )}
+                      {isOpen ? <ChevronUp className="w-5 h-5 text-muted-foreground" /> : <ChevronDown className="w-5 h-5 text-muted-foreground" />}
                     </div>
                   </div>
                 </CollapsibleTrigger>
 
                 <CollapsibleContent>
-                  {/* Coach Notes - Read Only */}
                   {exercise.notes && (
                     <div className="px-4 py-3 bg-muted/50 border-t border-border">
-                      <div className="flex items-center gap-2 text-sm font-medium mb-1">
-                        <MessageSquare className="w-4 h-4" />
-                        Nota del Coach
-                      </div>
+                      <div className="flex items-center gap-2 text-sm font-medium mb-1"><MessageSquare className="w-4 h-4" />Nota del Coach</div>
                       <p className="text-sm text-muted-foreground">{exercise.notes}</p>
                     </div>
                   )}
 
-                  {/* Weeks - Client Editable */}
                   <CardContent className="p-4 space-y-4">
                     {exercise.weekCompletions.map((week) => {
                       const isCurrentWeek = week.week_number === currentWeek;
-                      const isPastWeek = week.week_number < currentWeek;
                       const isFutureWeek = week.week_number > currentWeek;
 
                       return (
-                        <div 
-                          key={week.week_number} 
-                          className={`
-                            p-4 rounded-lg border transition-all
-                            ${week.saved 
-                              ? 'bg-primary/5 border-primary/30' 
-                              : isCurrentWeek
-                                ? 'bg-accent/10 border-accent/50 ring-2 ring-accent/30'
-                                : isFutureWeek
-                                  ? 'bg-muted/20 border-border/50 opacity-60'
-                                  : 'bg-muted/30 border-border'
-                            }
-                          `}
-                        >
+                        <div key={week.week_number} className={`p-4 rounded-lg border transition-all ${week.saved ? 'bg-primary/5 border-primary/30' : isCurrentWeek ? 'bg-accent/10 border-accent/50 ring-2 ring-accent/30' : isFutureWeek ? 'bg-muted/20 border-border/50 opacity-60' : 'bg-muted/30 border-border'}`}>
                           <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-2">
-                              <span className="font-display text-lg">
-                                Settimana {week.week_number}
-                              </span>
-                              {isCurrentWeek && !week.saved && (
-                                <Badge variant="secondary" className="text-xs">
-                                  Corrente
-                                </Badge>
-                              )}
-                              {isFutureWeek && (
-                                <Badge variant="outline" className="text-xs">
-                                  Non ancora disponibile
-                                </Badge>
-                              )}
+                              <span className="font-display text-lg">Settimana {week.week_number}</span>
+                              {isCurrentWeek && !week.saved && <Badge variant="secondary" className="text-xs">Corrente</Badge>}
+                              {isFutureWeek && <Badge variant="outline" className="text-xs">Non ancora disponibile</Badge>}
                             </div>
-                            {week.saved && (
-                              <CheckCircle2 className="w-5 h-5 text-primary" />
-                            )}
+                            {week.saved && <CheckCircle2 className="w-5 h-5 text-primary" />}
                           </div>
 
                           {canRateWeek(week.week_number) ? (
                             <>
-                              {/* Rating */}
                               <div className="mb-3">
-                                <label className="text-sm text-muted-foreground block mb-2">
-                                  Come è andato l'esercizio questa settimana? (1-10)
-                                </label>
-                                <LightningRating
-                                  value={week.difficulty_rating}
-                                  onChange={(val) => updateWeekCompletion(exercise.id, week.week_number, 'difficulty_rating', val)}
-                                />
+                                <label className="text-sm text-muted-foreground block mb-2">Come è andato l'esercizio questa settimana? (1-10)</label>
+                                <LightningRating value={week.difficulty_rating} onChange={(val) => updateWeekCompletion(exercise.id, week.week_number, 'difficulty_rating', val)} />
                               </div>
-
-                              {/* Notes */}
                               <div className="mb-3">
-                                <Textarea
-                                  placeholder="Note sulla settimana (opzionale)..."
-                                  value={week.client_notes}
-                                  onChange={(e) => updateWeekCompletion(exercise.id, week.week_number, 'client_notes', e.target.value)}
-                                  className="min-h-[60px] resize-none"
-                                />
+                                <Textarea placeholder="Note sulla settimana (opzionale)..." value={week.client_notes} onChange={(e) => updateWeekCompletion(exercise.id, week.week_number, 'client_notes', e.target.value)} className="min-h-[60px] resize-none" />
                               </div>
-
-                              {/* Save Button */}
-                              <Button
-                                size="sm"
-                                onClick={() => saveWeekCompletion(exercise.id, week.week_number)}
-                                disabled={saving === `${exercise.id}-${week.week_number}` || week.difficulty_rating === 0}
-                                className="w-full gap-2"
-                              >
-                                {saving === `${exercise.id}-${week.week_number}` ? (
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                  <Save className="w-4 h-4" />
-                                )}
-                                {week.saved ? "Aggiorna valutazione" : "Salva valutazione"}
+                              <Button size="sm" onClick={() => saveWeekCompletion(exercise.id, week.week_number)} disabled={saving === `${exercise.id}-${week.week_number}`} className="w-full gap-2">
+                                {saving === `${exercise.id}-${week.week_number}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                                {week.saved ? "Aggiorna" : "Salva Valutazione"}
                               </Button>
                             </>
                           ) : (
-                            <p className="text-sm text-muted-foreground italic">
-                              Potrai valutare questa settimana quando sarà iniziata
-                            </p>
+                            <p className="text-sm text-muted-foreground italic">Questa settimana non è ancora iniziata</p>
                           )}
                         </div>
                       );
@@ -501,13 +344,13 @@ const WorkoutDayDetail = () => {
             </Collapsible>
           );
         })}
-      </div>
 
-      {exercises.length === 0 && (
-        <div className="text-center py-10">
-          <p className="text-muted-foreground">Nessun esercizio per questo giorno</p>
-        </div>
-      )}
+        {exercises.length === 0 && (
+          <div className="text-center py-12 text-muted-foreground">
+            <p>Nessun esercizio per questo giorno</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

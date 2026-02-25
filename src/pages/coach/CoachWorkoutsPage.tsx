@@ -6,12 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { 
-  Dumbbell, 
-  Search,
-  Calendar,
-  User,
-  Loader2,
-  Eye
+  Dumbbell, Search, Calendar, User, Loader2, Eye, Pause, Play, CheckCircle
 } from "lucide-react";
 import CoachLayout from "@/components/coach/CoachLayout";
 import { format } from "date-fns";
@@ -24,6 +19,7 @@ interface WorkoutPlan {
   start_date: string;
   end_date: string;
   is_active: boolean;
+  status?: string;
   client_id: string;
   client_name?: string;
 }
@@ -33,17 +29,14 @@ const CoachWorkoutsPage = () => {
   const [loading, setLoading] = useState(true);
   const [plans, setPlans] = useState<WorkoutPlan[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterActive, setFilterActive] = useState<boolean | null>(true);
+  const [filterStatus, setFilterStatus] = useState<string | null>("attiva");
 
   useEffect(() => {
-    if (profile?.user_id) {
-      fetchPlans();
-    }
+    if (profile?.user_id) fetchPlans();
   }, [profile?.user_id]);
 
   const fetchPlans = async () => {
     setLoading(true);
-    
     const { data: plansData } = await supabase
       .from("workout_plans")
       .select("*")
@@ -61,96 +54,78 @@ const CoachWorkoutsPage = () => {
 
       setPlans(plansData.map(p => ({
         ...p,
+        status: (p as any).status || (p.is_active ? "attiva" : "conclusa"),
         client_name: clientMap.get(p.client_id) || "Cliente sconosciuto"
       })));
     }
-
     setLoading(false);
   };
 
   const filteredPlans = plans.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.client_name?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesFilter = filterActive === null || p.is_active === filterActive;
+    const matchesFilter = filterStatus === null || p.status === filterStatus;
     return matchesSearch && matchesFilter;
   });
+
+  const statusBadge = (status: string) => {
+    switch (status) {
+      case "attiva": return <Badge variant="default" className="gap-1"><Play className="w-3 h-3" />Attiva</Badge>;
+      case "in_pausa": return <Badge variant="secondary" className="gap-1 bg-yellow-500/20 text-yellow-700 border-yellow-500/30"><Pause className="w-3 h-3" />In Pausa</Badge>;
+      case "conclusa": return <Badge variant="outline" className="gap-1"><CheckCircle className="w-3 h-3" />Conclusa</Badge>;
+      default: return null;
+    }
+  };
 
   return (
     <CoachLayout title="SCHEDE ALLENAMENTO" icon={<Dumbbell className="w-6 h-6" />}>
       <div className="space-y-6">
-        {/* Filters */}
         <div className="flex flex-col md:flex-row gap-4">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Cerca scheda o cliente..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
+            <Input placeholder="Cerca scheda o cliente..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
           </div>
-          <div className="flex gap-2">
-            <Button 
-              variant={filterActive === true ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilterActive(filterActive === true ? null : true)}
-            >
-              Attive
-            </Button>
-            <Button 
-              variant={filterActive === false ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilterActive(filterActive === false ? null : false)}
-            >
-              Archiviate
-            </Button>
+          <div className="flex gap-2 flex-wrap">
+            {[
+              { label: "Attive", value: "attiva" },
+              { label: "In Pausa", value: "in_pausa" },
+              { label: "Concluse", value: "conclusa" },
+              { label: "Tutte", value: null },
+            ].map(f => (
+              <Button key={f.label} variant={filterStatus === f.value ? "default" : "outline"} size="sm" onClick={() => setFilterStatus(f.value)}>
+                {f.label}
+              </Button>
+            ))}
           </div>
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          </div>
+          <div className="flex items-center justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
         ) : filteredPlans.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <Dumbbell className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-              <p className="text-muted-foreground">Nessuna scheda trovata</p>
-            </CardContent>
-          </Card>
+          <Card><CardContent className="py-12 text-center"><Dumbbell className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" /><p className="text-muted-foreground">Nessuna scheda trovata</p></CardContent></Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {filteredPlans.map(plan => (
-              <Card key={plan.id} className={plan.is_active ? "border-primary/50" : "opacity-70"}>
+              <Card key={plan.id} className={plan.status === "attiva" ? "border-primary/50" : plan.status === "in_pausa" ? "border-yellow-500/50" : "opacity-70"}>
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div>
                       <CardTitle className="text-lg">{plan.name}</CardTitle>
-                      {plan.description && (
-                        <CardDescription className="mt-1">{plan.description}</CardDescription>
-                      )}
+                      {plan.description && <CardDescription className="mt-1">{plan.description}</CardDescription>}
                     </div>
-                    {plan.is_active ? (
-                      <Badge variant="default">Attiva</Badge>
-                    ) : (
-                      <Badge variant="secondary">Archiviata</Badge>
-                    )}
+                    {statusBadge(plan.status || "attiva")}
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <User className="w-4 h-4" />
-                    <span>{plan.client_name}</span>
+                    <User className="w-4 h-4" /><span>{plan.client_name}</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Calendar className="w-4 h-4" />
-                    <span>
-                      {format(new Date(plan.start_date), "dd MMM", { locale: it })} - {format(new Date(plan.end_date), "dd MMM yyyy", { locale: it })}
-                    </span>
+                    <span>{format(new Date(plan.start_date), "dd MMM", { locale: it })} - {format(new Date(plan.end_date), "dd MMM yyyy", { locale: it })}</span>
                   </div>
                   <Button variant="outline" size="sm" className="w-full gap-2">
-                    <Eye className="w-4 h-4" />
-                    Visualizza Dettagli
+                    <Eye className="w-4 h-4" /> Visualizza Dettagli
                   </Button>
                 </CardContent>
               </Card>

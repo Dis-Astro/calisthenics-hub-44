@@ -3,8 +3,22 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Dumbbell, CheckCircle2, Clock, ChevronRight } from "lucide-react";
+import { Loader2, Dumbbell, CheckCircle2, Clock, ChevronRight, Pause } from "lucide-react";
 import { Link } from "react-router-dom";
+
+const COLOR_MAP: Record<string, string> = {
+  arancione: "#f97316", azzurro: "#38bdf8", verde: "#22c55e",
+  giallo: "#eab308", rosso: "#ef4444", blu: "#3b82f6", viola: "#a855f7",
+};
+
+function renderColoredText(value: string) {
+  const tokens = value.split(/(\s+)/);
+  return tokens.map((token, i) => {
+    const color = COLOR_MAP[token.toLowerCase().replace(/[^a-zàèéìòù]/gi, "")];
+    if (color) return <span key={i} style={{ color, fontWeight: 700 }}>{token}</span>;
+    return <span key={i}>{token}</span>;
+  });
+}
 
 interface WorkoutPlan {
   id: string;
@@ -13,14 +27,10 @@ interface WorkoutPlan {
   start_date: string;
   end_date: string;
   coach_notes: string | null;
+  status?: string;
 }
 
-interface ExerciseInfo {
-  id: string;
-  name: string;
-  sets: number | null;
-  reps: string | null;
-}
+interface ExerciseInfo { id: string; name: string; }
 
 interface DayExercise {
   day_of_week: number;
@@ -36,9 +46,7 @@ const WorkoutPlanDays = () => {
   const [dayExercises, setDayExercises] = useState<DayExercise[]>([]);
 
   useEffect(() => {
-    if (profile?.user_id) {
-      fetchWorkoutPlan();
-    }
+    if (profile?.user_id) fetchWorkoutPlan();
   }, [profile?.user_id]);
 
   const fetchWorkoutPlan = async () => {
@@ -46,7 +54,6 @@ const WorkoutPlanDays = () => {
     const userId = profile?.user_id;
     const today = new Date().toISOString().split('T')[0];
 
-    // Fetch active workout plan
     const { data: plans } = await supabase
       .from("workout_plans")
       .select("*")
@@ -58,17 +65,15 @@ const WorkoutPlanDays = () => {
       .limit(1);
 
     if (plans && plans.length > 0) {
-      setActivePlan(plans[0]);
+      setActivePlan(plans[0] as any);
 
-      // Fetch exercises grouped by day WITH exercise names
       const { data: exercises } = await supabase
         .from("workout_plan_exercises")
-        .select("id, day_of_week, sets, reps, order_index, exercise_name, exercise:exercises(id, name)")
+        .select("id, day_of_week, order_index, exercise_name")
         .eq("workout_plan_id", plans[0].id)
         .order("order_index");
 
       if (exercises) {
-        // Fetch completions - count all saved sets
         const exerciseIds = exercises.map(e => e.id);
         const { data: completions } = await supabase
           .from("workout_completions")
@@ -76,56 +81,37 @@ const WorkoutPlanDays = () => {
           .eq("client_id", userId!)
           .in("workout_plan_exercise_id", exerciseIds);
 
-        // Build a map of exercise_id -> count of completed sets
         const completedSetsPerExercise = new Map<string, number>();
         completions?.forEach(c => {
-          const current = completedSetsPerExercise.get(c.workout_plan_exercise_id) || 0;
-          completedSetsPerExercise.set(c.workout_plan_exercise_id, current + 1);
+          completedSetsPerExercise.set(c.workout_plan_exercise_id, (completedSetsPerExercise.get(c.workout_plan_exercise_id) || 0) + 1);
         });
 
-        // Group exercises by day - track total sets expected and completed
-        const dayMap = new Map<number, { exercises: ExerciseInfo[], totalSets: number, completedSets: number }>();
+        const dayMap = new Map<number, { exercises: ExerciseInfo[], totalExercises: number, completedExercises: number }>();
         
         exercises.forEach(ex => {
           const day = ex.day_of_week ?? 1;
-          if (!dayMap.has(day)) {
-            dayMap.set(day, { exercises: [], totalSets: 0, completedSets: 0 });
-          }
+          if (!dayMap.has(day)) dayMap.set(day, { exercises: [], totalExercises: 0, completedExercises: 0 });
           const dayData = dayMap.get(day)!;
-          const exerciseSets = ex.sets || 3;
-          dayData.exercises.push({
-            id: ex.id,
-            name: (ex as any).exercise_name || (ex.exercise as any)?.name || "Esercizio",
-            sets: ex.sets,
-            reps: ex.reps
-          });
-          dayData.totalSets += exerciseSets;
-          dayData.completedSets += completedSetsPerExercise.get(ex.id) || 0;
+          dayData.exercises.push({ id: ex.id, name: ex.exercise_name || "Esercizio" });
+          dayData.totalExercises += 1;
+          if ((completedSetsPerExercise.get(ex.id) || 0) > 0) dayData.completedExercises += 1;
         });
 
-        const days: DayExercise[] = Array.from(dayMap.entries())
+        setDayExercises(Array.from(dayMap.entries())
           .map(([day, data]) => ({
             day_of_week: day,
-            exercise_count: data.totalSets,
-            completed_count: data.completedSets,
+            exercise_count: data.totalExercises,
+            completed_count: data.completedExercises,
             exercises: data.exercises
           }))
-          .sort((a, b) => a.day_of_week - b.day_of_week);
-
-        setDayExercises(days);
+          .sort((a, b) => a.day_of_week - b.day_of_week));
       }
     }
 
     setLoading(false);
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
-  }
+  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
   if (!activePlan) {
     return (
@@ -137,18 +123,22 @@ const WorkoutPlanDays = () => {
     );
   }
 
+  const status = (activePlan as any).status || "attiva";
+
   return (
     <div className="space-y-6">
-      {/* Plan Header */}
       <div className="bg-gradient-to-br from-card via-card to-primary/5 rounded-lg p-6 border border-border">
         <div className="flex items-center gap-2 text-primary mb-2">
           <Dumbbell className="w-5 h-5" />
           <span className="text-sm font-medium tracking-wider uppercase">Scheda Attiva</span>
+          {status === "in_pausa" && (
+            <Badge variant="secondary" className="gap-1 bg-yellow-500/20 text-yellow-700 border-yellow-500/30 ml-2">
+              <Pause className="w-3 h-3" /> In Pausa
+            </Badge>
+          )}
         </div>
         <h2 className="font-display text-3xl tracking-wider mb-2">{activePlan.name}</h2>
-        {activePlan.description && (
-          <p className="text-muted-foreground">{activePlan.description}</p>
-        )}
+        {activePlan.description && <p className="text-muted-foreground">{activePlan.description}</p>}
         {activePlan.coach_notes && (
           <div className="mt-4 p-4 bg-muted/30 rounded-lg border-l-2 border-primary">
             <p className="text-sm font-medium mb-1">Note del Coach:</p>
@@ -157,61 +147,44 @@ const WorkoutPlanDays = () => {
         )}
       </div>
 
-      {/* Days Grid */}
+      {status === "in_pausa" && (
+        <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-center">
+          <Pause className="w-6 h-6 text-yellow-600 mx-auto mb-2" />
+          <p className="font-medium text-yellow-700">La tua scheda è in pausa</p>
+          <p className="text-sm text-muted-foreground">Contatta il tuo coach per riprenderla</p>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {dayExercises.map((day) => {
           const isComplete = day.completed_count >= day.exercise_count && day.exercise_count > 0;
-          const progress = day.exercise_count > 0 
-            ? Math.round((day.completed_count / day.exercise_count) * 100) 
-            : 0;
+          const progress = day.exercise_count > 0 ? Math.round((day.completed_count / day.exercise_count) * 100) : 0;
 
           return (
-            <Link 
-              key={day.day_of_week} 
-              to={`/coaching/scheda/${day.day_of_week}`}
-            >
-              <Card className={`
-                relative overflow-hidden transition-all duration-200 cursor-pointer
-                hover:scale-[1.02] hover:shadow-lg hover:shadow-primary/10
-                ${isComplete ? 'border-primary/50 bg-primary/5' : 'border-border'}
-              `}>
+            <Link key={day.day_of_week} to={`/coaching/scheda/${day.day_of_week}`}>
+              <Card className={`relative overflow-hidden transition-all duration-200 cursor-pointer hover:scale-[1.02] hover:shadow-lg hover:shadow-primary/10 ${isComplete ? 'border-primary/50 bg-primary/5' : 'border-border'}`}>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between mb-4">
-                    <span className="font-display text-4xl">
-                      {day.day_of_week}
-                    </span>
-                    {isComplete ? (
-                      <CheckCircle2 className="w-6 h-6 text-primary" />
-                    ) : (
-                      <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                    )}
+                    <span className="font-display text-4xl">{day.day_of_week}</span>
+                    {isComplete ? <CheckCircle2 className="w-6 h-6 text-primary" /> : <ChevronRight className="w-5 h-5 text-muted-foreground" />}
                   </div>
+                  <p className="text-sm text-muted-foreground mb-3">Giorno {day.day_of_week}</p>
                   
-                  <p className="text-sm text-muted-foreground mb-3">
-                    Giorno {day.day_of_week}
-                  </p>
-                  
-                  {/* Lista esercizi inline */}
                   <div className="text-xs text-muted-foreground mb-3 leading-relaxed">
                     {day.exercises.map((ex, idx) => (
                       <span key={ex.id}>
-                        {idx + 1}-{ex.name}
-                        {ex.sets && ex.reps && <span className="opacity-70"> ({ex.sets}x{ex.reps})</span>}
+                        {idx + 1}-{renderColoredText(ex.name)}
                         {idx < day.exercises.length - 1 && ", "}
                       </span>
                     ))}
                   </div>
 
-                  {/* Progress bar */}
                   <div className="mt-auto">
                     <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-primary transition-all duration-300"
-                        style={{ width: `${progress}%` }}
-                      />
+                      <div className="h-full bg-primary transition-all duration-300" style={{ width: `${progress}%` }} />
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {day.completed_count}/{day.exercise_count} set completati
+                      {day.completed_count}/{day.exercise_count} esercizi valutati
                     </p>
                   </div>
                 </CardContent>
