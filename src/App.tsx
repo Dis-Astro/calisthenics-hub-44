@@ -41,7 +41,7 @@ import WorkoutPlanPage from "./pages/cliente/WorkoutPlanPage";
 
 import ProgressPage from "./pages/cliente/ProgressPage";
 import AppointmentsPage from "./pages/cliente/AppointmentsPage";
-import ReportIssuePage from "./pages/cliente/ReportIssuePage";
+
 import DocumentsPage from "./pages/cliente/DocumentsPage";
 
 const queryClient = new QueryClient();
@@ -186,11 +186,6 @@ const App = () => (
             <Route path="/coaching/appuntamenti" element={
               <ProtectedRoute allowedRoles={['cliente_coaching']}>
                 <AppointmentsPage />
-              </ProtectedRoute>
-            } />
-            <Route path="/coaching/segnala" element={
-              <ProtectedRoute allowedRoles={['cliente_coaching']}>
-                <ReportIssuePage />
               </ProtectedRoute>
             } />
             <Route path="/coaching/documenti" element={

@@ -24,7 +24,7 @@ const navigationItems = [
   { icon: Users, label: "I Miei Clienti", href: "/coach/clienti" },
   { icon: Dumbbell, label: "Schede Allenamento", href: "/coach/schede" },
   { icon: Calendar, label: "Calendario", href: "/coach/calendario" },
-  { icon: MessageSquare, label: "Segnalazioni", href: "/coach/segnalazioni" },
+  { icon: MessageSquare, label: "Feedback Clienti", href: "/coach/segnalazioni" },
 ];
 
 const CoachLayout = ({ children, title, icon }: CoachLayoutProps) => {
