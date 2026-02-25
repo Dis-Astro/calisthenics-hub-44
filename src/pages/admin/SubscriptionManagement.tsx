@@ -27,6 +27,7 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import type { Database } from "@/integrations/supabase/types";
 import { format, addMonths, differenceInDays, isPast, isFuture } from "date-fns";
 import { it } from "date-fns/locale";
+import { useSearchParams } from "react-router-dom";
 
 type SubscriptionStatus = Database["public"]["Enums"]["subscription_status"];
 type PaymentStatus = Database["public"]["Enums"]["payment_status"];
@@ -98,7 +99,9 @@ const paymentStatusLabels: Record<PaymentStatus, string> = {
 const SubscriptionManagement = () => {
   const { profile } = useAuth();
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState("subscriptions");
+  const [statusFilter, setStatusFilter] = useState<string>(searchParams.get("filter") || "tutti");
   
   // Data states
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -300,7 +303,15 @@ const SubscriptionManagement = () => {
     const clientName = sub.profiles 
       ? `${sub.profiles.first_name} ${sub.profiles.last_name}`.toLowerCase()
       : "";
-    return clientName.includes(searchTerm.toLowerCase());
+    if (!clientName.includes(searchTerm.toLowerCase())) return false;
+    
+    if (statusFilter === "scaduti") {
+      return isPast(new Date(sub.end_date));
+    } else if (statusFilter === "in_scadenza") {
+      const daysLeft = differenceInDays(new Date(sub.end_date), new Date());
+      return daysLeft >= 0 && daysLeft <= 7;
+    }
+    return true;
   });
 
   const expiringCount = subscriptions.filter(s => {
@@ -359,7 +370,17 @@ const SubscriptionManagement = () => {
             <TabsTrigger value="payments">Pagamenti</TabsTrigger>
             <TabsTrigger value="plans">Piani</TabsTrigger>
           </TabsList>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setSearchParams(v === "tutti" ? {} : { filter: v }); }}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Filtra" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="tutti">Tutti</SelectItem>
+                <SelectItem value="scaduti">Scaduti</SelectItem>
+                <SelectItem value="in_scadenza">In Scadenza (7gg)</SelectItem>
+              </SelectContent>
+            </Select>
             <div className="relative flex-1 md:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input placeholder="Cerca cliente..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />

@@ -678,6 +678,20 @@ const CalendarManagement = () => {
                             </button>
                           </div>
                         ))}
+                        {/* Workout deadlines in weekly view */}
+                        {hour === 7 && events.deadlines.map(deadline => {
+                          const clientName = getClientName(deadline.client_id);
+                          return (
+                            <div
+                              key={deadline.id}
+                              className="text-xs p-1.5 rounded mb-1 bg-destructive/20 text-destructive truncate flex items-center gap-1"
+                              title={`Scadenza scheda: ${deadline.name}${clientName ? ` - ${clientName}` : ''}`}
+                            >
+                              <Dumbbell className="w-3 h-3 flex-shrink-0" />
+                              <span className="truncate">Scad. {clientName || deadline.name}</span>
+                            </div>
+                          );
+                        })}
                       </div>
                     );
                   })}
@@ -758,16 +772,19 @@ const CalendarManagement = () => {
                       ))}
                       
                       {/* Workout deadlines */}
-                      {events.deadlines.map(deadline => (
-                        <div
-                          key={deadline.id}
-                          className="text-[10px] p-1 rounded bg-destructive/20 text-destructive truncate flex items-center gap-1"
-                          title={`Scadenza scheda: ${deadline.name}`}
-                        >
-                          <Dumbbell className="w-2 h-2" />
-                          Scad. Scheda
-                        </div>
-                      ))}
+                      {events.deadlines.map(deadline => {
+                        const clientName = getClientName(deadline.client_id);
+                        return (
+                          <div
+                            key={deadline.id}
+                            className="text-[10px] p-1 rounded bg-destructive/20 text-destructive truncate flex items-center gap-1"
+                            title={`Scadenza scheda: ${deadline.name}${clientName ? ` - ${clientName}` : ''}`}
+                          >
+                            <Dumbbell className="w-2 h-2" />
+                            Scad. {clientName || deadline.name}
+                          </div>
+                        );
+                      })}
                       
                       {(events.appointments.length + events.sessions.length) > 4 && (
                         <div className="text-[10px] text-muted-foreground">
