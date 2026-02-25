@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { 
   MessageSquare, 
@@ -9,7 +9,9 @@ import {
   Loader2,
   Zap,
   Dumbbell,
-  Calendar
+  Calendar,
+  ChevronRight,
+  ArrowLeft
 } from "lucide-react";
 import CoachLayout from "@/components/coach/CoachLayout";
 import { format, parseISO } from "date-fns";
@@ -31,6 +33,7 @@ const CoachReportsPage = () => {
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
 
   useEffect(() => {
     if (profile?.user_id) fetchFeedbacks();
@@ -39,7 +42,6 @@ const CoachReportsPage = () => {
   const fetchFeedbacks = async () => {
     setLoading(true);
 
-    // Get all workout plans managed by this coach
     const { data: plans } = await supabase
       .from("workout_plans")
       .select("id, name, client_id")
@@ -54,7 +56,6 @@ const CoachReportsPage = () => {
     const planIds = plans.map(p => p.id);
     const clientIds = [...new Set(plans.map(p => p.client_id))];
 
-    // Fetch exercises for these plans
     const { data: exercises } = await supabase
       .from("workout_plan_exercises")
       .select("id, exercise_name, workout_plan_id")
@@ -68,7 +69,6 @@ const CoachReportsPage = () => {
 
     const exerciseIds = exercises.map(e => e.id);
 
-    // Fetch completions with notes
     const { data: completions } = await supabase
       .from("workout_completions")
       .select("*")
@@ -76,7 +76,6 @@ const CoachReportsPage = () => {
       .not("client_notes", "is", null)
       .order("completed_at", { ascending: false });
 
-    // Also get completions with ratings but no notes
     const { data: ratedOnly } = await supabase
       .from("workout_completions")
       .select("*")
@@ -88,7 +87,6 @@ const CoachReportsPage = () => {
 
     const allCompletions = [...(completions || []), ...(ratedOnly || [])];
 
-    // Fetch client profiles
     const { data: profiles } = await supabase
       .from("profiles")
       .select("user_id, first_name, last_name")
@@ -114,12 +112,35 @@ const CoachReportsPage = () => {
       };
     });
 
-    // Sort by date desc
     items.sort((a, b) => new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime());
-
     setFeedbacks(items);
     setLoading(false);
   };
+
+  const clients = useMemo(() => {
+    const map = new Map<string, { name: string; count: number; lastDate: string }>();
+    feedbacks.forEach(fb => {
+      const existing = map.get(fb.client_id);
+      if (!existing) {
+        map.set(fb.client_id, { name: fb.client_name, count: 1, lastDate: fb.completed_at });
+      } else {
+        existing.count++;
+        if (new Date(fb.completed_at) > new Date(existing.lastDate)) {
+          existing.lastDate = fb.completed_at;
+        }
+      }
+    });
+    return Array.from(map.entries())
+      .map(([id, data]) => ({ id, ...data }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [feedbacks]);
+
+  const filteredFeedbacks = useMemo(() => {
+    if (!selectedClientId) return [];
+    return feedbacks.filter(fb => fb.client_id === selectedClientId);
+  }, [feedbacks, selectedClientId]);
+
+  const selectedClientName = clients.find(c => c.id === selectedClientId)?.name;
 
   const renderRating = (rating: number | null) => {
     if (!rating) return null;
@@ -147,18 +168,48 @@ const CoachReportsPage = () => {
             <p className="text-sm mt-1">I feedback appariranno qui quando i clienti valuteranno i loro esercizi</p>
           </CardContent>
         </Card>
+      ) : !selectedClientId ? (
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground mb-4">Seleziona un cliente per vedere i suoi feedback</p>
+          {clients.map(client => (
+            <Card
+              key={client.id}
+              className="cursor-pointer hover:border-primary/40 transition-colors"
+              onClick={() => setSelectedClientId(client.id)}
+            >
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                    <User className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-medium">{client.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {client.count} feedback • ultimo: {format(parseISO(client.lastDate), "dd MMM yyyy", { locale: it })}
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-muted-foreground" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       ) : (
         <div className="space-y-3">
-          {feedbacks.map(fb => (
+          <button
+            onClick={() => setSelectedClientId(null)}
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Torna all'elenco clienti
+          </button>
+          <h2 className="text-lg font-semibold mb-3">{selectedClientName}</h2>
+          {filteredFeedbacks.map(fb => (
             <Card key={fb.id} className="hover:border-primary/30 transition-colors">
               <CardContent className="p-4">
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                   <div className="flex-1 space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="outline" className="gap-1">
-                        <User className="w-3 h-3" />
-                        {fb.client_name}
-                      </Badge>
                       <Badge variant="secondary" className="gap-1">
                         <Dumbbell className="w-3 h-3" />
                         {fb.exercise_name}
