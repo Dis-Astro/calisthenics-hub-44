@@ -51,8 +51,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import AdminLayout from "@/components/admin/AdminLayout";
-import CreateWorkoutPlanDialog from "@/components/admin/CreateWorkoutPlanDialog";
-import EditWorkoutPlanDialog from "@/components/admin/EditWorkoutPlanDialog";
+import WorkoutPlanViewDialog from "@/components/admin/WorkoutPlanViewDialog";
 import WorkoutPlanViewDialog from "@/components/admin/WorkoutPlanViewDialog";
 import WorkoutPlanCard from "@/components/admin/WorkoutPlanCard";
 import CoachAssignmentManager from "@/components/admin/CoachAssignmentManager";
