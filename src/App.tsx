@@ -88,6 +88,16 @@ const App = () => (
                 <ClientDetailPage />
               </ProtectedRoute>
             } />
+            <Route path="/admin/utenti/:userId/scheda/nuova" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <WorkoutPlanEditor />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/utenti/:userId/scheda/:planId/modifica" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <WorkoutPlanEditor />
+              </ProtectedRoute>
+            } />
             <Route path="/admin/abbonamenti" element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <SubscriptionManagement />
