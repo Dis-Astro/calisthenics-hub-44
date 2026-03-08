@@ -44,8 +44,9 @@ const CoachWorkoutsPage = () => {
       .is("deleted_at", null)
       .order("created_at", { ascending: false }) as any;
 
-    if (plansData && plansData.length > 0) {
-      const clientIds = [...new Set(plansData.map(p => p.client_id))];
+    if (plansData && (plansData as any[]).length > 0) {
+      const typedPlans = plansData as any[];
+      const clientIds = [...new Set(typedPlans.map((p: any) => p.client_id))] as string[];
       const { data: profiles } = await supabase
         .from("profiles")
         .select("user_id, first_name, last_name")
