@@ -37,11 +37,12 @@ const CoachWorkoutsPage = () => {
 
   const fetchPlans = async () => {
     setLoading(true);
-    const { data: plansData } = await supabase
+    const { data: plansData } = await (supabase
       .from("workout_plans")
       .select("*")
-      .eq("coach_id", profile?.user_id)
-      .order("created_at", { ascending: false });
+      .eq("coach_id", profile?.user_id) as any)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false }) as any;
 
     if (plansData && plansData.length > 0) {
       const clientIds = [...new Set(plansData.map(p => p.client_id))];
