@@ -10,147 +10,268 @@ import {
   Dumbbell,
   Calendar,
   ChevronRight,
-  ArrowLeft
+  ArrowLeft,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
+import LightningRating from "@/components/coaching/LightningRating";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
-interface FeedbackItem {
+const COLOR_MAP: Record<string, string> = {
+  arancione: "#f97316", azzurro: "#38bdf8", verde: "#22c55e",
+  giallo: "#eab308", rosso: "#ef4444", blu: "#3b82f6", viola: "#a855f7",
+};
+
+function renderColoredText(value: string) {
+  // Support multiline
+  const lines = value.split(/(\n)/);
+  return lines.map((line, lineIdx) => {
+    if (line === "\n") return <br key={`br-${lineIdx}`} />;
+    const tokens = line.split(/(\s+)/);
+    return tokens.map((token, i) => {
+      const color = COLOR_MAP[token.toLowerCase().replace(/[^a-zàèéìòù]/gi, "")];
+      if (color) return <span key={`${lineIdx}-${i}`} style={{ color, fontWeight: 700 }}>{token}</span>;
+      return <span key={`${lineIdx}-${i}`}>{token}</span>;
+    });
+  });
+}
+
+interface ClientSummary {
   id: string;
-  client_notes: string | null;
-  difficulty_rating: number | null;
+  name: string;
+  planCount: number;
+  feedbackCount: number;
+  lastDate: string;
+}
+
+interface PlanWithFeedback {
+  id: string;
+  name: string;
+  start_date: string;
+  end_date: string;
+  days: DayWithFeedback[];
+}
+
+interface DayWithFeedback {
+  day_number: number;
+  exercises: ExerciseWithFeedback[];
+}
+
+interface ExerciseWithFeedback {
+  id: string;
+  name: string;
+  order_index: number;
+  weeks: WeekFeedback[];
+}
+
+interface WeekFeedback {
+  week_number: number;
+  difficulty_rating: number;
+  client_notes: string;
   completed_at: string;
-  set_number: number;
-  client_id: string;
-  client_name: string;
-  coach_name: string;
-  exercise_name: string;
-  plan_name: string;
 }
 
 const AdminReportsPage = () => {
   const [loading, setLoading] = useState(true);
-  const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>([]);
+  const [clients, setClients] = useState<ClientSummary[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [selectedClientName, setSelectedClientName] = useState("");
+  const [clientPlans, setClientPlans] = useState<PlanWithFeedback[]>([]);
+  const [loadingPlans, setLoadingPlans] = useState(false);
+  const [openExercises, setOpenExercises] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    fetchFeedbacks();
+    fetchClients();
   }, []);
 
-  const fetchFeedbacks = async () => {
+  const fetchClients = async () => {
     setLoading(true);
 
+    // Fetch all plans (not deleted)
     const { data: plans } = await supabase
       .from("workout_plans")
-      .select("id, name, client_id, coach_id");
+      .select("id, name, client_id, coach_id")
+      .is("deleted_at" as any, null);
 
     if (!plans || plans.length === 0) {
-      setFeedbacks([]);
+      setClients([]);
       setLoading(false);
       return;
     }
 
     const planIds = plans.map(p => p.id);
-    const allUserIds = [...new Set([...plans.map(p => p.client_id), ...plans.map(p => p.coach_id)])];
+    const clientIds = [...new Set(plans.map(p => p.client_id))];
 
     const { data: exercises } = await supabase
       .from("workout_plan_exercises")
-      .select("id, exercise_name, workout_plan_id")
+      .select("id, workout_plan_id")
       .in("workout_plan_id", planIds);
 
     if (!exercises || exercises.length === 0) {
-      setFeedbacks([]);
+      setClients([]);
       setLoading(false);
       return;
     }
 
     const exerciseIds = exercises.map(e => e.id);
 
+    // Get completions with feedback
     const { data: completions } = await supabase
       .from("workout_completions")
-      .select("*")
+      .select("id, client_id, workout_plan_exercise_id, completed_at, client_notes, difficulty_rating, set_number")
       .in("workout_plan_exercise_id", exerciseIds)
-      .not("client_notes", "is", null)
-      .order("completed_at", { ascending: false });
-
-    const { data: ratedOnly } = await supabase
-      .from("workout_completions")
-      .select("*")
-      .in("workout_plan_exercise_id", exerciseIds)
-      .is("client_notes", null)
-      .not("difficulty_rating", "is", null)
-      .gt("difficulty_rating", 0)
-      .order("completed_at", { ascending: false });
-
-    const allCompletions = [...(completions || []), ...(ratedOnly || [])];
+      .or("client_notes.not.is.null,difficulty_rating.gt.0");
 
     const { data: profiles } = await supabase
       .from("profiles")
       .select("user_id, first_name, last_name")
-      .in("user_id", allUserIds);
+      .in("user_id", clientIds);
 
     const userMap = new Map(profiles?.map(p => [p.user_id, `${p.first_name} ${p.last_name}`]) || []);
-    const exerciseMap = new Map(exercises.map(e => [e.id, { name: e.exercise_name || "Esercizio", planId: e.workout_plan_id }]));
-    const planMap = new Map(plans.map(p => [p.id, { name: p.name, clientId: p.client_id, coachId: p.coach_id }]));
+    const exercisePlanMap = new Map(exercises.map(e => [e.id, e.workout_plan_id]));
 
-    const items: FeedbackItem[] = allCompletions.map(c => {
-      const ex = exerciseMap.get(c.workout_plan_exercise_id);
-      const plan = ex ? planMap.get(ex.planId) : null;
-      return {
-        id: c.id,
-        client_notes: c.client_notes,
-        difficulty_rating: c.difficulty_rating,
-        completed_at: c.completed_at,
-        set_number: c.set_number,
-        client_id: c.client_id,
-        client_name: userMap.get(c.client_id) || "Cliente",
-        coach_name: plan ? (userMap.get(plan.coachId) || "Coach") : "Coach",
-        exercise_name: ex?.name || "Esercizio",
-        plan_name: plan?.name || "Scheda",
-      };
+    // Build client summaries
+    const clientMap = new Map<string, ClientSummary>();
+    const clientPlanSets = new Map<string, Set<string>>();
+
+    (completions || []).forEach(c => {
+      if (!c.client_notes && (!c.difficulty_rating || c.difficulty_rating <= 0)) return;
+      const planId = exercisePlanMap.get(c.workout_plan_exercise_id);
+      if (!planId) return;
+      const plan = plans.find(p => p.id === planId);
+      if (!plan) return;
+
+      if (!clientMap.has(c.client_id)) {
+        clientMap.set(c.client_id, {
+          id: c.client_id,
+          name: userMap.get(c.client_id) || "Cliente",
+          planCount: 0,
+          feedbackCount: 0,
+          lastDate: c.completed_at,
+        });
+        clientPlanSets.set(c.client_id, new Set());
+      }
+
+      const summary = clientMap.get(c.client_id)!;
+      summary.feedbackCount++;
+      clientPlanSets.get(c.client_id)!.add(planId);
+      if (new Date(c.completed_at) > new Date(summary.lastDate)) {
+        summary.lastDate = c.completed_at;
+      }
     });
 
-    items.sort((a, b) => new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime());
-    setFeedbacks(items);
+    clientPlanSets.forEach((planSet, clientId) => {
+      const summary = clientMap.get(clientId);
+      if (summary) summary.planCount = planSet.size;
+    });
+
+    setClients(Array.from(clientMap.values()).sort((a, b) => a.name.localeCompare(b.name)));
     setLoading(false);
   };
 
-  const clients = useMemo(() => {
-    const map = new Map<string, { name: string; count: number; lastDate: string }>();
-    feedbacks.forEach(fb => {
-      const existing = map.get(fb.client_id);
-      if (!existing) {
-        map.set(fb.client_id, { name: fb.client_name, count: 1, lastDate: fb.completed_at });
-      } else {
-        existing.count++;
-        if (new Date(fb.completed_at) > new Date(existing.lastDate)) {
-          existing.lastDate = fb.completed_at;
-        }
+  const fetchClientPlans = async (clientId: string) => {
+    setLoadingPlans(true);
+
+    const { data: plans } = await supabase
+      .from("workout_plans")
+      .select("id, name, start_date, end_date")
+      .eq("client_id", clientId)
+      .is("deleted_at" as any, null)
+      .order("start_date", { ascending: false });
+
+    if (!plans || plans.length === 0) {
+      setClientPlans([]);
+      setLoadingPlans(false);
+      return;
+    }
+
+    const planIds = plans.map(p => p.id);
+
+    const { data: exercises } = await supabase
+      .from("workout_plan_exercises")
+      .select("id, exercise_name, day_of_week, order_index, workout_plan_id")
+      .in("workout_plan_id", planIds)
+      .order("day_of_week")
+      .order("order_index");
+
+    const exerciseIds = exercises?.map(e => e.id) || [];
+
+    const { data: completions } = await supabase
+      .from("workout_completions")
+      .select("*")
+      .eq("client_id", clientId)
+      .in("workout_plan_exercise_id", exerciseIds)
+      .or("client_notes.not.is.null,difficulty_rating.gt.0")
+      .order("set_number");
+
+    const completionsByExercise = new Map<string, WeekFeedback[]>();
+    (completions || []).forEach(c => {
+      if (!c.client_notes && (!c.difficulty_rating || c.difficulty_rating <= 0)) return;
+      if (!completionsByExercise.has(c.workout_plan_exercise_id)) {
+        completionsByExercise.set(c.workout_plan_exercise_id, []);
       }
+      completionsByExercise.get(c.workout_plan_exercise_id)!.push({
+        week_number: c.set_number,
+        difficulty_rating: c.difficulty_rating || 0,
+        client_notes: c.client_notes || "",
+        completed_at: c.completed_at,
+      });
     });
-    return Array.from(map.entries())
-      .map(([id, data]) => ({ id, ...data }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [feedbacks]);
 
-  const filteredFeedbacks = useMemo(() => {
-    if (!selectedClientId) return [];
-    return feedbacks.filter(fb => fb.client_id === selectedClientId);
-  }, [feedbacks, selectedClientId]);
+    const result: PlanWithFeedback[] = plans
+      .map(plan => {
+        const planExercises = (exercises || []).filter(e => e.workout_plan_id === plan.id);
+        const dayMap = new Map<number, ExerciseWithFeedback[]>();
 
-  const selectedClientName = clients.find(c => c.id === selectedClientId)?.name;
+        planExercises.forEach(ex => {
+          const day = ex.day_of_week || 1;
+          if (!dayMap.has(day)) dayMap.set(day, []);
+          const weeks = completionsByExercise.get(ex.id) || [];
+          if (weeks.length > 0) {
+            dayMap.get(day)!.push({
+              id: ex.id,
+              name: ex.exercise_name || "Esercizio",
+              order_index: ex.order_index,
+              weeks: weeks.sort((a, b) => a.week_number - b.week_number),
+            });
+          }
+        });
 
-  const renderRating = (rating: number | null) => {
-    if (!rating) return null;
-    return (
-      <div className="flex items-center gap-1">
-        {Array.from({ length: 10 }, (_, i) => (
-          <Zap key={i} className={`w-3 h-3 ${i < rating ? 'text-primary fill-primary' : 'text-muted-foreground/30'}`} />
-        ))}
-        <span className="text-xs text-muted-foreground ml-1">{rating}/10</span>
-      </div>
-    );
+        const days: DayWithFeedback[] = Array.from(dayMap.entries())
+          .filter(([, exs]) => exs.length > 0)
+          .sort(([a], [b]) => a - b)
+          .map(([day_number, exercises]) => ({ day_number, exercises }));
+
+        return { id: plan.id, name: plan.name, start_date: plan.start_date, end_date: plan.end_date, days };
+      })
+      .filter(p => p.days.length > 0);
+
+    setClientPlans(result);
+    setLoadingPlans(false);
+  };
+
+  const selectClient = (clientId: string) => {
+    const client = clients.find(c => c.id === clientId);
+    setSelectedClientId(clientId);
+    setSelectedClientName(client?.name || "");
+    setOpenExercises(new Set());
+    fetchClientPlans(clientId);
+  };
+
+  const toggleExercise = (exerciseId: string) => {
+    setOpenExercises(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(exerciseId)) newSet.delete(exerciseId);
+      else newSet.add(exerciseId);
+      return newSet;
+    });
   };
 
   return (
@@ -159,7 +280,7 @@ const AdminReportsPage = () => {
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
-      ) : feedbacks.length === 0 ? (
+      ) : clients.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
             <MessageSquare className="w-12 h-12 mx-auto mb-4 opacity-50" />
@@ -173,7 +294,7 @@ const AdminReportsPage = () => {
             <Card
               key={client.id}
               className="cursor-pointer hover:border-primary/40 transition-colors"
-              onClick={() => setSelectedClientId(client.id)}
+              onClick={() => selectClient(client.id)}
             >
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -183,7 +304,7 @@ const AdminReportsPage = () => {
                   <div>
                     <p className="font-medium">{client.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {client.count} feedback • ultimo: {format(parseISO(client.lastDate), "dd MMM yyyy", { locale: it })}
+                      {client.feedbackCount} feedback in {client.planCount} schede • ultimo: {format(parseISO(client.lastDate), "dd MMM yyyy", { locale: it })}
                     </p>
                   </div>
                 </div>
@@ -193,44 +314,98 @@ const AdminReportsPage = () => {
           ))}
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
           <button
-            onClick={() => setSelectedClientId(null)}
-            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
+            onClick={() => { setSelectedClientId(null); setClientPlans([]); }}
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
             Torna all'elenco clienti
           </button>
-          <h2 className="text-lg font-semibold mb-3">{selectedClientName}</h2>
-          {filteredFeedbacks.map(fb => (
-            <Card key={fb.id} className="hover:border-primary/30 transition-colors">
-              <CardContent className="p-4">
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                  <div className="flex-1 space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="secondary" className="gap-1">
-                        <Dumbbell className="w-3 h-3" />
-                        {fb.exercise_name}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        Settimana {fb.set_number} • {fb.plan_name} • Coach: {fb.coach_name}
-                      </span>
-                    </div>
-                    {fb.difficulty_rating && fb.difficulty_rating > 0 && renderRating(fb.difficulty_rating)}
-                    {fb.client_notes && (
-                      <p className="text-sm bg-muted/50 rounded-lg p-3 border border-border">
-                        {fb.client_notes}
-                      </p>
-                    )}
-                  </div>
-                  <span className="text-xs text-muted-foreground flex items-center gap-1 whitespace-nowrap">
-                    <Calendar className="w-3 h-3" />
-                    {format(parseISO(fb.completed_at), "dd MMM yyyy", { locale: it })}
-                  </span>
-                </div>
+          <h2 className="text-lg font-display tracking-wider">{selectedClientName}</h2>
+
+          {loadingPlans ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          ) : clientPlans.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground">
+                <p>Nessun feedback per questo cliente</p>
               </CardContent>
             </Card>
-          ))}
+          ) : (
+            clientPlans.map(plan => (
+              <Card key={plan.id} className="overflow-hidden">
+                <div className="bg-muted px-4 py-3 border-b">
+                  <div className="flex items-center gap-2">
+                    <Dumbbell className="w-4 h-4 text-primary" />
+                    <h3 className="font-display tracking-wider">{plan.name}</h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {format(new Date(plan.start_date), "d MMM yyyy", { locale: it })} — {format(new Date(plan.end_date), "d MMM yyyy", { locale: it })}
+                  </p>
+                </div>
+                <CardContent className="p-0">
+                  {plan.days.map(day => (
+                    <div key={day.day_number} className="border-b last:border-b-0">
+                      <div className="px-4 py-2 bg-muted/30 font-medium text-sm">
+                        Giorno {day.day_number}
+                        <span className="text-muted-foreground ml-2 font-normal">({day.exercises.length} esercizi con feedback)</span>
+                      </div>
+                      <div className="divide-y">
+                        {day.exercises.map((exercise, idx) => {
+                          const isOpen = openExercises.has(exercise.id);
+                          return (
+                            <Collapsible key={exercise.id} open={isOpen} onOpenChange={() => toggleExercise(exercise.id)}>
+                              <CollapsibleTrigger className="w-full">
+                                <div className="px-4 py-3 flex items-center justify-between hover:bg-muted/30 transition-colors cursor-pointer">
+                                  <div className="flex items-center gap-3 text-left">
+                                    <span className="w-7 h-7 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-medium flex-shrink-0">
+                                      {idx + 1}
+                                    </span>
+                                    <div>
+                                      <p className="font-medium text-sm whitespace-pre-wrap">{renderColoredText(exercise.name)}</p>
+                                      <p className="text-xs text-muted-foreground">{exercise.weeks.length} settimane valutate</p>
+                                    </div>
+                                  </div>
+                                  {isOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                                </div>
+                              </CollapsibleTrigger>
+                              <CollapsibleContent>
+                                <div className="px-4 pb-4 space-y-3">
+                                  {exercise.weeks.map(week => (
+                                    <div key={week.week_number} className="p-3 rounded-lg bg-primary/5 border border-primary/20">
+                                      <div className="flex items-center justify-between mb-2">
+                                        <span className="font-display text-sm">Settimana {week.week_number}</span>
+                                        <span className="text-xs text-muted-foreground">
+                                          {format(parseISO(week.completed_at), "dd MMM yyyy", { locale: it })}
+                                        </span>
+                                      </div>
+                                      {week.difficulty_rating > 0 && (
+                                        <div className="mb-2">
+                                          <LightningRating value={week.difficulty_rating} readonly size="sm" />
+                                        </div>
+                                      )}
+                                      {week.client_notes && (
+                                        <p className="text-sm bg-background rounded-lg p-2 border border-border">
+                                          {week.client_notes}
+                                        </p>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </CollapsibleContent>
+                            </Collapsible>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
       )}
     </AdminLayout>
