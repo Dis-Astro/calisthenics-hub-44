@@ -33,7 +33,7 @@ const AdminDashboard = () => {
     { icon: CreditCard, label: "Abbonamenti", href: "/admin/abbonamenti" },
     { icon: BookOpen, label: "Corsi", href: "/admin/corsi" },
     { icon: Clock, label: "Orari Palestra", href: "/admin/orari" },
-    { icon: MessageSquare, label: "Segnalazioni", href: "/admin/segnalazioni" },
+    { icon: MessageSquare, label: "Feedback Clienti", href: "/admin/segnalazioni" },
   ];
 
   useEffect(() => { fetchStats(); }, []);
@@ -188,7 +188,7 @@ const AdminDashboard = () => {
                 </Link>
                 <Link to="/admin/segnalazioni">
                   <Button className="w-full justify-between" variant="outline">
-                    <span className="flex items-center gap-3"><MessageSquare className="w-5 h-5" />Segnalazioni</span>
+                    <span className="flex items-center gap-3"><MessageSquare className="w-5 h-5" />Feedback Clienti</span>
                     <ChevronRight className="w-4 h-4" />
                   </Button>
                 </Link>

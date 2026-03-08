@@ -1,11 +1,13 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { 
   MessageSquare, 
   User,
   Loader2,
+  Search,
   Zap,
   Dumbbell,
   Calendar,
@@ -86,6 +88,13 @@ const AdminReportsPage = () => {
   const [clientPlans, setClientPlans] = useState<PlanWithFeedback[]>([]);
   const [loadingPlans, setLoadingPlans] = useState(false);
   const [openExercises, setOpenExercises] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredClients = useMemo(() => {
+    if (!searchQuery.trim()) return clients;
+    const q = searchQuery.toLowerCase();
+    return clients.filter(c => c.name.toLowerCase().includes(q));
+  }, [clients, searchQuery]);
 
   useEffect(() => {
     fetchClients();
@@ -288,9 +297,18 @@ const AdminReportsPage = () => {
           </CardContent>
         </Card>
       ) : !selectedClientId ? (
-        <div className="space-y-2">
-          <p className="text-sm text-muted-foreground mb-4">Seleziona un cliente per vedere i suoi feedback</p>
-          {clients.map(client => (
+        <div className="space-y-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Cerca cliente per nome..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <p className="text-sm text-muted-foreground">{filteredClients.length} clienti con feedback</p>
+          {filteredClients.map(client => (
             <Card
               key={client.id}
               className="cursor-pointer hover:border-primary/40 transition-colors"

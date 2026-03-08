@@ -53,7 +53,7 @@ const CoachDashboard = () => {
     { icon: Users, label: "I Miei Clienti", href: "/coach/clienti" },
     { icon: Dumbbell, label: "Schede Allenamento", href: "/coach/schede" },
     { icon: Calendar, label: "Calendario", href: "/coach/calendario" },
-    { icon: MessageSquare, label: "Segnalazioni", href: "/coach/segnalazioni" },
+    { icon: MessageSquare, label: "Feedback Clienti", href: "/coach/segnalazioni" },
   ];
 
   useEffect(() => {
@@ -122,7 +122,7 @@ const CoachDashboard = () => {
     { label: "Clienti Assegnati", value: stats.clientsCount, icon: Users, color: "text-primary" },
     { label: "Schede Attive", value: stats.activePlansCount, icon: Dumbbell, color: "text-green-500" },
     { label: "Appuntamenti Oggi", value: stats.todayAppointments, icon: Calendar, color: "text-blue-500" },
-    { label: "Segnalazioni Aperte", value: stats.openReports, icon: MessageSquare, color: "text-destructive" },
+    { label: "Feedback Aperti", value: stats.openReports, icon: MessageSquare, color: "text-destructive" },
   ];
 
   return (
@@ -249,7 +249,7 @@ const CoachDashboard = () => {
                 <Card className="bg-card border-border">
                   <CardHeader>
                     <CardTitle className="font-display tracking-wider flex items-center justify-between">
-                      Segnalazioni Recenti
+                      Feedback Recenti
                       <Link to="/coach/segnalazioni">
                         <Button variant="ghost" size="sm"><ChevronRight className="w-4 h-4" /></Button>
                       </Link>
@@ -260,7 +260,7 @@ const CoachDashboard = () => {
                     {recentReports.length === 0 ? (
                       <div className="text-center py-8 text-muted-foreground">
                         <MessageSquare className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                        <p>Nessuna segnalazione</p>
+                        <p>Nessun feedback</p>
                       </div>
                     ) : (
                       <div className="space-y-2">
