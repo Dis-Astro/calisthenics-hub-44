@@ -88,6 +88,13 @@ const AdminReportsPage = () => {
   const [clientPlans, setClientPlans] = useState<PlanWithFeedback[]>([]);
   const [loadingPlans, setLoadingPlans] = useState(false);
   const [openExercises, setOpenExercises] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredClients = useMemo(() => {
+    if (!searchQuery.trim()) return clients;
+    const q = searchQuery.toLowerCase();
+    return clients.filter(c => c.name.toLowerCase().includes(q));
+  }, [clients, searchQuery]);
 
   useEffect(() => {
     fetchClients();
