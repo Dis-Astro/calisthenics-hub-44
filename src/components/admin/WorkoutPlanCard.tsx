@@ -3,8 +3,39 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dumbbell, Edit, Eye, Pause, Play, CheckCircle } from "lucide-react";
+import { Dumbbell, Edit, Eye, Pause, Play, CheckCircle, Trash2 } from "lucide-react";
 import { format } from "date-fns";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
+
+const COLOR_MAP: Record<string, string> = {
+  arancione: "#f97316",
+  azzurro:   "#38bdf8",
+  verde:     "#22c55e",
+  giallo:    "#eab308",
+  rosso:     "#ef4444",
+  blu:       "#3b82f6",
+  viola:     "#a855f7",
+};
+
+function renderColoredText(value: string) {
+  const tokens = value.split(/(\s+)/);
+  return tokens.map((token, i) => {
+    const color = COLOR_MAP[token.toLowerCase().replace(/[^a-zàèéìòù]/gi, "")];
+    if (color) return <span key={i} style={{ color, fontWeight: 700 }}>{token}</span>;
+    return <span key={i}>{token}</span>;
+  });
+}
 
 interface WorkoutPlanExercise {
   id: string;
@@ -20,17 +51,21 @@ interface WorkoutPlan {
   end_date: string;
   is_active: boolean;
   status?: string;
+  plan_type?: string;
 }
 
 interface WorkoutPlanCardProps {
   plan: WorkoutPlan;
   onEdit: (planId: string) => void;
   onView: (planId: string) => void;
+  onDelete?: () => void;
 }
 
-const WorkoutPlanCard = ({ plan, onEdit, onView }: WorkoutPlanCardProps) => {
+const WorkoutPlanCard = ({ plan, onEdit, onView, onDelete }: WorkoutPlanCardProps) => {
+  const { toast } = useToast();
   const [exercises, setExercises] = useState<WorkoutPlanExercise[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetchExercises();
@@ -48,6 +83,22 @@ const WorkoutPlanCard = ({ plan, onEdit, onView }: WorkoutPlanCardProps) => {
     setLoading(false);
   };
 
+  const handleDelete = async () => {
+    setDeleting(true);
+    const { error } = await supabase
+      .from("workout_plans")
+      .update({ deleted_at: new Date().toISOString(), is_active: false } as any)
+      .eq("id", plan.id);
+
+    if (error) {
+      toast({ title: "Errore", description: "Impossibile eliminare la scheda", variant: "destructive" });
+    } else {
+      toast({ title: "Scheda eliminata" });
+      onDelete?.();
+    }
+    setDeleting(false);
+  };
+
   const exercisesByDay = exercises.reduce((acc, ex) => {
     const day = ex.day_of_week || 1;
     if (!acc[day]) acc[day] = [];
@@ -59,6 +110,7 @@ const WorkoutPlanCard = ({ plan, onEdit, onView }: WorkoutPlanCardProps) => {
   const totalExercises = exercises.length;
 
   const status = (plan as any).status || (plan.is_active ? "attiva" : "conclusa");
+  const isTest = plan.plan_type === "test";
 
   const statusBadge = () => {
     switch (status) {
@@ -77,6 +129,7 @@ const WorkoutPlanCard = ({ plan, onEdit, onView }: WorkoutPlanCardProps) => {
             <div className="flex items-center gap-2">
               <h4 className="font-medium">{plan.name}</h4>
               {statusBadge()}
+              {isTest && <Badge variant="secondary" className="text-xs">Test</Badge>}
             </div>
             {plan.description && (
               <p className="text-sm text-muted-foreground mt-1">{plan.description}</p>
@@ -92,6 +145,27 @@ const WorkoutPlanCard = ({ plan, onEdit, onView }: WorkoutPlanCardProps) => {
             <Button variant="default" size="sm" onClick={() => onView(plan.id)} className="gap-1">
               <Eye className="w-3 h-3" /> Visualizza
             </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Eliminare questa scheda?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Sei sicuro di voler eliminare questa scheda? L'operazione è irreversibile.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Annulla</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDelete} disabled={deleting} className="bg-destructive text-destructive-foreground">
+                    Elimina
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </div>
 
@@ -108,7 +182,7 @@ const WorkoutPlanCard = ({ plan, onEdit, onView }: WorkoutPlanCardProps) => {
                 <span className="text-sm text-muted-foreground">
                   {exercises.map((ex, idx) => (
                     <span key={ex.id}>
-                      {idx + 1}-{ex.exercise_name || "Esercizio"}
+                      {idx + 1}-{ex.exercise_name ? renderColoredText(ex.exercise_name) : "Esercizio"}
                       {idx < exercises.length - 1 && ", "}
                     </span>
                   ))}
