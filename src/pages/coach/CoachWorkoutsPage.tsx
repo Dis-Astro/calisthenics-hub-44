@@ -54,9 +54,9 @@ const CoachWorkoutsPage = () => {
 
       const clientMap = new Map(profiles?.map(p => [p.user_id, `${p.first_name} ${p.last_name}`]) || []);
 
-      setPlans(plansData.map(p => ({
+      setPlans(typedPlans.map((p: any) => ({
         ...p,
-        status: (p as any).status || (p.is_active ? "attiva" : "conclusa"),
+        status: p.status || (p.is_active ? "attiva" : "conclusa"),
         client_name: clientMap.get(p.client_id) || "Cliente sconosciuto"
       })));
     }
