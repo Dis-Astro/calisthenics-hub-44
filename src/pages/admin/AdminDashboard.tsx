@@ -33,7 +33,7 @@ const AdminDashboard = () => {
     { icon: CreditCard, label: "Abbonamenti", href: "/admin/abbonamenti" },
     { icon: BookOpen, label: "Corsi", href: "/admin/corsi" },
     { icon: Clock, label: "Orari Palestra", href: "/admin/orari" },
-    { icon: MessageSquare, label: "Segnalazioni", href: "/admin/segnalazioni" },
+    { icon: MessageSquare, label: "Feedback Clienti", href: "/admin/segnalazioni" },
   ];
 
   useEffect(() => { fetchStats(); }, []);
