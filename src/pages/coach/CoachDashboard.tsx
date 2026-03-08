@@ -249,7 +249,7 @@ const CoachDashboard = () => {
                 <Card className="bg-card border-border">
                   <CardHeader>
                     <CardTitle className="font-display tracking-wider flex items-center justify-between">
-                      Segnalazioni Recenti
+                      Feedback Recenti
                       <Link to="/coach/segnalazioni">
                         <Button variant="ghost" size="sm"><ChevronRight className="w-4 h-4" /></Button>
                       </Link>
@@ -260,7 +260,7 @@ const CoachDashboard = () => {
                     {recentReports.length === 0 ? (
                       <div className="text-center py-8 text-muted-foreground">
                         <MessageSquare className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                        <p>Nessuna segnalazione</p>
+                        <p>Nessun feedback</p>
                       </div>
                     ) : (
                       <div className="space-y-2">

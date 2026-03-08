@@ -282,9 +282,18 @@ const CoachReportsPage = () => {
           </CardContent>
         </Card>
       ) : !selectedClientId ? (
-        <div className="space-y-2">
-          <p className="text-sm text-muted-foreground mb-4">Seleziona un cliente per vedere i suoi feedback</p>
-          {clients.map(client => (
+        <div className="space-y-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Cerca cliente per nome..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <p className="text-sm text-muted-foreground">{filteredClients.length} clienti con feedback</p>
+          {filteredClients.map(client => (
             <Card key={client.id} className="cursor-pointer hover:border-primary/40 transition-colors" onClick={() => selectClient(client.id)}>
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
