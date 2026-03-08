@@ -135,10 +135,7 @@ const ClientDetailPage = () => {
   const [membershipPlans, setMembershipPlans] = useState<MembershipPlan[]>([]);
   
   // Dialog states
-  const [isCreatePlanOpen, setIsCreatePlanOpen] = useState(false);
-  const [editPlanId, setEditPlanId] = useState<string | null>(null);
   const [viewPlanId, setViewPlanId] = useState<string | null>(null);
-  const [deletingSubId, setDeletingSubId] = useState<string | null>(null);
 
   // New subscription dialog
   const [isNewSubOpen, setIsNewSubOpen] = useState(false);
