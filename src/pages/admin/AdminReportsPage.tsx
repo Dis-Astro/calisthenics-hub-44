@@ -7,6 +7,7 @@ import {
   MessageSquare, 
   User,
   Loader2,
+  Search,
   Zap,
   Dumbbell,
   Calendar,
