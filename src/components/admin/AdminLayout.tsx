@@ -7,10 +7,25 @@ interface AdminLayoutProps {
   title: string;
   icon?: ReactNode;
   showBackLink?: boolean;
+  hideSidebar?: boolean;
 }
 
-const AdminLayout = ({ children, title, icon, showBackLink = false }: AdminLayoutProps) => {
+const AdminLayout = ({ children, title, icon, showBackLink = false, hideSidebar = false }: AdminLayoutProps) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  if (hideSidebar) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <header className="h-12 bg-card border-b border-border flex items-center px-4">
+          {icon && <span className="mr-3 text-primary">{icon}</span>}
+          <h1 className="font-display text-lg tracking-wider">{title}</h1>
+        </header>
+        <div className="flex-1 p-4 overflow-auto">
+          {children}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex">
