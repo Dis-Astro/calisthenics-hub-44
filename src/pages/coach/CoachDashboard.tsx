@@ -122,7 +122,7 @@ const CoachDashboard = () => {
     { label: "Clienti Assegnati", value: stats.clientsCount, icon: Users, color: "text-primary" },
     { label: "Schede Attive", value: stats.activePlansCount, icon: Dumbbell, color: "text-green-500" },
     { label: "Appuntamenti Oggi", value: stats.todayAppointments, icon: Calendar, color: "text-blue-500" },
-    { label: "Segnalazioni Aperte", value: stats.openReports, icon: MessageSquare, color: "text-destructive" },
+    { label: "Feedback Aperti", value: stats.openReports, icon: MessageSquare, color: "text-destructive" },
   ];
 
   return (
