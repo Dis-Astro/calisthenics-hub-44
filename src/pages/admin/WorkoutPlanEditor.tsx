@@ -708,7 +708,7 @@ const WorkoutPlanEditor = () => {
 
   if (loading) {
     return (
-      <AdminLayout title={isTest ? "EDITOR TEST" : "EDITOR SCHEDA"} icon={<Dumbbell className="w-6 h-6" />} showBackLink>
+      <AdminLayout title={isTest ? "EDITOR TEST" : "EDITOR SCHEDA"} icon={<Dumbbell className="w-6 h-6" />} showBackLink hideSidebar>
         <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
       </AdminLayout>
     );
@@ -719,7 +719,7 @@ const WorkoutPlanEditor = () => {
     : (isTest ? `Nuovo Test — ${clientName}` : `Nuova Scheda — ${clientName}`);
 
   return (
-    <AdminLayout title={pageTitle} icon={<Dumbbell className="w-6 h-6" />} showBackLink>
+    <AdminLayout title={pageTitle} icon={<Dumbbell className="w-6 h-6" />} showBackLink hideSidebar>
       <Button variant="ghost" onClick={() => navigate(`/admin/utenti/${userId}`)} className="mb-4 gap-2">
         <ArrowLeft className="w-4 h-4" />Torna al profilo
       </Button>
