@@ -223,14 +223,14 @@ const WorkoutPlanEditor = () => {
   };
 
   const loadTests = async () => {
-    const { data: testPlans } = await supabase
+    const { data: testPlans } = await (supabase
       .from("workout_plans")
       .select("id, name, start_date, end_date, status, coach_notes")
-      .eq("client_id", userId!)
-      .eq("plan_type" as any, "test")
-      .is("deleted_at" as any, null)
+      .eq("client_id", userId!) as any)
+      .eq("plan_type", "test")
+      .is("deleted_at", null)
       .order("created_at", { ascending: false })
-      .limit(5);
+      .limit(5) as any;
 
     if (!testPlans || testPlans.length === 0) { setTests([]); return; }
 
