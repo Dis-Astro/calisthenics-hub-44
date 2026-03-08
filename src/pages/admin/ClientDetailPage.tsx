@@ -172,7 +172,7 @@ const ClientDetailPage = () => {
     const [subsRes, paymentsRes, plansRes, membershipPlansRes] = await Promise.all([
       supabase.from("subscriptions").select("*, membership_plans(id, name, price, duration_months)").eq("user_id", userId).order("end_date", { ascending: false }),
       supabase.from("payments").select("*").eq("user_id", userId).order("payment_date", { ascending: false }),
-      supabase.from("workout_plans").select("*").eq("client_id", userId).order("created_at", { ascending: false }),
+      (supabase.from("workout_plans").select("*").eq("client_id", userId) as any).is("deleted_at", null).order("created_at", { ascending: false }),
       supabase.from("membership_plans").select("id, name, price, duration_months").eq("is_active", true).order("price")
     ]);
 
