@@ -556,10 +556,16 @@ const ClientDetailPage = () => {
                   </CardTitle>
                   <CardDescription>Schede create per {profile.first_name}</CardDescription>
                 </div>
-                <Button className="gap-2" onClick={() => setIsCreatePlanOpen(true)}>
-                  <Plus className="w-4 h-4" />
-                  Nuova Scheda
-                </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" className="gap-2" onClick={() => navigate(`/admin/utenti/${userId}/scheda/nuova?type=test`)}>
+                    <Plus className="w-4 h-4" />
+                    Nuovo Test
+                  </Button>
+                  <Button className="gap-2" onClick={() => navigate(`/admin/utenti/${userId}/scheda/nuova`)}>
+                    <Plus className="w-4 h-4" />
+                    Nuova Scheda
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -567,7 +573,7 @@ const ClientDetailPage = () => {
                 <div className="text-center py-12 text-muted-foreground">
                   <Dumbbell className="w-12 h-12 mx-auto mb-4 opacity-30" />
                   <p>Nessuna scheda assegnata</p>
-                  <Button variant="outline" className="mt-4 gap-2" onClick={() => setIsCreatePlanOpen(true)}>
+                  <Button variant="outline" className="mt-4 gap-2" onClick={() => navigate(`/admin/utenti/${userId}/scheda/nuova`)}>
                     <Plus className="w-4 h-4" />
                     Crea la prima scheda
                   </Button>
@@ -578,8 +584,9 @@ const ClientDetailPage = () => {
                     <WorkoutPlanCard
                       key={plan.id}
                       plan={plan}
-                      onEdit={(planId) => setEditPlanId(planId)}
+                      onEdit={(planId) => navigate(`/admin/utenti/${userId}/scheda/${planId}/modifica`)}
                       onView={(planId) => setViewPlanId(planId)}
+                      onDelete={fetchClientData}
                     />
                   ))}
                 </div>
