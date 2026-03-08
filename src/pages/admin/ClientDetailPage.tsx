@@ -686,25 +686,6 @@ const ClientDetailPage = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Create Workout Plan */}
-      {profile && (
-        <CreateWorkoutPlanDialog
-          open={isCreatePlanOpen}
-          onOpenChange={setIsCreatePlanOpen}
-          clientId={profile.user_id}
-          clientName={`${profile.first_name} ${profile.last_name}`}
-          onSuccess={fetchClientData}
-        />
-      )}
-
-      {/* Edit Workout Plan */}
-      <EditWorkoutPlanDialog
-        planId={editPlanId}
-        open={!!editPlanId}
-        onOpenChange={(open) => !open && setEditPlanId(null)}
-        onSuccess={fetchClientData}
-      />
-
       {/* View Workout Plan */}
       <WorkoutPlanViewDialog
         planId={viewPlanId}
