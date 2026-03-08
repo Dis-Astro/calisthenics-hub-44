@@ -51,8 +51,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import AdminLayout from "@/components/admin/AdminLayout";
-import CreateWorkoutPlanDialog from "@/components/admin/CreateWorkoutPlanDialog";
-import EditWorkoutPlanDialog from "@/components/admin/EditWorkoutPlanDialog";
 import WorkoutPlanViewDialog from "@/components/admin/WorkoutPlanViewDialog";
 import WorkoutPlanCard from "@/components/admin/WorkoutPlanCard";
 import CoachAssignmentManager from "@/components/admin/CoachAssignmentManager";
@@ -135,10 +133,7 @@ const ClientDetailPage = () => {
   const [membershipPlans, setMembershipPlans] = useState<MembershipPlan[]>([]);
   
   // Dialog states
-  const [isCreatePlanOpen, setIsCreatePlanOpen] = useState(false);
-  const [editPlanId, setEditPlanId] = useState<string | null>(null);
   const [viewPlanId, setViewPlanId] = useState<string | null>(null);
-  const [deletingSubId, setDeletingSubId] = useState<string | null>(null);
 
   // New subscription dialog
   const [isNewSubOpen, setIsNewSubOpen] = useState(false);
@@ -177,7 +172,7 @@ const ClientDetailPage = () => {
     const [subsRes, paymentsRes, plansRes, membershipPlansRes] = await Promise.all([
       supabase.from("subscriptions").select("*, membership_plans(id, name, price, duration_months)").eq("user_id", userId).order("end_date", { ascending: false }),
       supabase.from("payments").select("*").eq("user_id", userId).order("payment_date", { ascending: false }),
-      supabase.from("workout_plans").select("*").eq("client_id", userId).order("created_at", { ascending: false }),
+      (supabase.from("workout_plans").select("*").eq("client_id", userId) as any).is("deleted_at", null).order("created_at", { ascending: false }),
       supabase.from("membership_plans").select("id, name, price, duration_months").eq("is_active", true).order("price")
     ]);
 
@@ -556,10 +551,16 @@ const ClientDetailPage = () => {
                   </CardTitle>
                   <CardDescription>Schede create per {profile.first_name}</CardDescription>
                 </div>
-                <Button className="gap-2" onClick={() => setIsCreatePlanOpen(true)}>
-                  <Plus className="w-4 h-4" />
-                  Nuova Scheda
-                </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" className="gap-2" onClick={() => navigate(`/admin/utenti/${userId}/scheda/nuova?type=test`)}>
+                    <Plus className="w-4 h-4" />
+                    Nuovo Test
+                  </Button>
+                  <Button className="gap-2" onClick={() => navigate(`/admin/utenti/${userId}/scheda/nuova`)}>
+                    <Plus className="w-4 h-4" />
+                    Nuova Scheda
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -567,7 +568,7 @@ const ClientDetailPage = () => {
                 <div className="text-center py-12 text-muted-foreground">
                   <Dumbbell className="w-12 h-12 mx-auto mb-4 opacity-30" />
                   <p>Nessuna scheda assegnata</p>
-                  <Button variant="outline" className="mt-4 gap-2" onClick={() => setIsCreatePlanOpen(true)}>
+                  <Button variant="outline" className="mt-4 gap-2" onClick={() => navigate(`/admin/utenti/${userId}/scheda/nuova`)}>
                     <Plus className="w-4 h-4" />
                     Crea la prima scheda
                   </Button>
@@ -578,8 +579,9 @@ const ClientDetailPage = () => {
                     <WorkoutPlanCard
                       key={plan.id}
                       plan={plan}
-                      onEdit={(planId) => setEditPlanId(planId)}
+                      onEdit={(planId) => navigate(`/admin/utenti/${userId}/scheda/${planId}/modifica`)}
                       onView={(planId) => setViewPlanId(planId)}
+                      onDelete={fetchClientData}
                     />
                   ))}
                 </div>
@@ -681,25 +683,6 @@ const ClientDetailPage = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Create Workout Plan */}
-      {profile && (
-        <CreateWorkoutPlanDialog
-          open={isCreatePlanOpen}
-          onOpenChange={setIsCreatePlanOpen}
-          clientId={profile.user_id}
-          clientName={`${profile.first_name} ${profile.last_name}`}
-          onSuccess={fetchClientData}
-        />
-      )}
-
-      {/* Edit Workout Plan */}
-      <EditWorkoutPlanDialog
-        planId={editPlanId}
-        open={!!editPlanId}
-        onOpenChange={(open) => !open && setEditPlanId(null)}
-        onSuccess={fetchClientData}
-      />
 
       {/* View Workout Plan */}
       <WorkoutPlanViewDialog

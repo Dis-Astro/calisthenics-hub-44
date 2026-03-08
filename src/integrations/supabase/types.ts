@@ -738,12 +738,14 @@ export type Database = {
           coach_id: string
           coach_notes: string | null
           created_at: string
+          deleted_at: string | null
           description: string | null
           end_date: string
           id: string
           is_active: boolean
           name: string
           paused_at: string | null
+          plan_type: string
           start_date: string
           status: Database["public"]["Enums"]["workout_plan_status"]
           total_paused_days: number
@@ -754,12 +756,14 @@ export type Database = {
           coach_id: string
           coach_notes?: string | null
           created_at?: string
+          deleted_at?: string | null
           description?: string | null
           end_date: string
           id?: string
           is_active?: boolean
           name: string
           paused_at?: string | null
+          plan_type?: string
           start_date?: string
           status?: Database["public"]["Enums"]["workout_plan_status"]
           total_paused_days?: number
@@ -770,12 +774,14 @@ export type Database = {
           coach_id?: string
           coach_notes?: string | null
           created_at?: string
+          deleted_at?: string | null
           description?: string | null
           end_date?: string
           id?: string
           is_active?: boolean
           name?: string
           paused_at?: string | null
+          plan_type?: string
           start_date?: string
           status?: Database["public"]["Enums"]["workout_plan_status"]
           total_paused_days?: number

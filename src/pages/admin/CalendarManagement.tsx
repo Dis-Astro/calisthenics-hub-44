@@ -183,7 +183,7 @@ const CalendarManagement = () => {
       supabase.from("profiles").select("*").in("role", ["admin", "coach"]),
       supabase.from("profiles").select("*").in("role", ["cliente_palestra", "cliente_coaching"]),
       supabase.from("courses").select("*").eq("is_active", true),
-      supabase.from("workout_plans").select("id, name, client_id, end_date").gte("end_date", startRange).lte("end_date", endRange).eq("is_active", true)
+      (supabase.from("workout_plans").select("id, name, client_id, end_date").gte("end_date", startRange).lte("end_date", endRange).eq("is_active", true) as any).is("deleted_at", null)
     ]);
 
     if (appointmentsRes.data) setAppointments(appointmentsRes.data);

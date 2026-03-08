@@ -37,14 +37,16 @@ const CoachWorkoutsPage = () => {
 
   const fetchPlans = async () => {
     setLoading(true);
-    const { data: plansData } = await supabase
+    const { data: plansData } = await (supabase
       .from("workout_plans")
       .select("*")
-      .eq("coach_id", profile?.user_id)
-      .order("created_at", { ascending: false });
+      .eq("coach_id", profile?.user_id) as any)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false }) as any;
 
-    if (plansData && plansData.length > 0) {
-      const clientIds = [...new Set(plansData.map(p => p.client_id))];
+    if (plansData && (plansData as any[]).length > 0) {
+      const typedPlans = plansData as any[];
+      const clientIds = [...new Set(typedPlans.map((p: any) => p.client_id))] as string[];
       const { data: profiles } = await supabase
         .from("profiles")
         .select("user_id, first_name, last_name")
@@ -52,9 +54,9 @@ const CoachWorkoutsPage = () => {
 
       const clientMap = new Map(profiles?.map(p => [p.user_id, `${p.first_name} ${p.last_name}`]) || []);
 
-      setPlans(plansData.map(p => ({
+      setPlans(typedPlans.map((p: any) => ({
         ...p,
-        status: (p as any).status || (p.is_active ? "attiva" : "conclusa"),
+        status: p.status || (p.is_active ? "attiva" : "conclusa"),
         client_name: clientMap.get(p.client_id) || "Cliente sconosciuto"
       })));
     }

@@ -21,6 +21,7 @@ import UserManagement from "./pages/admin/UserManagement";
 import ClientDetailPage from "./pages/admin/ClientDetailPage";
 import SubscriptionManagement from "./pages/admin/SubscriptionManagement";
 import CalendarManagement from "./pages/admin/CalendarManagement";
+import WorkoutPlanEditor from "./pages/admin/WorkoutPlanEditor";
 
 import GymHoursManagement from "./pages/admin/GymHoursManagement";
 import CourseManagement from "./pages/admin/CourseManagement";
@@ -85,6 +86,16 @@ const App = () => (
             <Route path="/admin/utenti/:userId" element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <ClientDetailPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/utenti/:userId/scheda/nuova" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <WorkoutPlanEditor />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/utenti/:userId/scheda/:planId/modifica" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <WorkoutPlanEditor />
               </ProtectedRoute>
             } />
             <Route path="/admin/abbonamenti" element={

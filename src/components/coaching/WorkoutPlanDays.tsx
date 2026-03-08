@@ -12,11 +12,15 @@ const COLOR_MAP: Record<string, string> = {
 };
 
 function renderColoredText(value: string) {
-  const tokens = value.split(/(\s+)/);
-  return tokens.map((token, i) => {
-    const color = COLOR_MAP[token.toLowerCase().replace(/[^a-zàèéìòù]/gi, "")];
-    if (color) return <span key={i} style={{ color, fontWeight: 700 }}>{token}</span>;
-    return <span key={i}>{token}</span>;
+  const lines = value.split(/(\n)/);
+  return lines.map((line, lineIdx) => {
+    if (line === "\n") return <br key={`br-${lineIdx}`} />;
+    const tokens = line.split(/(\s+)/);
+    return tokens.map((token, i) => {
+      const color = COLOR_MAP[token.toLowerCase().replace(/[^a-zàèéìòù]/gi, "")];
+      if (color) return <span key={`${lineIdx}-${i}`} style={{ color, fontWeight: 700 }}>{token}</span>;
+      return <span key={`${lineIdx}-${i}`}>{token}</span>;
+    });
   });
 }
 
