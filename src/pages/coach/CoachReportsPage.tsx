@@ -8,6 +8,7 @@ import {
   MessageSquare, 
   User,
   Loader2,
+  Search,
   Dumbbell,
   ChevronRight,
   ArrowLeft,
