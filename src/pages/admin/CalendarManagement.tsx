@@ -132,8 +132,8 @@ const CalendarManagement = () => {
   const [coaches, setCoaches] = useState<Profile[]>([]);
   const [clients, setClients] = useState<Profile[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
+  const [lessonPackages, setLessonPackages] = useState<LessonPackage[]>([]);
   const [loading, setLoading] = useState(true);
-  
   // Dialog states
   const [isAppointmentDialogOpen, setIsAppointmentDialogOpen] = useState(false);
   const [isCourseSessionDialogOpen, setIsCourseSessionDialogOpen] = useState(false);
