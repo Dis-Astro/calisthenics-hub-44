@@ -902,6 +902,7 @@ const CalendarManagement = () => {
                       >
                         {hourAppointments.map((apt) => {
                           const clientName = getClientName(apt.client_id);
+                          const clientPkg = getClientPackage(apt.client_id);
                           return (
                             <div
                               key={apt.id}
@@ -909,13 +910,18 @@ const CalendarManagement = () => {
                               onDragStart={() => handleDragStart({ type: 'appointment', id: apt.id, data: apt })}
                               className="text-xs p-1.5 rounded mb-1 text-white cursor-grab active:cursor-grabbing hover:opacity-90 group relative"
                               style={{ backgroundColor: apt.color }}
-                              title={`${apt.title}${clientName ? ` - ${clientName}` : ''}`}
+                              title={`${apt.title}${clientName ? ` - ${clientName}` : ''}${clientPkg ? ` (📦 ${clientPkg.remaining_lessons}/${clientPkg.total_lessons})` : ''}`}
                               onClick={(e) => handleAppointmentClick(apt, e)}
                             >
                               <div className="flex items-center gap-1">
                                 <GripVertical className="w-3 h-3 flex-shrink-0 opacity-50" />
                                 <User className="w-3 h-3 flex-shrink-0" />
                                 <span className="truncate">{apt.title}</span>
+                                {clientPkg && (
+                                  <span className="text-[10px] bg-white/20 px-1 rounded flex-shrink-0">
+                                    📦{clientPkg.remaining_lessons}
+                                  </span>
+                                )}
                                 {apt.client_id && <ExternalLink className="w-3 h-3 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />}
                               </div>
                               {clientName && (
