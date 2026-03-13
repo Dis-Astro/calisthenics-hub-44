@@ -113,6 +113,16 @@ interface WorkoutPlan {
   is_active: boolean;
 }
 
+interface ClientAppointment {
+  id: string;
+  title: string;
+  start_time: string;
+  end_time: string;
+  coach_id: string;
+  description: string | null;
+  location: string | null;
+}
+
 const roleLabels: Record<UserRole, string> = {
   admin: "Amministratore",
   coach: "Coach",
