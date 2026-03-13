@@ -1208,7 +1208,96 @@ const CalendarManagement = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation */}
+      {/* Edit Appointment Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-md max-h-[90vh] flex flex-col">
+          <DialogHeader className="flex-shrink-0">
+            <DialogTitle>Modifica Appuntamento</DialogTitle>
+            <DialogDescription>Modifica i dettagli dell'appuntamento</DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="flex-1 pr-4">
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label>Titolo *</Label>
+                <Input value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Data *</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !editDate && "text-muted-foreground")}>
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {editDate ? format(editDate, "PPP", { locale: it }) : "Seleziona data"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent mode="single" selected={editDate} onSelect={setEditDate} locale={it} initialFocus className="p-3 pointer-events-auto" />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Ora Inizio *</Label>
+                  <Input type="time" value={editStartTime} onChange={(e) => setEditStartTime(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Ora Fine *</Label>
+                  <Input type="time" value={editEndTime} onChange={(e) => setEditEndTime(e.target.value)} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Coach *</Label>
+                <Select value={editForm.coach_id} onValueChange={(v) => setEditForm({ ...editForm, coach_id: v })}>
+                  <SelectTrigger><SelectValue placeholder="Seleziona coach" /></SelectTrigger>
+                  <SelectContent>
+                    {coaches.map(c => (
+                      <SelectItem key={c.user_id} value={c.user_id}>{c.first_name} {c.last_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Cliente</Label>
+                <Select value={editForm.client_id} onValueChange={(v) => setEditForm({ ...editForm, client_id: v })}>
+                  <SelectTrigger><SelectValue placeholder="Seleziona cliente (opzionale)" /></SelectTrigger>
+                  <SelectContent>
+                    {clients.map(c => (
+                      <SelectItem key={c.user_id} value={c.user_id}>{c.first_name} {c.last_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Descrizione</Label>
+                <Textarea value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Luogo</Label>
+                  <Input value={editForm.location} onChange={(e) => setEditForm({ ...editForm, location: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Colore</Label>
+                  <Input type="color" value={editForm.color} onChange={(e) => setEditForm({ ...editForm, color: e.target.value })} className="h-10" />
+                </div>
+              </div>
+            </div>
+          </ScrollArea>
+          <DialogFooter className="flex-shrink-0 pt-4 border-t gap-2">
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Annulla</Button>
+            {editingAppointment?.client_id && (
+              <Button variant="secondary" onClick={() => { setIsEditDialogOpen(false); navigate(`/admin/utenti/${editingAppointment.client_id}`); }}>
+                <ExternalLink className="w-4 h-4 mr-2" />Profilo Cliente
+              </Button>
+            )}
+            <Button onClick={updateAppointment} disabled={saving}>
+              {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Salva
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+
       <AlertDialog open={!!deleteAppointmentId} onOpenChange={() => setDeleteAppointmentId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
