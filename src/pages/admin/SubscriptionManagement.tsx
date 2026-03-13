@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -21,14 +21,16 @@ import {
   AlertTriangle,
   CheckCircle,
   Clock,
-  Users
+  Users,
+  RefreshCw,
+  Package,
+  Minus
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import type { Database } from "@/integrations/supabase/types";
 import { format, addMonths, differenceInDays, isPast, isFuture } from "date-fns";
 import { it } from "date-fns/locale";
 import { useSearchParams } from "react-router-dom";
-
 type SubscriptionStatus = Database["public"]["Enums"]["subscription_status"];
 type PaymentStatus = Database["public"]["Enums"]["payment_status"];
 
@@ -75,6 +77,16 @@ interface Payment {
   profiles?: Profile;
 }
 
+interface LessonPackage {
+  id: string;
+  user_id: string;
+  total_lessons: number;
+  remaining_lessons: number;
+  price: number;
+  notes: string | null;
+  created_at: string;
+}
+
 const statusLabels: Record<SubscriptionStatus, string> = {
   attivo: "Attivo",
   scaduto: "Scaduto",
@@ -95,7 +107,6 @@ const paymentStatusLabels: Record<PaymentStatus, string> = {
   fallito: "Fallito",
   rimborsato: "Rimborsato"
 };
-
 const SubscriptionManagement = () => {
   const { profile } = useAuth();
   const { toast } = useToast();
@@ -110,10 +121,13 @@ const SubscriptionManagement = () => {
   const [clients, setClients] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [lessonPackages, setLessonPackages] = useState<LessonPackage[]>([]);
+  const [renewingId, setRenewingId] = useState<string | null>(null);
 
   // Dialog states
   const [isSubscriptionDialogOpen, setIsSubscriptionDialogOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  const [isPackageDialogOpen, setIsPackageDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
 
   // Form states
@@ -130,6 +144,13 @@ const SubscriptionManagement = () => {
     notes: ""
   });
 
+  const [newPackage, setNewPackage] = useState({
+    user_id: "",
+    total_lessons: "",
+    price: "",
+    notes: ""
+  });
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -138,7 +159,7 @@ const SubscriptionManagement = () => {
     setLoading(true);
     
     // Fetch all data in parallel - no FK hints, we'll join manually
-    const [subsRes, plansRes, paymentsRes, clientsRes] = await Promise.all([
+    const [subsRes, plansRes, paymentsRes, clientsRes, packagesRes] = await Promise.all([
       supabase
         .from("subscriptions")
         .select("*, membership_plans(id, name, price, duration_months)")
@@ -157,13 +178,18 @@ const SubscriptionManagement = () => {
         .from("profiles")
         .select("*")
         .in("role", ["cliente_palestra", "cliente_coaching"])
-        .order("last_name", { ascending: true })
+        .order("last_name", { ascending: true }),
+      supabase
+        .from("lesson_packages")
+        .select("*")
+        .order("created_at", { ascending: false })
     ]);
 
     if (subsRes.error) console.error("Subscriptions error:", subsRes.error);
     if (plansRes.error) console.error("Plans error:", plansRes.error);
     if (paymentsRes.error) console.error("Payments error:", paymentsRes.error);
     if (clientsRes.error) console.error("Clients error:", clientsRes.error);
+    if (packagesRes.error) console.error("Packages error:", packagesRes.error);
 
     // Create profiles map for manual join
     const profilesMap = new Map((clientsRes.data || []).map(p => [p.user_id, p]));
@@ -184,7 +210,66 @@ const SubscriptionManagement = () => {
     setPlans(plansRes.data || []);
     setPayments(paymentsWithProfiles as unknown as Payment[]);
     setClients(clientsRes.data || []);
+    setLessonPackages((packagesRes.data || []) as unknown as LessonPackage[]);
     setLoading(false);
+  };
+
+  // Renew subscription: extend end_date by plan's duration_months
+  const handleRenewSubscription = async (sub: Subscription) => {
+    if (!sub.membership_plans) {
+      toast({ title: "Errore", description: "Piano non trovato per questo abbonamento", variant: "destructive" });
+      return;
+    }
+    setRenewingId(sub.id);
+    const currentEnd = new Date(sub.end_date);
+    const baseDate = isPast(currentEnd) ? new Date() : currentEnd;
+    const newEndDate = addMonths(baseDate, sub.membership_plans.duration_months);
+
+    const { error } = await supabase
+      .from("subscriptions")
+      .update({ 
+        end_date: format(newEndDate, "yyyy-MM-dd"),
+        status: "attivo" as SubscriptionStatus
+      })
+      .eq("id", sub.id);
+
+    if (error) {
+      toast({ title: "Errore", description: "Impossibile rinnovare l'abbonamento", variant: "destructive" });
+    } else {
+      toast({ 
+        title: "Rinnovato!", 
+        description: `Abbonamento rinnovato fino al ${format(newEndDate, "dd MMM yyyy", { locale: it })}` 
+      });
+      fetchData();
+    }
+    setRenewingId(null);
+  };
+
+  // Create lesson package
+  const createPackage = async () => {
+    if (!newPackage.user_id || !newPackage.total_lessons || !newPackage.price) {
+      toast({ title: "Errore", description: "Compila tutti i campi obbligatori", variant: "destructive" });
+      return;
+    }
+    setCreating(true);
+    const { error } = await supabase.from("lesson_packages").insert({
+      user_id: newPackage.user_id,
+      total_lessons: parseInt(newPackage.total_lessons),
+      remaining_lessons: parseInt(newPackage.total_lessons),
+      price: parseFloat(newPackage.price),
+      notes: newPackage.notes || null,
+      created_by: profile?.user_id
+    });
+
+    if (error) {
+      toast({ title: "Errore", description: "Impossibile creare il pacchetto", variant: "destructive" });
+    } else {
+      toast({ title: "Pacchetto creato", description: `${newPackage.total_lessons} lezioni assegnate` });
+      setNewPackage({ user_id: "", total_lessons: "", price: "", notes: "" });
+      setIsPackageDialogOpen(false);
+      fetchData();
+    }
+    setCreating(false);
   };
 
   const createSubscription = async () => {
@@ -367,6 +452,7 @@ const SubscriptionManagement = () => {
         <div className="flex flex-col md:flex-row gap-4 mb-6 justify-between">
           <TabsList>
             <TabsTrigger value="subscriptions">Abbonamenti</TabsTrigger>
+            <TabsTrigger value="packages">Pacchetti Lezioni</TabsTrigger>
             <TabsTrigger value="payments">Pagamenti</TabsTrigger>
             <TabsTrigger value="plans">Piani</TabsTrigger>
           </TabsList>
@@ -487,7 +573,7 @@ const SubscriptionManagement = () => {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Cliente</TableHead><TableHead>Piano</TableHead>
-                        <TableHead>Inizio</TableHead><TableHead>Scadenza</TableHead><TableHead>Stato</TableHead>
+                        <TableHead>Inizio</TableHead><TableHead>Scadenza</TableHead><TableHead>Stato</TableHead><TableHead className="text-right">Azioni</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -504,6 +590,115 @@ const SubscriptionManagement = () => {
                                 <expStatus.icon className="w-3 h-3" />{expStatus.label}
                               </Badge>
                             </TableCell>
+                            <TableCell className="text-right">
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                className="gap-1 h-8"
+                                onClick={() => handleRenewSubscription(sub)}
+                                disabled={renewingId === sub.id}
+                              >
+                                {renewingId === sub.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                                Rinnova
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Pacchetti Lezioni Tab */}
+        <TabsContent value="packages">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="font-display tracking-wider">Pacchetti Lezioni Private</CardTitle>
+                  <CardDescription>{lessonPackages.length} pacchetti registrati</CardDescription>
+                </div>
+                <Dialog open={isPackageDialogOpen} onOpenChange={setIsPackageDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="gap-2"><Plus className="w-4 h-4" />Nuovo Pacchetto</Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle className="font-display tracking-wider">Nuovo Pacchetto Lezioni</DialogTitle>
+                      <DialogDescription>Assegna un pacchetto di lezioni private a un cliente</DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                      <div className="space-y-2">
+                        <Label>Cliente *</Label>
+                        <Select value={newPackage.user_id} onValueChange={(v) => setNewPackage({...newPackage, user_id: v})}>
+                          <SelectTrigger><SelectValue placeholder="Seleziona cliente" /></SelectTrigger>
+                          <SelectContent>{clients.map(c => <SelectItem key={c.user_id} value={c.user_id}>{c.first_name} {c.last_name}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Numero Lezioni *</Label>
+                          <Input type="number" value={newPackage.total_lessons} onChange={(e) => setNewPackage({...newPackage, total_lessons: e.target.value})} placeholder="Es. 10" min="1" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Prezzo Pacchetto (€) *</Label>
+                          <Input type="number" value={newPackage.price} onChange={(e) => setNewPackage({...newPackage, price: e.target.value})} placeholder="0.00" />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Note</Label>
+                        <Input value={newPackage.notes} onChange={(e) => setNewPackage({...newPackage, notes: e.target.value})} placeholder="Note opzionali..." />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setIsPackageDialogOpen(false)}>Annulla</Button>
+                      <Button onClick={createPackage} disabled={creating}>{creating && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Crea Pacchetto</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+              ) : lessonPackages.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>Nessun pacchetto lezioni</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Cliente</TableHead>
+                        <TableHead>Lezioni Totali</TableHead>
+                        <TableHead>Rimanenti</TableHead>
+                        <TableHead>Usate</TableHead>
+                        <TableHead>Prezzo</TableHead>
+                        <TableHead>Creato</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {lessonPackages.map((pkg) => {
+                        const client = clients.find(c => c.user_id === pkg.user_id);
+                        const usedLessons = pkg.total_lessons - pkg.remaining_lessons;
+                        return (
+                          <TableRow key={pkg.id}>
+                            <TableCell className="font-medium">{client ? `${client.first_name} ${client.last_name}` : "—"}</TableCell>
+                            <TableCell>{pkg.total_lessons}</TableCell>
+                            <TableCell>
+                              <Badge variant={pkg.remaining_lessons === 0 ? "destructive" : pkg.remaining_lessons <= 2 ? "secondary" : "default"}>
+                                {pkg.remaining_lessons}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{usedLessons}</TableCell>
+                            <TableCell>€{pkg.price}</TableCell>
+                            <TableCell>{format(new Date(pkg.created_at), "dd MMM yyyy", { locale: it })}</TableCell>
                           </TableRow>
                         );
                       })}

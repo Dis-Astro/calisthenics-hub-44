@@ -410,6 +410,84 @@ export type Database = {
         }
         Relationships: []
       }
+      lesson_packages: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          notes: string | null
+          price: number
+          remaining_lessons: number
+          total_lessons: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          price?: number
+          remaining_lessons: number
+          total_lessons: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          price?: number
+          remaining_lessons?: number
+          total_lessons?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      lesson_usage_log: {
+        Row: {
+          appointment_id: string | null
+          created_by: string | null
+          id: string
+          notes: string | null
+          package_id: string
+          used_at: string
+        }
+        Insert: {
+          appointment_id?: string | null
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          package_id: string
+          used_at?: string
+        }
+        Update: {
+          appointment_id?: string | null
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          package_id?: string
+          used_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_usage_log_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_usage_log_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "lesson_packages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       membership_plans: {
         Row: {
           created_at: string

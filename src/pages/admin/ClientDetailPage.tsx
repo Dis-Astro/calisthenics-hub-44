@@ -113,6 +113,16 @@ interface WorkoutPlan {
   is_active: boolean;
 }
 
+interface ClientAppointment {
+  id: string;
+  title: string;
+  start_time: string;
+  end_time: string;
+  coach_id: string;
+  description: string | null;
+  location: string | null;
+}
+
 const roleLabels: Record<UserRole, string> = {
   admin: "Amministratore",
   coach: "Coach",
@@ -131,6 +141,8 @@ const ClientDetailPage = () => {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [workoutPlans, setWorkoutPlans] = useState<WorkoutPlan[]>([]);
   const [membershipPlans, setMembershipPlans] = useState<MembershipPlan[]>([]);
+  const [clientAppointments, setClientAppointments] = useState<ClientAppointment[]>([]);
+  const [coachProfiles, setCoachProfiles] = useState<Map<string, string>>(new Map());
   
   // Dialog states
   const [viewPlanId, setViewPlanId] = useState<string | null>(null);
@@ -169,17 +181,25 @@ const ClientDetailPage = () => {
     }
     setProfile(profileData);
 
-    const [subsRes, paymentsRes, plansRes, membershipPlansRes] = await Promise.all([
+    const [subsRes, paymentsRes, plansRes, membershipPlansRes, appointmentsRes, coachesRes] = await Promise.all([
       supabase.from("subscriptions").select("*, membership_plans(id, name, price, duration_months)").eq("user_id", userId).order("end_date", { ascending: false }),
       supabase.from("payments").select("*").eq("user_id", userId).order("payment_date", { ascending: false }),
       (supabase.from("workout_plans").select("*").eq("client_id", userId) as any).is("deleted_at", null).order("created_at", { ascending: false }),
-      supabase.from("membership_plans").select("id, name, price, duration_months").eq("is_active", true).order("price")
+      supabase.from("membership_plans").select("id, name, price, duration_months").eq("is_active", true).order("price"),
+      supabase.from("appointments").select("id, title, start_time, end_time, coach_id, description, location").eq("client_id", userId).order("start_time", { ascending: false }),
+      supabase.from("profiles").select("user_id, first_name, last_name").in("role", ["admin", "coach"])
     ]);
 
     setSubscriptions((subsRes.data as unknown as Subscription[]) || []);
     setPayments(paymentsRes.data || []);
     setWorkoutPlans(plansRes.data || []);
     setMembershipPlans(membershipPlansRes.data || []);
+    setClientAppointments((appointmentsRes.data || []) as ClientAppointment[]);
+    if (coachesRes.data) {
+      const map = new Map<string, string>();
+      coachesRes.data.forEach((c: any) => map.set(c.user_id, `${c.first_name} ${c.last_name}`));
+      setCoachProfiles(map);
+    }
     setLoading(false);
   };
 
@@ -584,6 +604,51 @@ const ClientDetailPage = () => {
                       onDelete={fetchClientData}
                     />
                   ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Storico Appuntamenti */}
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="font-display tracking-wider flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-primary" />
+                Storico Appuntamenti
+              </CardTitle>
+              <CardDescription>{clientAppointments.length} appuntamenti totali</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {clientAppointments.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Calendar className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                  <p className="text-sm">Nessun appuntamento registrato</p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                  {clientAppointments.map(apt => {
+                    const aptDate = new Date(apt.start_time);
+                    const isPastApt = isPast(aptDate);
+                    return (
+                      <div key={apt.id} className={`flex items-center gap-3 p-3 rounded-lg border ${isPastApt ? 'border-border bg-muted/20' : 'border-primary/30 bg-primary/5'}`}>
+                        <div className="text-center min-w-[50px]">
+                          <p className="text-lg font-display leading-none">{format(aptDate, "dd")}</p>
+                          <p className="text-[10px] text-muted-foreground uppercase">{format(aptDate, "MMM yy", { locale: it })}</p>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{apt.title}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {format(aptDate, "HH:mm")} - {format(new Date(apt.end_time), "HH:mm")}
+                            {coachProfiles.get(apt.coach_id) && ` · ${coachProfiles.get(apt.coach_id)}`}
+                          </p>
+                          {apt.location && <p className="text-xs text-muted-foreground">📍 {apt.location}</p>}
+                        </div>
+                        <Badge variant={isPastApt ? "secondary" : "default"} className="text-xs flex-shrink-0">
+                          {isPastApt ? "Completato" : "Prossimo"}
+                        </Badge>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </CardContent>

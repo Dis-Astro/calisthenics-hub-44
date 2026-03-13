@@ -27,7 +27,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Calendar, Plus, ChevronLeft, ChevronRight, Loader2, Clock, User, ExternalLink, Trash2, Dumbbell, CalendarIcon, Repeat, GripVertical, RefreshCw, CreditCard } from "lucide-react";
+import { Calendar, Plus, ChevronLeft, ChevronRight, Loader2, Clock, User, ExternalLink, Trash2, Dumbbell, CalendarIcon, Repeat, GripVertical, RefreshCw, CreditCard, Package } from "lucide-react";
 import { 
   format, 
   startOfWeek, 
@@ -107,6 +107,12 @@ interface SubscriptionDeadline {
   plan_id: string;
 }
 
+interface LessonPackage {
+  id: string;
+  user_id: string;
+  remaining_lessons: number;
+  total_lessons: number;
+}
 type ViewMode = 'weekly' | 'monthly';
 
 type DragItem = 
@@ -126,8 +132,8 @@ const CalendarManagement = () => {
   const [coaches, setCoaches] = useState<Profile[]>([]);
   const [clients, setClients] = useState<Profile[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
+  const [lessonPackages, setLessonPackages] = useState<LessonPackage[]>([]);
   const [loading, setLoading] = useState(true);
-  
   // Dialog states
   const [isAppointmentDialogOpen, setIsAppointmentDialogOpen] = useState(false);
   const [isCourseSessionDialogOpen, setIsCourseSessionDialogOpen] = useState(false);
@@ -214,14 +220,15 @@ const CalendarManagement = () => {
     const startRange = format(rangeStart, "yyyy-MM-dd");
     const endRange = format(addHours(rangeEnd, 24), "yyyy-MM-dd");
 
-    const [appointmentsRes, sessionsRes, coachesRes, clientsRes, coursesRes, workoutRes, subsRes] = await Promise.all([
+    const [appointmentsRes, sessionsRes, coachesRes, clientsRes, coursesRes, workoutRes, subsRes, packagesRes] = await Promise.all([
       supabase.from("appointments").select("*").gte("start_time", startRange).lte("start_time", endRange),
       supabase.from("course_sessions").select("*, course:courses(*)").gte("start_time", startRange).lte("start_time", endRange),
       supabase.from("profiles").select("*").in("role", ["admin", "coach"]),
       supabase.from("profiles").select("*").in("role", ["cliente_palestra", "cliente_coaching"]),
       supabase.from("courses").select("*").eq("is_active", true),
       (supabase.from("workout_plans").select("id, name, client_id, end_date").gte("end_date", startRange).lte("end_date", endRange).eq("is_active", true) as any).is("deleted_at", null),
-      supabase.from("subscriptions").select("id, user_id, end_date, status, plan_id, membership_plans(name)").gte("end_date", startRange).lte("end_date", endRange)
+      supabase.from("subscriptions").select("id, user_id, end_date, status, plan_id, membership_plans(name)").gte("end_date", startRange).lte("end_date", endRange),
+      supabase.from("lesson_packages").select("id, user_id, remaining_lessons, total_lessons").gt("remaining_lessons", 0)
     ]);
 
     if (appointmentsRes.data) setAppointments(appointmentsRes.data);
@@ -245,8 +252,44 @@ const CalendarManagement = () => {
         plan_id: s.plan_id
       })));
     }
+    if (packagesRes.data) setLessonPackages(packagesRes.data as unknown as LessonPackage[]);
 
     setLoading(false);
+  };
+
+  // Helper: get active lesson package for a client
+  const getClientPackage = (clientId: string | null) => {
+    if (!clientId) return null;
+    return lessonPackages.find(p => p.user_id === clientId && p.remaining_lessons > 0) || null;
+  };
+
+  // Auto-decrement lesson from package
+  const decrementLessonPackage = async (clientId: string, appointmentId: string) => {
+    const pkg = getClientPackage(clientId);
+    if (!pkg) return;
+
+    // Decrement remaining_lessons
+    const { error: updateError } = await supabase
+      .from("lesson_packages")
+      .update({ remaining_lessons: pkg.remaining_lessons - 1 })
+      .eq("id", pkg.id);
+
+    if (updateError) {
+      console.error("Error decrementing lesson package:", updateError);
+      return;
+    }
+
+    // Log the usage
+    await supabase.from("lesson_usage_log").insert({
+      package_id: pkg.id,
+      appointment_id: appointmentId,
+      created_by: profile?.user_id
+    });
+
+    toast({
+      title: "Lezione scalata",
+      description: `Pacchetto: ${pkg.remaining_lessons - 1}/${pkg.total_lessons} lezioni rimanenti`
+    });
   };
 
   // --- Click on day to create appointment (pre-fill date) ---
@@ -347,7 +390,7 @@ const CalendarManagement = () => {
     const endDateTime = setMinutes(setHours(appointmentDate, endH), endM);
 
     setSaving(true);
-    const { error } = await supabase.from("appointments").insert({
+    const { data: insertedData, error } = await supabase.from("appointments").insert({
       title: newAppointment.title,
       description: newAppointment.description || null,
       start_time: startDateTime.toISOString(),
@@ -356,12 +399,18 @@ const CalendarManagement = () => {
       client_id: newAppointment.client_id || null,
       color: newAppointment.color,
       location: newAppointment.location || null
-    });
+    }).select("id").single();
 
     if (error) {
       toast({ title: "Errore", description: "Impossibile creare l'appuntamento", variant: "destructive" });
     } else {
       toast({ title: "Successo", description: "Appuntamento creato" });
+      
+      // Auto-decrement lesson package if client has one
+      if (newAppointment.client_id && insertedData) {
+        await decrementLessonPackage(newAppointment.client_id, insertedData.id);
+      }
+      
       setIsAppointmentDialogOpen(false);
       setNewAppointment({ title: "", description: "", coach_id: "", client_id: "", color: "#3B82F6", location: "" });
       setAppointmentDate(undefined);
@@ -669,11 +718,23 @@ const CalendarManagement = () => {
                     <Select value={newAppointment.client_id} onValueChange={(v) => setNewAppointment({ ...newAppointment, client_id: v })}>
                       <SelectTrigger><SelectValue placeholder="Seleziona cliente (opzionale)" /></SelectTrigger>
                       <SelectContent>
-                        {clients.map(c => (
-                          <SelectItem key={c.user_id} value={c.user_id}>{c.first_name} {c.last_name}</SelectItem>
-                        ))}
+                        {clients.map(c => {
+                          const pkg = getClientPackage(c.user_id);
+                          return (
+                            <SelectItem key={c.user_id} value={c.user_id}>
+                              {c.first_name} {c.last_name}
+                              {pkg && ` 📦 ${pkg.remaining_lessons}/${pkg.total_lessons}`}
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
+                    {newAppointment.client_id && getClientPackage(newAppointment.client_id) && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Package className="w-3 h-3" />
+                        Pacchetto: {getClientPackage(newAppointment.client_id)!.remaining_lessons}/{getClientPackage(newAppointment.client_id)!.total_lessons} lezioni — verrà scalata 1 lezione
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label>Descrizione</Label>
@@ -841,6 +902,7 @@ const CalendarManagement = () => {
                       >
                         {hourAppointments.map((apt) => {
                           const clientName = getClientName(apt.client_id);
+                          const clientPkg = getClientPackage(apt.client_id);
                           return (
                             <div
                               key={apt.id}
@@ -848,13 +910,18 @@ const CalendarManagement = () => {
                               onDragStart={() => handleDragStart({ type: 'appointment', id: apt.id, data: apt })}
                               className="text-xs p-1.5 rounded mb-1 text-white cursor-grab active:cursor-grabbing hover:opacity-90 group relative"
                               style={{ backgroundColor: apt.color }}
-                              title={`${apt.title}${clientName ? ` - ${clientName}` : ''}`}
+                              title={`${apt.title}${clientName ? ` - ${clientName}` : ''}${clientPkg ? ` (📦 ${clientPkg.remaining_lessons}/${clientPkg.total_lessons})` : ''}`}
                               onClick={(e) => handleAppointmentClick(apt, e)}
                             >
                               <div className="flex items-center gap-1">
                                 <GripVertical className="w-3 h-3 flex-shrink-0 opacity-50" />
                                 <User className="w-3 h-3 flex-shrink-0" />
                                 <span className="truncate">{apt.title}</span>
+                                {clientPkg && (
+                                  <span className="text-[10px] bg-white/20 px-1 rounded flex-shrink-0">
+                                    📦{clientPkg.remaining_lessons}
+                                  </span>
+                                )}
                                 {apt.client_id && <ExternalLink className="w-3 h-3 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />}
                               </div>
                               {clientName && (
