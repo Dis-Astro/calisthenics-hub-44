@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -21,14 +21,16 @@ import {
   AlertTriangle,
   CheckCircle,
   Clock,
-  Users
+  Users,
+  RefreshCw,
+  Package,
+  Minus
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import type { Database } from "@/integrations/supabase/types";
 import { format, addMonths, differenceInDays, isPast, isFuture } from "date-fns";
 import { it } from "date-fns/locale";
 import { useSearchParams } from "react-router-dom";
-
 type SubscriptionStatus = Database["public"]["Enums"]["subscription_status"];
 type PaymentStatus = Database["public"]["Enums"]["payment_status"];
 
