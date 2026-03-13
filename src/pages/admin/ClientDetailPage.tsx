@@ -608,6 +608,51 @@ const ClientDetailPage = () => {
               )}
             </CardContent>
           </Card>
+
+          {/* Storico Appuntamenti */}
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="font-display tracking-wider flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-primary" />
+                Storico Appuntamenti
+              </CardTitle>
+              <CardDescription>{clientAppointments.length} appuntamenti totali</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {clientAppointments.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Calendar className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                  <p className="text-sm">Nessun appuntamento registrato</p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                  {clientAppointments.map(apt => {
+                    const aptDate = new Date(apt.start_time);
+                    const isPastApt = isPast(aptDate);
+                    return (
+                      <div key={apt.id} className={`flex items-center gap-3 p-3 rounded-lg border ${isPastApt ? 'border-border bg-muted/20' : 'border-primary/30 bg-primary/5'}`}>
+                        <div className="text-center min-w-[50px]">
+                          <p className="text-lg font-display leading-none">{format(aptDate, "dd")}</p>
+                          <p className="text-[10px] text-muted-foreground uppercase">{format(aptDate, "MMM yy", { locale: it })}</p>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{apt.title}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {format(aptDate, "HH:mm")} - {format(new Date(apt.end_time), "HH:mm")}
+                            {coachProfiles.get(apt.coach_id) && ` · ${coachProfiles.get(apt.coach_id)}`}
+                          </p>
+                          {apt.location && <p className="text-xs text-muted-foreground">📍 {apt.location}</p>}
+                        </div>
+                        <Badge variant={isPastApt ? "secondary" : "default"} className="text-xs flex-shrink-0">
+                          {isPastApt ? "Completato" : "Prossimo"}
+                        </Badge>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
 
