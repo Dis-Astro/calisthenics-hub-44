@@ -486,9 +486,61 @@ const CalendarManagement = () => {
 
   const handleAppointmentClick = (apt: Appointment, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (apt.client_id) {
-      navigate(`/admin/utenti/${apt.client_id}`);
+    // Open edit dialog for this appointment
+    setEditingAppointment(apt);
+    const startDate = parseISO(apt.start_time);
+    const endDate = parseISO(apt.end_time);
+    setEditDate(startDate);
+    setEditStartTime(format(startDate, "HH:mm"));
+    setEditEndTime(format(endDate, "HH:mm"));
+    setEditForm({
+      title: apt.title,
+      description: apt.description || "",
+      coach_id: apt.coach_id,
+      client_id: apt.client_id || "",
+      color: apt.color,
+      location: apt.location || ""
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const updateAppointment = async () => {
+    if (!editingAppointment || !editDate || !editForm.title || !editForm.coach_id) {
+      toast({ title: "Errore", description: "Compila tutti i campi obbligatori", variant: "destructive" });
+      return;
     }
+
+    const [startH, startM] = editStartTime.split(":").map(Number);
+    const [endH, endM] = editEndTime.split(":").map(Number);
+    const startDateTime = setMinutes(setHours(editDate, startH), startM);
+    const endDateTime = setMinutes(setHours(editDate, endH), endM);
+
+    setSaving(true);
+    const { error } = await supabase.from("appointments").update({
+      title: editForm.title,
+      description: editForm.description || null,
+      start_time: startDateTime.toISOString(),
+      end_time: endDateTime.toISOString(),
+      coach_id: editForm.coach_id,
+      client_id: editForm.client_id || null,
+      color: editForm.color,
+      location: editForm.location || null
+    }).eq("id", editingAppointment.id);
+
+    if (error) {
+      toast({ title: "Errore", description: "Impossibile aggiornare l'appuntamento", variant: "destructive" });
+    } else {
+      toast({ title: "Aggiornato", description: "Appuntamento aggiornato" });
+      setIsEditDialogOpen(false);
+      setEditingAppointment(null);
+      fetchData();
+    }
+    setSaving(false);
+  };
+
+  const handleDeadlineClick = (deadline: WorkoutPlan, e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigate(`/admin/utenti/${deadline.client_id}/scheda/${deadline.id}/modifica`);
   };
 
   const handleNavigate = (direction: 'prev' | 'next') => {
