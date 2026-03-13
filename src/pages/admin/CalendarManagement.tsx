@@ -718,11 +718,23 @@ const CalendarManagement = () => {
                     <Select value={newAppointment.client_id} onValueChange={(v) => setNewAppointment({ ...newAppointment, client_id: v })}>
                       <SelectTrigger><SelectValue placeholder="Seleziona cliente (opzionale)" /></SelectTrigger>
                       <SelectContent>
-                        {clients.map(c => (
-                          <SelectItem key={c.user_id} value={c.user_id}>{c.first_name} {c.last_name}</SelectItem>
-                        ))}
+                        {clients.map(c => {
+                          const pkg = getClientPackage(c.user_id);
+                          return (
+                            <SelectItem key={c.user_id} value={c.user_id}>
+                              {c.first_name} {c.last_name}
+                              {pkg && ` 📦 ${pkg.remaining_lessons}/${pkg.total_lessons}`}
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
+                    {newAppointment.client_id && getClientPackage(newAppointment.client_id) && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Package className="w-3 h-3" />
+                        Pacchetto: {getClientPackage(newAppointment.client_id)!.remaining_lessons}/{getClientPackage(newAppointment.client_id)!.total_lessons} lezioni — verrà scalata 1 lezione
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label>Descrizione</Label>
