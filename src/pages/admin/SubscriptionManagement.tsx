@@ -452,6 +452,7 @@ const SubscriptionManagement = () => {
         <div className="flex flex-col md:flex-row gap-4 mb-6 justify-between">
           <TabsList>
             <TabsTrigger value="subscriptions">Abbonamenti</TabsTrigger>
+            <TabsTrigger value="packages">Pacchetti Lezioni</TabsTrigger>
             <TabsTrigger value="payments">Pagamenti</TabsTrigger>
             <TabsTrigger value="plans">Piani</TabsTrigger>
           </TabsList>
@@ -572,7 +573,7 @@ const SubscriptionManagement = () => {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Cliente</TableHead><TableHead>Piano</TableHead>
-                        <TableHead>Inizio</TableHead><TableHead>Scadenza</TableHead><TableHead>Stato</TableHead>
+                        <TableHead>Inizio</TableHead><TableHead>Scadenza</TableHead><TableHead>Stato</TableHead><TableHead className="text-right">Azioni</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -589,6 +590,115 @@ const SubscriptionManagement = () => {
                                 <expStatus.icon className="w-3 h-3" />{expStatus.label}
                               </Badge>
                             </TableCell>
+                            <TableCell className="text-right">
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                className="gap-1 h-8"
+                                onClick={() => handleRenewSubscription(sub)}
+                                disabled={renewingId === sub.id}
+                              >
+                                {renewingId === sub.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                                Rinnova
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Pacchetti Lezioni Tab */}
+        <TabsContent value="packages">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="font-display tracking-wider">Pacchetti Lezioni Private</CardTitle>
+                  <CardDescription>{lessonPackages.length} pacchetti registrati</CardDescription>
+                </div>
+                <Dialog open={isPackageDialogOpen} onOpenChange={setIsPackageDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="gap-2"><Plus className="w-4 h-4" />Nuovo Pacchetto</Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle className="font-display tracking-wider">Nuovo Pacchetto Lezioni</DialogTitle>
+                      <DialogDescription>Assegna un pacchetto di lezioni private a un cliente</DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                      <div className="space-y-2">
+                        <Label>Cliente *</Label>
+                        <Select value={newPackage.user_id} onValueChange={(v) => setNewPackage({...newPackage, user_id: v})}>
+                          <SelectTrigger><SelectValue placeholder="Seleziona cliente" /></SelectTrigger>
+                          <SelectContent>{clients.map(c => <SelectItem key={c.user_id} value={c.user_id}>{c.first_name} {c.last_name}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Numero Lezioni *</Label>
+                          <Input type="number" value={newPackage.total_lessons} onChange={(e) => setNewPackage({...newPackage, total_lessons: e.target.value})} placeholder="Es. 10" min="1" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Prezzo Pacchetto (€) *</Label>
+                          <Input type="number" value={newPackage.price} onChange={(e) => setNewPackage({...newPackage, price: e.target.value})} placeholder="0.00" />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Note</Label>
+                        <Input value={newPackage.notes} onChange={(e) => setNewPackage({...newPackage, notes: e.target.value})} placeholder="Note opzionali..." />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setIsPackageDialogOpen(false)}>Annulla</Button>
+                      <Button onClick={createPackage} disabled={creating}>{creating && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Crea Pacchetto</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+              ) : lessonPackages.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>Nessun pacchetto lezioni</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Cliente</TableHead>
+                        <TableHead>Lezioni Totali</TableHead>
+                        <TableHead>Rimanenti</TableHead>
+                        <TableHead>Usate</TableHead>
+                        <TableHead>Prezzo</TableHead>
+                        <TableHead>Creato</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {lessonPackages.map((pkg) => {
+                        const client = clients.find(c => c.user_id === pkg.user_id);
+                        const usedLessons = pkg.total_lessons - pkg.remaining_lessons;
+                        return (
+                          <TableRow key={pkg.id}>
+                            <TableCell className="font-medium">{client ? `${client.first_name} ${client.last_name}` : "—"}</TableCell>
+                            <TableCell>{pkg.total_lessons}</TableCell>
+                            <TableCell>
+                              <Badge variant={pkg.remaining_lessons === 0 ? "destructive" : pkg.remaining_lessons <= 2 ? "secondary" : "default"}>
+                                {pkg.remaining_lessons}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{usedLessons}</TableCell>
+                            <TableCell>€{pkg.price}</TableCell>
+                            <TableCell>{format(new Date(pkg.created_at), "dd MMM yyyy", { locale: it })}</TableCell>
                           </TableRow>
                         );
                       })}
