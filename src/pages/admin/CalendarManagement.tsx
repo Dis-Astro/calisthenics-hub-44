@@ -1359,9 +1359,29 @@ const CalendarManagement = () => {
           </DialogHeader>
           <ScrollArea className="flex-1 pr-4">
             <div className="grid gap-4 py-4">
-              <div className="space-y-2">
+              <div className="space-y-2 relative" ref={editTitleInputRef}>
                 <Label>Titolo *</Label>
-                <Input value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} />
+                <Input 
+                  value={editForm.title} 
+                  onChange={(e) => handleTitleChange(e.target.value, true)} 
+                  onFocus={() => { if (editTitleSuggestions.length > 0) setShowEditTitleSuggestions(true); }}
+                  onBlur={() => setTimeout(() => setShowEditTitleSuggestions(false), 200)}
+                  autoComplete="off"
+                />
+                {showEditTitleSuggestions && (
+                  <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border border-border rounded-md shadow-lg max-h-40 overflow-y-auto">
+                    {editTitleSuggestions.map(c => (
+                      <button
+                        key={c.user_id}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors"
+                        onMouseDown={(e) => { e.preventDefault(); selectTitleSuggestion(c, true); }}
+                      >
+                        {c.first_name} {c.last_name}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Data *</Label>
