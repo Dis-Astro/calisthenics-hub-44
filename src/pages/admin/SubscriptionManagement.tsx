@@ -159,7 +159,7 @@ const SubscriptionManagement = () => {
     setLoading(true);
     
     // Fetch all data in parallel - no FK hints, we'll join manually
-    const [subsRes, plansRes, paymentsRes, clientsRes] = await Promise.all([
+    const [subsRes, plansRes, paymentsRes, clientsRes, packagesRes] = await Promise.all([
       supabase
         .from("subscriptions")
         .select("*, membership_plans(id, name, price, duration_months)")
@@ -178,7 +178,11 @@ const SubscriptionManagement = () => {
         .from("profiles")
         .select("*")
         .in("role", ["cliente_palestra", "cliente_coaching"])
-        .order("last_name", { ascending: true })
+        .order("last_name", { ascending: true }),
+      supabase
+        .from("lesson_packages")
+        .select("*")
+        .order("created_at", { ascending: false })
     ]);
 
     if (subsRes.error) console.error("Subscriptions error:", subsRes.error);
