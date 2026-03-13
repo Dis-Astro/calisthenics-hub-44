@@ -141,6 +141,8 @@ const ClientDetailPage = () => {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [workoutPlans, setWorkoutPlans] = useState<WorkoutPlan[]>([]);
   const [membershipPlans, setMembershipPlans] = useState<MembershipPlan[]>([]);
+  const [clientAppointments, setClientAppointments] = useState<ClientAppointment[]>([]);
+  const [coachProfiles, setCoachProfiles] = useState<Map<string, string>>(new Map());
   
   // Dialog states
   const [viewPlanId, setViewPlanId] = useState<string | null>(null);
