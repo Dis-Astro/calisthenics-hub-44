@@ -141,6 +141,14 @@ const CalendarManagement = () => {
   const [deleteCourseSessionId, setDeleteCourseSessionId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   
+  // Client autocomplete for title
+  const [titleSuggestions, setTitleSuggestions] = useState<Profile[]>([]);
+  const [showTitleSuggestions, setShowTitleSuggestions] = useState(false);
+  const [editTitleSuggestions, setEditTitleSuggestions] = useState<Profile[]>([]);
+  const [showEditTitleSuggestions, setShowEditTitleSuggestions] = useState(false);
+  const titleInputRef = useRef<HTMLDivElement>(null);
+  const editTitleInputRef = useRef<HTMLDivElement>(null);
+  
   // Edit appointment
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -515,6 +523,48 @@ const CalendarManagement = () => {
     setDeleteCourseSessionId(null);
   };
 
+  // Client name autocomplete helper
+  const handleTitleChange = (value: string, isEdit = false) => {
+    if (isEdit) {
+      setEditForm({ ...editForm, title: value });
+    } else {
+      setNewAppointment({ ...newAppointment, title: value });
+    }
+    
+    if (value.length >= 3) {
+      const query = value.toLowerCase();
+      const matches = clients.filter(c => 
+        `${c.first_name} ${c.last_name}`.toLowerCase().includes(query) ||
+        c.first_name.toLowerCase().includes(query) ||
+        c.last_name.toLowerCase().includes(query)
+      ).slice(0, 5);
+      if (isEdit) {
+        setEditTitleSuggestions(matches);
+        setShowEditTitleSuggestions(matches.length > 0);
+      } else {
+        setTitleSuggestions(matches);
+        setShowTitleSuggestions(matches.length > 0);
+      }
+    } else {
+      if (isEdit) {
+        setShowEditTitleSuggestions(false);
+      } else {
+        setShowTitleSuggestions(false);
+      }
+    }
+  };
+
+  const selectTitleSuggestion = (client: Profile, isEdit = false) => {
+    const name = `${client.first_name} ${client.last_name}`;
+    if (isEdit) {
+      setEditForm({ ...editForm, title: name, client_id: client.user_id });
+      setShowEditTitleSuggestions(false);
+    } else {
+      setNewAppointment({ ...newAppointment, title: name, client_id: client.user_id });
+      setShowTitleSuggestions(false);
+    }
+  };
+
   const isoDatePart = (iso: string) => iso.slice(0, 10);
   const isoHourPart = (iso: string) => Number(iso.slice(11, 13));
 
@@ -657,9 +707,34 @@ const CalendarManagement = () => {
               </DialogHeader>
               <ScrollArea className="flex-1 pr-4">
                 <div className="grid gap-4 py-4">
-                  <div className="space-y-2">
+                  <div className="space-y-2 relative" ref={titleInputRef}>
                     <Label>Titolo *</Label>
-                    <Input value={newAppointment.title} onChange={(e) => setNewAppointment({ ...newAppointment, title: e.target.value })} placeholder="Es. Sessione PT" />
+                    <Input 
+                      value={newAppointment.title} 
+                      onChange={(e) => handleTitleChange(e.target.value)} 
+                      onFocus={() => { if (titleSuggestions.length > 0) setShowTitleSuggestions(true); }}
+                      onBlur={() => setTimeout(() => setShowTitleSuggestions(false), 200)}
+                      placeholder="Es. Sessione PT o nome cliente..." 
+                      autoComplete="off"
+                    />
+                    {showTitleSuggestions && (
+                      <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border border-border rounded-md shadow-lg max-h-40 overflow-y-auto">
+                        {titleSuggestions.map(c => {
+                          const pkg = getClientPackage(c.user_id);
+                          return (
+                            <button
+                              key={c.user_id}
+                              type="button"
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors flex items-center justify-between"
+                              onMouseDown={(e) => { e.preventDefault(); selectTitleSuggestion(c); }}
+                            >
+                              <span>{c.first_name} {c.last_name}</span>
+                              {pkg && <span className="text-xs text-muted-foreground">📦 {pkg.remaining_lessons}/{pkg.total_lessons}</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                   
                   {/* Date Picker */}
@@ -1030,7 +1105,7 @@ const CalendarManagement = () => {
                   <div 
                     key={day.toISOString()} 
                     className={cn(
-                      "min-h-[100px] p-2 border rounded-lg cursor-pointer hover:bg-accent/30 transition-colors",
+                      "h-[120px] p-1.5 border rounded-lg cursor-pointer hover:bg-accent/30 transition-colors overflow-hidden",
                       isToday ? 'bg-primary/10 border-primary' : 'border-border',
                       !isCurrentMonth && 'opacity-40',
                       dragOverDay === dayKey && 'bg-primary/20 border-primary'
@@ -1050,7 +1125,7 @@ const CalendarManagement = () => {
                       {format(day, "d")}
                     </div>
                     
-                    <div className="space-y-1">
+                    <div className="space-y-0.5">
                       {events.appointments.slice(0, 2).map(apt => {
                         const clientName = getClientName(apt.client_id);
                         return (
@@ -1131,14 +1206,26 @@ const CalendarManagement = () => {
                         );
                       })}
                       
-                      {totalEvents > 4 && (
-                        <div 
-                          className="text-[10px] text-muted-foreground cursor-pointer hover:text-primary"
-                          onClick={(e) => handleDayNumberClick(day, e)}
-                        >
-                          +{totalEvents - 4} altri
-                        </div>
-                      )}
+                      {/* Show "+X altri" when there are more than what's shown */}
+                      {(() => {
+                        const shownAppts = Math.min(events.appointments.length, 2);
+                        const shownSessions = Math.min(events.sessions.length, 2);
+                        const shownDeadlines = Math.min(events.deadlines.length, 1);
+                        const shownSubDeadlines = Math.min(events.subDeadlines.length, 1);
+                        const totalShown = shownAppts + shownSessions + shownDeadlines + shownSubDeadlines;
+                        const remaining = totalEvents - totalShown;
+                        if (remaining > 0) {
+                          return (
+                            <div 
+                              className="text-[10px] text-muted-foreground cursor-pointer hover:text-primary font-medium"
+                              onClick={(e) => handleDayNumberClick(day, e)}
+                            >
+                              + {remaining} altri
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                   </div>
                 );
@@ -1284,9 +1371,29 @@ const CalendarManagement = () => {
           </DialogHeader>
           <ScrollArea className="flex-1 pr-4">
             <div className="grid gap-4 py-4">
-              <div className="space-y-2">
+              <div className="space-y-2 relative" ref={editTitleInputRef}>
                 <Label>Titolo *</Label>
-                <Input value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} />
+                <Input 
+                  value={editForm.title} 
+                  onChange={(e) => handleTitleChange(e.target.value, true)} 
+                  onFocus={() => { if (editTitleSuggestions.length > 0) setShowEditTitleSuggestions(true); }}
+                  onBlur={() => setTimeout(() => setShowEditTitleSuggestions(false), 200)}
+                  autoComplete="off"
+                />
+                {showEditTitleSuggestions && (
+                  <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border border-border rounded-md shadow-lg max-h-40 overflow-y-auto">
+                    {editTitleSuggestions.map(c => (
+                      <button
+                        key={c.user_id}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors"
+                        onMouseDown={(e) => { e.preventDefault(); selectTitleSuggestion(c, true); }}
+                      >
+                        {c.first_name} {c.last_name}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Data *</Label>

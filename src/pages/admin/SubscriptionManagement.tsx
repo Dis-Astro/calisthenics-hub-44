@@ -24,8 +24,19 @@ import {
   Users,
   RefreshCw,
   Package,
-  Minus
+  Minus,
+  Trash2
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import AdminLayout from "@/components/admin/AdminLayout";
 import type { Database } from "@/integrations/supabase/types";
 import { format, addMonths, differenceInDays, isPast, isFuture } from "date-fns";
@@ -123,11 +134,13 @@ const SubscriptionManagement = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [lessonPackages, setLessonPackages] = useState<LessonPackage[]>([]);
   const [renewingId, setRenewingId] = useState<string | null>(null);
+  const [deletingPackageId, setDeletingPackageId] = useState<string | null>(null);
 
   // Dialog states
   const [isSubscriptionDialogOpen, setIsSubscriptionDialogOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [isPackageDialogOpen, setIsPackageDialogOpen] = useState(false);
+  const [isPackagePaymentDialogOpen, setIsPackagePaymentDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
 
   // Form states
@@ -148,6 +161,13 @@ const SubscriptionManagement = () => {
     user_id: "",
     total_lessons: "",
     price: "",
+    notes: ""
+  });
+
+  const [newPackagePayment, setNewPackagePayment] = useState({
+    package_id: "",
+    amount: "",
+    method: "contanti",
     notes: ""
   });
 
@@ -266,6 +286,53 @@ const SubscriptionManagement = () => {
       toast({ title: "Pacchetto creato", description: `${newPackage.total_lessons} lezioni assegnate` });
       setNewPackage({ user_id: "", total_lessons: "", price: "", notes: "" });
       setIsPackageDialogOpen(false);
+      fetchData();
+    }
+    setCreating(false);
+  };
+
+  // Delete lesson package
+  const deletePackage = async () => {
+    if (!deletingPackageId) return;
+    const { error } = await supabase.from("lesson_packages").delete().eq("id", deletingPackageId);
+    if (error) {
+      toast({ title: "Errore", description: "Impossibile eliminare il pacchetto", variant: "destructive" });
+    } else {
+      toast({ title: "Eliminato", description: "Pacchetto lezioni eliminato" });
+      fetchData();
+    }
+    setDeletingPackageId(null);
+  };
+
+  // Record package payment (standalone, not linked to subscription)
+  const recordPackagePayment = async () => {
+    if (!newPackagePayment.package_id || !newPackagePayment.amount) {
+      toast({ title: "Errore", description: "Seleziona un pacchetto e inserisci l'importo", variant: "destructive" });
+      return;
+    }
+    setCreating(true);
+    const pkg = lessonPackages.find(p => p.id === newPackagePayment.package_id);
+    if (!pkg) { setCreating(false); return; }
+
+    // We need a subscription_id for payments table — create a dummy approach
+    // Better: record as a note on the package + use a general payment log
+    // For now, insert into payments with a special note
+    // Actually the payments table requires subscription_id, so let's just track it as a note update on the package
+    // and show it in the payments tab via a workaround
+    
+    // Update: payments table requires subscription_id (NOT NULL), so we can't use it directly for packages.
+    // Instead, let's update the package notes with payment info
+    const paymentNote = `Pagamento €${newPackagePayment.amount} (${newPackagePayment.method}) - ${format(new Date(), "dd/MM/yyyy")}${newPackagePayment.notes ? ` - ${newPackagePayment.notes}` : ''}`;
+    const existingNotes = pkg.notes || '';
+    const updatedNotes = existingNotes ? `${existingNotes}\n${paymentNote}` : paymentNote;
+
+    const { error } = await supabase.from("lesson_packages").update({ notes: updatedNotes }).eq("id", pkg.id);
+    if (error) {
+      toast({ title: "Errore", description: "Impossibile registrare il pagamento", variant: "destructive" });
+    } else {
+      toast({ title: "Pagamento registrato", description: `€${newPackagePayment.amount} per pacchetto lezioni` });
+      setNewPackagePayment({ package_id: "", amount: "", method: "contanti", notes: "" });
+      setIsPackagePaymentDialogOpen(false);
       fetchData();
     }
     setCreating(false);
@@ -621,6 +688,63 @@ const SubscriptionManagement = () => {
                   <CardTitle className="font-display tracking-wider">Pacchetti Lezioni Private</CardTitle>
                   <CardDescription>{lessonPackages.length} pacchetti registrati</CardDescription>
                 </div>
+                <div className="flex gap-2">
+                <Dialog open={isPackagePaymentDialogOpen} onOpenChange={setIsPackagePaymentDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="secondary" className="gap-2"><Euro className="w-4 h-4" />Registra Pagamento</Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle className="font-display tracking-wider">Pagamento Pacchetto</DialogTitle>
+                      <DialogDescription>Registra un pagamento per un pacchetto lezioni</DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                      <div className="space-y-2">
+                        <Label>Pacchetto *</Label>
+                        <Select value={newPackagePayment.package_id} onValueChange={(v) => {
+                          const pkg = lessonPackages.find(p => p.id === v);
+                          setNewPackagePayment({ ...newPackagePayment, package_id: v, amount: pkg?.price?.toString() || "" });
+                        }}>
+                          <SelectTrigger><SelectValue placeholder="Seleziona pacchetto" /></SelectTrigger>
+                          <SelectContent>
+                            {lessonPackages.map(pkg => {
+                              const client = clients.find(c => c.user_id === pkg.user_id);
+                              return (
+                                <SelectItem key={pkg.id} value={pkg.id}>
+                                  {client ? `${client.first_name} ${client.last_name}` : "—"} — {pkg.total_lessons} lezioni (€{pkg.price})
+                                </SelectItem>
+                              );
+                            })}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Importo (€) *</Label>
+                        <Input type="number" value={newPackagePayment.amount} onChange={(e) => setNewPackagePayment({...newPackagePayment, amount: e.target.value})} placeholder="0.00" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Metodo di Pagamento</Label>
+                        <Select value={newPackagePayment.method} onValueChange={(v) => setNewPackagePayment({...newPackagePayment, method: v})}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="contanti">Contanti</SelectItem>
+                            <SelectItem value="carta">Carta</SelectItem>
+                            <SelectItem value="bonifico">Bonifico</SelectItem>
+                            <SelectItem value="satispay">Satispay</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Note</Label>
+                        <Input value={newPackagePayment.notes} onChange={(e) => setNewPackagePayment({...newPackagePayment, notes: e.target.value})} placeholder="Note opzionali" />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setIsPackagePaymentDialogOpen(false)}>Annulla</Button>
+                      <Button onClick={recordPackagePayment} disabled={creating}>{creating && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Registra</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
                 <Dialog open={isPackageDialogOpen} onOpenChange={setIsPackageDialogOpen}>
                   <DialogTrigger asChild>
                     <Button className="gap-2"><Plus className="w-4 h-4" />Nuovo Pacchetto</Button>
@@ -659,6 +783,7 @@ const SubscriptionManagement = () => {
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -680,6 +805,8 @@ const SubscriptionManagement = () => {
                         <TableHead>Usate</TableHead>
                         <TableHead>Prezzo</TableHead>
                         <TableHead>Creato</TableHead>
+                        <TableHead>Note</TableHead>
+                        <TableHead className="text-right">Azioni</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -698,6 +825,12 @@ const SubscriptionManagement = () => {
                             <TableCell>{usedLessons}</TableCell>
                             <TableCell>€{pkg.price}</TableCell>
                             <TableCell>{format(new Date(pkg.created_at), "dd MMM yyyy", { locale: it })}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate" title={pkg.notes || ''}>{pkg.notes || '—'}</TableCell>
+                            <TableCell className="text-right">
+                              <Button size="sm" variant="ghost" className="h-8 px-2 text-destructive hover:text-destructive" onClick={() => setDeletingPackageId(pkg.id)}>
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </TableCell>
                           </TableRow>
                         );
                       })}
@@ -781,6 +914,24 @@ const SubscriptionManagement = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Delete Package Confirmation */}
+      <AlertDialog open={!!deletingPackageId} onOpenChange={() => setDeletingPackageId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare il pacchetto lezioni?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Questa azione non può essere annullata. Il pacchetto e il suo storico verranno rimossi.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={deletePackage} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AdminLayout>
   );
 };
