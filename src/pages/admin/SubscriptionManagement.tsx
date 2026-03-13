@@ -823,7 +823,12 @@ const SubscriptionManagement = () => {
                             <TableCell>{usedLessons}</TableCell>
                             <TableCell>€{pkg.price}</TableCell>
                             <TableCell>{format(new Date(pkg.created_at), "dd MMM yyyy", { locale: it })}</TableCell>
-                          </TableRow>
+                            <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate" title={pkg.notes || ''}>{pkg.notes || '—'}</TableCell>
+                            <TableCell className="text-right">
+                              <Button size="sm" variant="ghost" className="h-8 px-2 text-destructive hover:text-destructive" onClick={() => setDeletingPackageId(pkg.id)}>
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </TableCell>
                         );
                       })}
                     </TableBody>
