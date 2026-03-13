@@ -141,6 +141,14 @@ const CalendarManagement = () => {
   const [deleteCourseSessionId, setDeleteCourseSessionId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   
+  // Client autocomplete for title
+  const [titleSuggestions, setTitleSuggestions] = useState<Profile[]>([]);
+  const [showTitleSuggestions, setShowTitleSuggestions] = useState(false);
+  const [editTitleSuggestions, setEditTitleSuggestions] = useState<Profile[]>([]);
+  const [showEditTitleSuggestions, setShowEditTitleSuggestions] = useState(false);
+  const titleInputRef = useRef<HTMLDivElement>(null);
+  const editTitleInputRef = useRef<HTMLDivElement>(null);
+  
   // Edit appointment
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
