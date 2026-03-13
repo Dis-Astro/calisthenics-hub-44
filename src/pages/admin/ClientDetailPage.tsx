@@ -194,6 +194,12 @@ const ClientDetailPage = () => {
     setPayments(paymentsRes.data || []);
     setWorkoutPlans(plansRes.data || []);
     setMembershipPlans(membershipPlansRes.data || []);
+    setClientAppointments((appointmentsRes.data || []) as ClientAppointment[]);
+    if (coachesRes.data) {
+      const map = new Map<string, string>();
+      coachesRes.data.forEach((c: any) => map.set(c.user_id, `${c.first_name} ${c.last_name}`));
+      setCoachProfiles(map);
+    }
     setLoading(false);
   };
 
