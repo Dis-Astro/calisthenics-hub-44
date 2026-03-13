@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import {
   AlertDialog,
@@ -26,7 +27,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Calendar, Plus, ChevronLeft, ChevronRight, Loader2, Clock, User, ExternalLink, Trash2, Dumbbell, CalendarIcon, Repeat } from "lucide-react";
+import { Calendar, Plus, ChevronLeft, ChevronRight, Loader2, Clock, User, ExternalLink, Trash2, Dumbbell, CalendarIcon, Repeat, GripVertical, RefreshCw, CreditCard } from "lucide-react";
 import { 
   format, 
   startOfWeek, 
@@ -45,7 +46,8 @@ import {
   addHours,
   addDays,
   setHours,
-  setMinutes
+  setMinutes,
+  differenceInMilliseconds
 } from "date-fns";
 import { it } from "date-fns/locale";
 
@@ -96,7 +98,20 @@ interface WorkoutPlan {
   end_date: string;
 }
 
+interface SubscriptionDeadline {
+  id: string;
+  user_id: string;
+  end_date: string;
+  status: string;
+  plan_name: string;
+  plan_id: string;
+}
+
 type ViewMode = 'weekly' | 'monthly';
+
+type DragItem = 
+  | { type: 'appointment'; id: string; data: Appointment }
+  | { type: 'session'; id: string; data: CourseSession };
 
 const CalendarManagement = () => {
   const navigate = useNavigate();
@@ -107,6 +122,7 @@ const CalendarManagement = () => {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [courseSessions, setCourseSessions] = useState<CourseSession[]>([]);
   const [workoutDeadlines, setWorkoutDeadlines] = useState<WorkoutPlan[]>([]);
+  const [subscriptionDeadlines, setSubscriptionDeadlines] = useState<SubscriptionDeadline[]>([]);
   const [coaches, setCoaches] = useState<Profile[]>([]);
   const [clients, setClients] = useState<Profile[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -118,6 +134,13 @@ const CalendarManagement = () => {
   const [deleteAppointmentId, setDeleteAppointmentId] = useState<string | null>(null);
   const [deleteCourseSessionId, setDeleteCourseSessionId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  
+  // Day detail dialog
+  const [dayDetailDate, setDayDetailDate] = useState<Date | null>(null);
+
+  // Drag and drop
+  const [dragItem, setDragItem] = useState<DragItem | null>(null);
+  const [dragOverDay, setDragOverDay] = useState<string | null>(null);
   
   // Form states
   const [appointmentDate, setAppointmentDate] = useState<Date | undefined>();
@@ -158,7 +181,6 @@ const CalendarManagement = () => {
       };
     }
     return {
-      // For the month grid we need padding days to align weekdays (Mon-Sun)
       start: startOfWeek(startOfMonth(currentDate), { weekStartsOn: 1 }),
       end: endOfWeek(endOfMonth(currentDate), { weekStartsOn: 1 })
     };
@@ -177,17 +199,17 @@ const CalendarManagement = () => {
     const startRange = format(rangeStart, "yyyy-MM-dd");
     const endRange = format(addHours(rangeEnd, 24), "yyyy-MM-dd");
 
-    const [appointmentsRes, sessionsRes, coachesRes, clientsRes, coursesRes, workoutRes] = await Promise.all([
+    const [appointmentsRes, sessionsRes, coachesRes, clientsRes, coursesRes, workoutRes, subsRes] = await Promise.all([
       supabase.from("appointments").select("*").gte("start_time", startRange).lte("start_time", endRange),
       supabase.from("course_sessions").select("*, course:courses(*)").gte("start_time", startRange).lte("start_time", endRange),
       supabase.from("profiles").select("*").in("role", ["admin", "coach"]),
       supabase.from("profiles").select("*").in("role", ["cliente_palestra", "cliente_coaching"]),
       supabase.from("courses").select("*").eq("is_active", true),
-      (supabase.from("workout_plans").select("id, name, client_id, end_date").gte("end_date", startRange).lte("end_date", endRange).eq("is_active", true) as any).is("deleted_at", null)
+      (supabase.from("workout_plans").select("id, name, client_id, end_date").gte("end_date", startRange).lte("end_date", endRange).eq("is_active", true) as any).is("deleted_at", null),
+      supabase.from("subscriptions").select("id, user_id, end_date, status, plan_id, membership_plans(name)").gte("end_date", startRange).lte("end_date", endRange)
     ]);
 
     if (appointmentsRes.data) setAppointments(appointmentsRes.data);
-    // Filter out sessions from inactive courses
     if (sessionsRes.data) {
       const activeSessions = (sessionsRes.data as CourseSession[]).filter(
         session => session.course?.is_active !== false
@@ -198,8 +220,104 @@ const CalendarManagement = () => {
     if (clientsRes.data) setClients(clientsRes.data);
     if (coursesRes.data) setCourses(coursesRes.data);
     if (workoutRes.data) setWorkoutDeadlines(workoutRes.data);
+    if (subsRes.data) {
+      setSubscriptionDeadlines(subsRes.data.map((s: any) => ({
+        id: s.id,
+        user_id: s.user_id,
+        end_date: s.end_date,
+        status: s.status,
+        plan_name: s.membership_plans?.name || 'Piano',
+        plan_id: s.plan_id
+      })));
+    }
 
     setLoading(false);
+  };
+
+  // --- Click on day to create appointment (pre-fill date) ---
+  const handleDayClick = (day: Date) => {
+    setAppointmentDate(day);
+    setAppointmentStartTime("09:00");
+    setAppointmentEndTime("10:00");
+    setNewAppointment({ title: "", description: "", coach_id: profile?.user_id || "", client_id: "", color: "#3B82F6", location: "" });
+    setIsAppointmentDialogOpen(true);
+  };
+
+  // --- Click on day number to see all events ---
+  const handleDayNumberClick = (day: Date, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDayDetailDate(day);
+  };
+
+  // --- Drag and Drop ---
+  const handleDragStart = (item: DragItem) => {
+    setDragItem(item);
+  };
+
+  const handleDragOver = (e: React.DragEvent, dayKey: string) => {
+    e.preventDefault();
+    setDragOverDay(dayKey);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverDay(null);
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetDay: Date) => {
+    e.preventDefault();
+    setDragOverDay(null);
+    if (!dragItem) return;
+
+    if (dragItem.type === 'appointment') {
+      const apt = dragItem.data as Appointment;
+      const oldStart = parseISO(apt.start_time);
+      const oldEnd = parseISO(apt.end_time);
+      const duration = differenceInMilliseconds(oldEnd, oldStart);
+      
+      // Keep same time, change date
+      const newStart = setMinutes(setHours(targetDay, oldStart.getHours()), oldStart.getMinutes());
+      const newEnd = new Date(newStart.getTime() + duration);
+
+      const { error } = await supabase.from("appointments").update({
+        start_time: newStart.toISOString(),
+        end_time: newEnd.toISOString()
+      }).eq("id", apt.id);
+
+      if (error) {
+        toast({ title: "Errore", description: "Impossibile spostare l'appuntamento", variant: "destructive" });
+      } else {
+        toast({ title: "Spostato", description: `Appuntamento spostato a ${format(targetDay, "d MMMM", { locale: it })}` });
+        fetchData();
+      }
+    } else if (dragItem.type === 'session') {
+      const session = dragItem.data as CourseSession;
+      const oldStart = parseISO(session.start_time);
+      const oldEnd = parseISO(session.end_time);
+      const duration = differenceInMilliseconds(oldEnd, oldStart);
+
+      const newStart = setMinutes(setHours(targetDay, oldStart.getHours()), oldStart.getMinutes());
+      const newEnd = new Date(newStart.getTime() + duration);
+
+      const { error } = await supabase.from("course_sessions").update({
+        start_time: newStart.toISOString(),
+        end_time: newEnd.toISOString()
+      }).eq("id", session.id);
+
+      if (error) {
+        toast({ title: "Errore", description: "Impossibile spostare la sessione", variant: "destructive" });
+      } else {
+        toast({ title: "Spostato", description: `Sessione spostata a ${format(targetDay, "d MMMM", { locale: it })}` });
+        fetchData();
+      }
+    }
+
+    setDragItem(null);
+  };
+
+  // --- Renew subscription ---
+  const handleRenewSubscription = async (sub: SubscriptionDeadline) => {
+    // Navigate to subscriptions page with pre-selected user
+    navigate(`/admin/abbonamenti?renew=${sub.user_id}`);
   };
 
   const createAppointment = async () => {
@@ -208,7 +326,6 @@ const CalendarManagement = () => {
       return;
     }
 
-    // Build datetime from date + time
     const [startH, startM] = appointmentStartTime.split(":").map(Number);
     const [endH, endM] = appointmentEndTime.split(":").map(Number);
     const startDateTime = setMinutes(setHours(appointmentDate, startH), startM);
@@ -265,32 +382,23 @@ const CalendarManagement = () => {
     
     setSaving(true);
 
-    // Generate sessions for 1 year (52 weeks) for each selected day
     const sessionsToCreate = [];
     const today = new Date();
     const oneYearFromNow = addDays(today, 365);
     
-    // Find the next occurrence of each selected day starting from today
     for (const dayOfWeek of selectedDays) {
-      // Start from today at midnight (local time)
-      let currentDate = startOfDay(today);
+      let currentDateIter = startOfDay(today);
       
-      // Find the next occurrence of this day of week
-      const currentDayOfWeek = currentDate.getDay();
+      const currentDayOfWeek = currentDateIter.getDay();
       let daysToAdd = dayOfWeek - currentDayOfWeek;
-      if (daysToAdd < 0) daysToAdd += 7; // If the day has passed this week, go to next week
-      currentDate = addDays(currentDate, daysToAdd);
+      if (daysToAdd < 0) daysToAdd += 7;
+      currentDateIter = addDays(currentDateIter, daysToAdd);
       
-      // Create sessions for this day for 1 year
-      while (currentDate <= oneYearFromNow) {
-        // Build date strings manually to avoid timezone issues
-        // Use the DATE part from currentDate and keep the time exactly as selected
-        const year = currentDate.getFullYear();
-        const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-        const dayNum = String(currentDate.getDate()).padStart(2, '0');
+      while (currentDateIter <= oneYearFromNow) {
+        const year = currentDateIter.getFullYear();
+        const month = String(currentDateIter.getMonth() + 1).padStart(2, '0');
+        const dayNum = String(currentDateIter.getDate()).padStart(2, '0');
         
-        // Create ISO strings with timezone offset to prevent conversion issues
-        // Format: YYYY-MM-DDTHH:MM:SS (will be stored as-is by Supabase)
         const startDateTimeISO = `${year}-${month}-${dayNum}T${courseSessionStartTime}:00.000Z`;
         const endDateTimeISO = `${year}-${month}-${dayNum}T${courseSessionEndTime}:00.000Z`;
         
@@ -300,8 +408,7 @@ const CalendarManagement = () => {
           end_time: endDateTimeISO
         });
         
-        // Move to next week (exactly 7 days)
-        currentDate = addDays(currentDate, 7);
+        currentDateIter = addDays(currentDateIter, 7);
       }
     }
 
@@ -344,18 +451,16 @@ const CalendarManagement = () => {
     setDeleteCourseSessionId(null);
   };
 
-  // Helpers to make course session placement stable across timezone/DST.
-  // Sessions are created using a YYYY-MM-DD date string; we should match by that date part
-  // rather than relying on Date parsing which can shift the day in some timezones.
-  const isoDatePart = (iso: string) => iso.slice(0, 10); // YYYY-MM-DD
-  const isoHourPart = (iso: string) => Number(iso.slice(11, 13)); // HH
+  const isoDatePart = (iso: string) => iso.slice(0, 10);
+  const isoHourPart = (iso: string) => Number(iso.slice(11, 13));
 
   const getEventsForDay = (day: Date) => {
     const dayAppointments = appointments.filter(a => isSameDay(parseISO(a.start_time), day));
     const dayKey = format(day, "yyyy-MM-dd");
     const daySessions = courseSessions.filter(s => isoDatePart(s.start_time) === dayKey);
     const dayDeadlines = workoutDeadlines.filter(w => isSameDay(parseISO(w.end_date), day));
-    return { appointments: dayAppointments, sessions: daySessions, deadlines: dayDeadlines };
+    const daySubDeadlines = subscriptionDeadlines.filter(s => s.end_date === dayKey);
+    return { appointments: dayAppointments, sessions: daySessions, deadlines: dayDeadlines, subDeadlines: daySubDeadlines };
   };
 
   const getClientName = (clientId: string | null) => {
@@ -380,6 +485,9 @@ const CalendarManagement = () => {
   };
 
   const hours = Array.from({ length: 14 }, (_, i) => i + 7); // 7:00 - 20:00
+
+  // Day detail events
+  const dayDetailEvents = dayDetailDate ? getEventsForDay(dayDetailDate) : null;
 
   return (
     <AdminLayout title="CALENDARIO" icon={<Calendar className="w-6 h-6" />}>
@@ -426,94 +534,97 @@ const CalendarManagement = () => {
             <DialogTrigger asChild>
               <Button className="gap-2"><Plus className="w-4 h-4" />Appuntamento</Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
+            <DialogContent className="max-w-md max-h-[90vh] flex flex-col">
+              <DialogHeader className="flex-shrink-0">
                 <DialogTitle>Nuovo Appuntamento</DialogTitle>
                 <DialogDescription>Crea un appuntamento con un cliente</DialogDescription>
               </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="space-y-2">
-                  <Label>Titolo *</Label>
-                  <Input value={newAppointment.title} onChange={(e) => setNewAppointment({ ...newAppointment, title: e.target.value })} placeholder="Es. Sessione PT" />
-                </div>
-                
-                {/* Date Picker */}
-                <div className="space-y-2">
-                  <Label>Data *</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !appointmentDate && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {appointmentDate ? format(appointmentDate, "PPP", { locale: it }) : "Seleziona data"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <CalendarComponent
-                        mode="single"
-                        selected={appointmentDate}
-                        onSelect={setAppointmentDate}
-                        initialFocus
-                        className="p-3 pointer-events-auto"
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
+              <ScrollArea className="flex-1 pr-4">
+                <div className="grid gap-4 py-4">
                   <div className="space-y-2">
-                    <Label>Ora Inizio *</Label>
-                    <Input type="time" value={appointmentStartTime} onChange={(e) => setAppointmentStartTime(e.target.value)} />
+                    <Label>Titolo *</Label>
+                    <Input value={newAppointment.title} onChange={(e) => setNewAppointment({ ...newAppointment, title: e.target.value })} placeholder="Es. Sessione PT" />
+                  </div>
+                  
+                  {/* Date Picker */}
+                  <div className="space-y-2">
+                    <Label>Data *</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !appointmentDate && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {appointmentDate ? format(appointmentDate, "PPP", { locale: it }) : "Seleziona data"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <CalendarComponent
+                          mode="single"
+                          selected={appointmentDate}
+                          onSelect={setAppointmentDate}
+                          locale={it}
+                          initialFocus
+                          className="p-3 pointer-events-auto"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Ora Inizio *</Label>
+                      <Input type="time" value={appointmentStartTime} onChange={(e) => setAppointmentStartTime(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Ora Fine *</Label>
+                      <Input type="time" value={appointmentEndTime} onChange={(e) => setAppointmentEndTime(e.target.value)} />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Coach *</Label>
+                    <Select value={newAppointment.coach_id} onValueChange={(v) => setNewAppointment({ ...newAppointment, coach_id: v })}>
+                      <SelectTrigger><SelectValue placeholder="Seleziona coach" /></SelectTrigger>
+                      <SelectContent>
+                        {coaches.map(c => (
+                          <SelectItem key={c.user_id} value={c.user_id}>{c.first_name} {c.last_name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Ora Fine *</Label>
-                    <Input type="time" value={appointmentEndTime} onChange={(e) => setAppointmentEndTime(e.target.value)} />
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label>Coach *</Label>
-                  <Select value={newAppointment.coach_id} onValueChange={(v) => setNewAppointment({ ...newAppointment, coach_id: v })}>
-                    <SelectTrigger><SelectValue placeholder="Seleziona coach" /></SelectTrigger>
-                    <SelectContent>
-                      {coaches.map(c => (
-                        <SelectItem key={c.user_id} value={c.user_id}>{c.first_name} {c.last_name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Cliente</Label>
-                  <Select value={newAppointment.client_id} onValueChange={(v) => setNewAppointment({ ...newAppointment, client_id: v })}>
-                    <SelectTrigger><SelectValue placeholder="Seleziona cliente (opzionale)" /></SelectTrigger>
-                    <SelectContent>
-                      {clients.map(c => (
-                        <SelectItem key={c.user_id} value={c.user_id}>{c.first_name} {c.last_name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Descrizione</Label>
-                  <Textarea value={newAppointment.description} onChange={(e) => setNewAppointment({ ...newAppointment, description: e.target.value })} />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Luogo</Label>
-                    <Input value={newAppointment.location} onChange={(e) => setNewAppointment({ ...newAppointment, location: e.target.value })} placeholder="Es. Sala 1" />
+                    <Label>Cliente</Label>
+                    <Select value={newAppointment.client_id} onValueChange={(v) => setNewAppointment({ ...newAppointment, client_id: v })}>
+                      <SelectTrigger><SelectValue placeholder="Seleziona cliente (opzionale)" /></SelectTrigger>
+                      <SelectContent>
+                        {clients.map(c => (
+                          <SelectItem key={c.user_id} value={c.user_id}>{c.first_name} {c.last_name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Colore</Label>
-                    <Input type="color" value={newAppointment.color} onChange={(e) => setNewAppointment({ ...newAppointment, color: e.target.value })} className="h-10" />
+                    <Label>Descrizione</Label>
+                    <Textarea value={newAppointment.description} onChange={(e) => setNewAppointment({ ...newAppointment, description: e.target.value })} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Luogo</Label>
+                      <Input value={newAppointment.location} onChange={(e) => setNewAppointment({ ...newAppointment, location: e.target.value })} placeholder="Es. Sala 1" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Colore</Label>
+                      <Input type="color" value={newAppointment.color} onChange={(e) => setNewAppointment({ ...newAppointment, color: e.target.value })} className="h-10" />
+                    </div>
                   </div>
                 </div>
-              </div>
-              <DialogFooter>
+              </ScrollArea>
+              <DialogFooter className="flex-shrink-0 pt-4 border-t">
                 <Button variant="outline" onClick={() => setIsAppointmentDialogOpen(false)}>Annulla</Button>
                 <Button onClick={createAppointment} disabled={saving}>
                   {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Crea
@@ -526,66 +637,67 @@ const CalendarManagement = () => {
             <DialogTrigger asChild>
               <Button variant="secondary" className="gap-2"><Plus className="w-4 h-4" />Sessione Corso</Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
+            <DialogContent className="max-w-md max-h-[90vh] flex flex-col">
+              <DialogHeader className="flex-shrink-0">
                 <DialogTitle>Nuova Sessione Corso</DialogTitle>
                 <DialogDescription>Aggiungi una sessione per un corso esistente</DialogDescription>
               </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="space-y-2">
-                  <Label>Corso *</Label>
-                  <Select value={newCourseSession.course_id} onValueChange={(v) => setNewCourseSession({ ...newCourseSession, course_id: v })}>
-                    <SelectTrigger><SelectValue placeholder="Seleziona corso" /></SelectTrigger>
-                    <SelectContent>
-                      {courses.map(c => (
-                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                {/* Days of Week Selection */}
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Repeat className="w-4 h-4" />
-                    Giorni della settimana *
-                  </Label>
-                  <p className="text-xs text-muted-foreground mb-2">
-                    Seleziona i giorni in cui si ripete il corso (verranno create sessioni per 1 anno)
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {weekDays.map((day) => (
-                      <Button
-                        key={day.value}
-                        type="button"
-                        variant={selectedDays.includes(day.value) ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => toggleDay(day.value)}
-                        className="min-w-[50px]"
-                      >
-                        {day.short}
-                      </Button>
-                    ))}
+              <ScrollArea className="flex-1 pr-4">
+                <div className="grid gap-4 py-4">
+                  <div className="space-y-2">
+                    <Label>Corso *</Label>
+                    <Select value={newCourseSession.course_id} onValueChange={(v) => setNewCourseSession({ ...newCourseSession, course_id: v })}>
+                      <SelectTrigger><SelectValue placeholder="Seleziona corso" /></SelectTrigger>
+                      <SelectContent>
+                        {courses.map(c => (
+                          <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                  {selectedDays.length > 0 && (
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Selezionati: {selectedDays.map(d => weekDays.find(w => w.value === d)?.label).join(", ")}
+                  
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <Repeat className="w-4 h-4" />
+                      Giorni della settimana *
+                    </Label>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Seleziona i giorni in cui si ripete il corso (verranno create sessioni per 1 anno)
                     </p>
-                  )}
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Ora Inizio *</Label>
-                    <Input type="time" value={courseSessionStartTime} onChange={(e) => setCourseSessionStartTime(e.target.value)} />
+                    <div className="flex flex-wrap gap-2">
+                      {weekDays.map((day) => (
+                        <Button
+                          key={day.value}
+                          type="button"
+                          variant={selectedDays.includes(day.value) ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => toggleDay(day.value)}
+                          className="min-w-[50px]"
+                        >
+                          {day.short}
+                        </Button>
+                      ))}
+                    </div>
+                    {selectedDays.length > 0 && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Selezionati: {selectedDays.map(d => weekDays.find(w => w.value === d)?.label).join(", ")}
+                      </p>
+                    )}
                   </div>
-                  <div className="space-y-2">
-                    <Label>Ora Fine *</Label>
-                    <Input type="time" value={courseSessionEndTime} onChange={(e) => setCourseSessionEndTime(e.target.value)} />
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Ora Inizio *</Label>
+                      <Input type="time" value={courseSessionStartTime} onChange={(e) => setCourseSessionStartTime(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Ora Fine *</Label>
+                      <Input type="time" value={courseSessionEndTime} onChange={(e) => setCourseSessionEndTime(e.target.value)} />
+                    </div>
                   </div>
                 </div>
-              </div>
-              <DialogFooter>
+              </ScrollArea>
+              <DialogFooter className="flex-shrink-0 pt-4 border-t">
                 <Button variant="outline" onClick={() => setIsCourseSessionDialogOpen(false)}>Annulla</Button>
                 <Button onClick={createCourseSession} disabled={saving}>
                   {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Crea
@@ -609,12 +721,31 @@ const CalendarManagement = () => {
               {/* Header */}
               <div className="grid grid-cols-8 border-b border-border">
                 <div className="p-3 text-sm text-muted-foreground text-center border-r border-border">Ora</div>
-                {days.map((day) => (
-                  <div key={day.toISOString()} className={`p-3 text-center border-r border-border last:border-r-0 ${isSameDay(day, new Date()) ? 'bg-primary/10' : ''}`}>
-                    <div className="text-xs text-muted-foreground uppercase">{format(day, "EEE", { locale: it })}</div>
-                    <div className={`text-lg font-display ${isSameDay(day, new Date()) ? 'text-primary' : ''}`}>{format(day, "d")}</div>
-                  </div>
-                ))}
+                {days.map((day) => {
+                  const dayKey = format(day, "yyyy-MM-dd");
+                  return (
+                    <div
+                      key={day.toISOString()}
+                      className={cn(
+                        "p-3 text-center border-r border-border last:border-r-0 cursor-pointer hover:bg-accent/50 transition-colors",
+                        isSameDay(day, new Date()) && 'bg-primary/10',
+                        dragOverDay === dayKey && 'bg-primary/20'
+                      )}
+                      onClick={() => handleDayClick(day)}
+                    >
+                      <div className="text-xs text-muted-foreground uppercase">{format(day, "EEE", { locale: it })}</div>
+                      <div 
+                        className={cn(
+                          "text-lg font-display cursor-pointer hover:text-primary transition-colors",
+                          isSameDay(day, new Date()) && 'text-primary'
+                        )}
+                        onClick={(e) => handleDayNumberClick(day, e)}
+                      >
+                        {format(day, "d")}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Time slots */}
@@ -627,26 +758,40 @@ const CalendarManagement = () => {
                     const events = getEventsForDay(day);
                     const hourAppointments = events.appointments.filter(a => new Date(a.start_time).getHours() === hour);
                     const hourSessions = events.sessions.filter(s => isoHourPart(s.start_time) === hour);
+                    const dayKey = format(day, "yyyy-MM-dd");
 
                     return (
-                      <div key={`${day.toISOString()}-${hour}`} className="p-1 min-h-[60px] border-r border-border last:border-r-0 relative">
+                      <div
+                        key={`${day.toISOString()}-${hour}`}
+                        className={cn(
+                          "p-1 min-h-[60px] border-r border-border last:border-r-0 relative cursor-pointer hover:bg-accent/30 transition-colors",
+                          dragOverDay === dayKey && 'bg-primary/10'
+                        )}
+                        onClick={() => handleDayClick(day)}
+                        onDragOver={(e) => handleDragOver(e, dayKey)}
+                        onDragLeave={handleDragLeave}
+                        onDrop={(e) => handleDrop(e, day)}
+                      >
                         {hourAppointments.map((apt) => {
                           const clientName = getClientName(apt.client_id);
                           return (
                             <div
                               key={apt.id}
-                              className="text-xs p-1.5 rounded mb-1 text-white cursor-pointer hover:opacity-90 group relative"
+                              draggable
+                              onDragStart={() => handleDragStart({ type: 'appointment', id: apt.id, data: apt })}
+                              className="text-xs p-1.5 rounded mb-1 text-white cursor-grab active:cursor-grabbing hover:opacity-90 group relative"
                               style={{ backgroundColor: apt.color }}
                               title={`${apt.title}${clientName ? ` - ${clientName}` : ''}`}
                               onClick={(e) => handleAppointmentClick(apt, e)}
                             >
                               <div className="flex items-center gap-1">
+                                <GripVertical className="w-3 h-3 flex-shrink-0 opacity-50" />
                                 <User className="w-3 h-3 flex-shrink-0" />
                                 <span className="truncate">{apt.title}</span>
                                 {apt.client_id && <ExternalLink className="w-3 h-3 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />}
                               </div>
                               {clientName && (
-                                <div className="text-[10px] opacity-80 truncate mt-0.5">
+                                <div className="text-[10px] opacity-80 truncate mt-0.5 ml-4">
                                   {clientName}
                                 </div>
                               )}
@@ -662,11 +807,15 @@ const CalendarManagement = () => {
                         {hourSessions.map((session) => (
                           <div
                             key={session.id}
-                            className="text-xs p-1.5 rounded mb-1 text-white truncate cursor-pointer hover:opacity-90 group relative"
+                            draggable
+                            onDragStart={() => handleDragStart({ type: 'session', id: session.id, data: session })}
+                            className="text-xs p-1.5 rounded mb-1 text-white truncate cursor-grab active:cursor-grabbing hover:opacity-90 group relative"
                             style={{ backgroundColor: session.course?.color || '#10B981' }}
                             title={session.course?.name}
+                            onClick={(e) => e.stopPropagation()}
                           >
                             <div className="flex items-center gap-1">
+                              <GripVertical className="w-3 h-3 flex-shrink-0 opacity-50" />
                               <Clock className="w-3 h-3" />
                               <span className="truncate">{session.course?.name}</span>
                             </div>
@@ -686,9 +835,32 @@ const CalendarManagement = () => {
                               key={deadline.id}
                               className="text-xs p-1.5 rounded mb-1 bg-destructive/20 text-destructive truncate flex items-center gap-1"
                               title={`Scadenza scheda: ${deadline.name}${clientName ? ` - ${clientName}` : ''}`}
+                              onClick={(e) => e.stopPropagation()}
                             >
                               <Dumbbell className="w-3 h-3 flex-shrink-0" />
                               <span className="truncate">Scad. {clientName || deadline.name}</span>
+                            </div>
+                          );
+                        })}
+                        {/* Subscription deadlines in weekly view */}
+                        {hour === 7 && events.subDeadlines.map(sub => {
+                          const clientName = getClientName(sub.user_id);
+                          return (
+                            <div
+                              key={`sub-${sub.id}`}
+                              className="text-xs p-1.5 rounded mb-1 bg-orange-500/20 text-orange-700 dark:text-orange-400 truncate flex items-center gap-1 group relative"
+                              title={`Scadenza abb.: ${sub.plan_name}${clientName ? ` - ${clientName}` : ''}`}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <CreditCard className="w-3 h-3 flex-shrink-0" />
+                              <span className="truncate">Abb. {clientName || sub.plan_name}</span>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleRenewSubscription(sub); }}
+                                className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-orange-600/30 rounded p-0.5"
+                                title="Rinnova abbonamento"
+                              >
+                                <RefreshCw className="w-3 h-3" />
+                              </button>
                             </div>
                           );
                         })}
@@ -712,25 +884,35 @@ const CalendarManagement = () => {
                 </div>
               ))}
 
-              {/* Empty cells for days before the first visible day (month padding) */}
-              {Array.from({ length: (days[0].getDay() + 6) % 7 }).map((_, i) => (
-                <div key={`empty-${i}`} className="min-h-[100px]" />
-              ))}
-              
               {/* Calendar days */}
               {days.map((day) => {
                 const events = getEventsForDay(day);
                 const isToday = isSameDay(day, new Date());
                 const isCurrentMonth = isSameMonth(day, currentDate);
+                const dayKey = format(day, "yyyy-MM-dd");
+                const totalEvents = events.appointments.length + events.sessions.length + events.deadlines.length + events.subDeadlines.length;
                 
                 return (
                   <div 
                     key={day.toISOString()} 
-                    className={`min-h-[100px] p-2 border rounded-lg ${
-                      isToday ? 'bg-primary/10 border-primary' : 'border-border'
-                    } ${!isCurrentMonth ? 'opacity-40' : ''}`}
+                    className={cn(
+                      "min-h-[100px] p-2 border rounded-lg cursor-pointer hover:bg-accent/30 transition-colors",
+                      isToday ? 'bg-primary/10 border-primary' : 'border-border',
+                      !isCurrentMonth && 'opacity-40',
+                      dragOverDay === dayKey && 'bg-primary/20 border-primary'
+                    )}
+                    onClick={() => handleDayClick(day)}
+                    onDragOver={(e) => handleDragOver(e, dayKey)}
+                    onDragLeave={handleDragLeave}
+                    onDrop={(e) => handleDrop(e, day)}
                   >
-                    <div className={`text-sm font-medium mb-1 ${isToday ? 'text-primary' : ''}`}>
+                    <div 
+                      className={cn(
+                        "text-sm font-medium mb-1 inline-flex items-center justify-center w-6 h-6 rounded-full hover:bg-primary hover:text-primary-foreground transition-colors cursor-pointer",
+                        isToday && 'bg-primary text-primary-foreground'
+                      )}
+                      onClick={(e) => handleDayNumberClick(day, e)}
+                    >
                       {format(day, "d")}
                     </div>
                     
@@ -740,7 +922,9 @@ const CalendarManagement = () => {
                         return (
                           <div
                             key={apt.id}
-                            className="text-[10px] p-1 rounded text-white truncate cursor-pointer hover:opacity-90 group relative"
+                            draggable
+                            onDragStart={(e) => { e.stopPropagation(); handleDragStart({ type: 'appointment', id: apt.id, data: apt }); }}
+                            className="text-[10px] p-1 rounded text-white truncate cursor-grab active:cursor-grabbing hover:opacity-90 group relative"
                             style={{ backgroundColor: apt.color }}
                             onClick={(e) => handleAppointmentClick(apt, e)}
                           >
@@ -758,8 +942,11 @@ const CalendarManagement = () => {
                       {events.sessions.slice(0, 2).map(session => (
                         <div
                           key={session.id}
-                          className="text-[10px] p-1 rounded text-white truncate group relative"
+                          draggable
+                          onDragStart={(e) => { e.stopPropagation(); handleDragStart({ type: 'session', id: session.id, data: session }); }}
+                          className="text-[10px] p-1 rounded text-white truncate cursor-grab active:cursor-grabbing group relative"
                           style={{ backgroundColor: session.course?.color || '#10B981' }}
+                          onClick={(e) => e.stopPropagation()}
                         >
                           {session.course?.name}
                           <button
@@ -772,23 +959,50 @@ const CalendarManagement = () => {
                       ))}
                       
                       {/* Workout deadlines */}
-                      {events.deadlines.map(deadline => {
+                      {events.deadlines.slice(0, 1).map(deadline => {
                         const clientName = getClientName(deadline.client_id);
                         return (
                           <div
                             key={deadline.id}
                             className="text-[10px] p-1 rounded bg-destructive/20 text-destructive truncate flex items-center gap-1"
                             title={`Scadenza scheda: ${deadline.name}${clientName ? ` - ${clientName}` : ''}`}
+                            onClick={(e) => e.stopPropagation()}
                           >
                             <Dumbbell className="w-2 h-2" />
                             Scad. {clientName || deadline.name}
                           </div>
                         );
                       })}
+
+                      {/* Subscription deadlines */}
+                      {events.subDeadlines.slice(0, 1).map(sub => {
+                        const clientName = getClientName(sub.user_id);
+                        return (
+                          <div
+                            key={`sub-${sub.id}`}
+                            className="text-[10px] p-1 rounded bg-orange-500/20 text-orange-700 dark:text-orange-400 truncate flex items-center gap-1 group relative"
+                            title={`Scadenza abb.: ${sub.plan_name}${clientName ? ` - ${clientName}` : ''}`}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <CreditCard className="w-2 h-2" />
+                            Abb. {clientName || sub.plan_name}
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleRenewSubscription(sub); }}
+                              className="absolute top-0.5 right-0.5 opacity-0 group-hover:opacity-100"
+                              title="Rinnova"
+                            >
+                              <RefreshCw className="w-2 h-2" />
+                            </button>
+                          </div>
+                        );
+                      })}
                       
-                      {(events.appointments.length + events.sessions.length) > 4 && (
-                        <div className="text-[10px] text-muted-foreground">
-                          +{events.appointments.length + events.sessions.length - 4} altri
+                      {totalEvents > 4 && (
+                        <div 
+                          className="text-[10px] text-muted-foreground cursor-pointer hover:text-primary"
+                          onClick={(e) => handleDayNumberClick(day, e)}
+                        >
+                          +{totalEvents - 4} altri
                         </div>
                       )}
                     </div>
@@ -801,7 +1015,7 @@ const CalendarManagement = () => {
       )}
 
       {/* Legend */}
-      <div className="mt-4 flex gap-4 text-sm">
+      <div className="mt-4 flex flex-wrap gap-4 text-sm">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded bg-[#3B82F6]"></div>
           <span className="text-muted-foreground">Appuntamenti</span>
@@ -814,7 +1028,117 @@ const CalendarManagement = () => {
           <div className="w-3 h-3 rounded bg-destructive/50"></div>
           <span className="text-muted-foreground">Scadenza Schede</span>
         </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded bg-orange-500/50"></div>
+          <span className="text-muted-foreground">Scadenza Abbonamenti</span>
+        </div>
       </div>
+
+      {/* Day Detail Dialog */}
+      <Dialog open={!!dayDetailDate} onOpenChange={() => setDayDetailDate(null)}>
+        <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
+          <DialogHeader className="flex-shrink-0">
+            <DialogTitle>
+              {dayDetailDate && format(dayDetailDate, "EEEE d MMMM yyyy", { locale: it })}
+            </DialogTitle>
+            <DialogDescription>Tutti gli eventi della giornata</DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="flex-1">
+            {dayDetailEvents && (
+              <div className="space-y-3 pr-4">
+                {dayDetailEvents.appointments.length === 0 && dayDetailEvents.sessions.length === 0 && dayDetailEvents.deadlines.length === 0 && dayDetailEvents.subDeadlines.length === 0 && (
+                  <p className="text-muted-foreground text-sm text-center py-8">Nessun evento per questa giornata</p>
+                )}
+
+                {dayDetailEvents.appointments.map(apt => {
+                  const clientName = getClientName(apt.client_id);
+                  return (
+                    <div key={apt.id} className="flex items-start gap-3 p-3 rounded-lg border border-border">
+                      <div className="w-3 h-3 rounded-full mt-1 flex-shrink-0" style={{ backgroundColor: apt.color }} />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm">{apt.title}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {format(parseISO(apt.start_time), "HH:mm")} - {format(parseISO(apt.end_time), "HH:mm")}
+                        </div>
+                        {clientName && <div className="text-xs text-muted-foreground mt-1"><User className="w-3 h-3 inline mr-1" />{clientName}</div>}
+                        {apt.location && <div className="text-xs text-muted-foreground mt-0.5">📍 {apt.location}</div>}
+                      </div>
+                      <div className="flex gap-1">
+                        {apt.client_id && (
+                          <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => navigate(`/admin/utenti/${apt.client_id}`)}>
+                            <ExternalLink className="w-3 h-3" />
+                          </Button>
+                        )}
+                        <Button size="sm" variant="ghost" className="h-7 px-2 text-destructive" onClick={() => setDeleteAppointmentId(apt.id)}>
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {dayDetailEvents.sessions.map(session => (
+                  <div key={session.id} className="flex items-start gap-3 p-3 rounded-lg border border-border">
+                    <div className="w-3 h-3 rounded-full mt-1 flex-shrink-0" style={{ backgroundColor: session.course?.color || '#10B981' }} />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm">{session.course?.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {format(parseISO(session.start_time), "HH:mm")} - {format(parseISO(session.end_time), "HH:mm")}
+                      </div>
+                      <Badge variant="secondary" className="mt-1 text-[10px]">Corso</Badge>
+                    </div>
+                    <Button size="sm" variant="ghost" className="h-7 px-2 text-destructive" onClick={() => setDeleteCourseSessionId(session.id)}>
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                ))}
+
+                {dayDetailEvents.deadlines.map(deadline => {
+                  const clientName = getClientName(deadline.client_id);
+                  return (
+                    <div key={deadline.id} className="flex items-start gap-3 p-3 rounded-lg border border-destructive/30 bg-destructive/5">
+                      <Dumbbell className="w-4 h-4 text-destructive mt-0.5 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm">Scadenza Scheda</div>
+                        <div className="text-xs text-muted-foreground">{deadline.name}</div>
+                        {clientName && <div className="text-xs text-muted-foreground mt-1">{clientName}</div>}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {dayDetailEvents.subDeadlines.map(sub => {
+                  const clientName = getClientName(sub.user_id);
+                  return (
+                    <div key={`sub-${sub.id}`} className="flex items-start gap-3 p-3 rounded-lg border border-orange-500/30 bg-orange-500/5">
+                      <CreditCard className="w-4 h-4 text-orange-600 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm">Scadenza Abbonamento</div>
+                        <div className="text-xs text-muted-foreground">{sub.plan_name}</div>
+                        {clientName && <div className="text-xs text-muted-foreground mt-1">{clientName}</div>}
+                      </div>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="h-7 px-2 text-orange-600 border-orange-500/30 hover:bg-orange-500/10"
+                        onClick={() => handleRenewSubscription(sub)}
+                      >
+                        <RefreshCw className="w-3 h-3 mr-1" />
+                        Rinnova
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </ScrollArea>
+          <DialogFooter className="flex-shrink-0 pt-4 border-t">
+            <Button onClick={() => { setDayDetailDate(null); if (dayDetailDate) handleDayClick(dayDetailDate); }} className="gap-2">
+              <Plus className="w-4 h-4" />Nuovo Appuntamento
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation */}
       <AlertDialog open={!!deleteAppointmentId} onOpenChange={() => setDeleteAppointmentId(null)}>
