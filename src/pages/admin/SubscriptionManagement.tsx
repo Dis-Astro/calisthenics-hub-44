@@ -291,7 +291,53 @@ const SubscriptionManagement = () => {
     setCreating(false);
   };
 
-  const createSubscription = async () => {
+  // Delete lesson package
+  const deletePackage = async () => {
+    if (!deletingPackageId) return;
+    const { error } = await supabase.from("lesson_packages").delete().eq("id", deletingPackageId);
+    if (error) {
+      toast({ title: "Errore", description: "Impossibile eliminare il pacchetto", variant: "destructive" });
+    } else {
+      toast({ title: "Eliminato", description: "Pacchetto lezioni eliminato" });
+      fetchData();
+    }
+    setDeletingPackageId(null);
+  };
+
+  // Record package payment (standalone, not linked to subscription)
+  const recordPackagePayment = async () => {
+    if (!newPackagePayment.package_id || !newPackagePayment.amount) {
+      toast({ title: "Errore", description: "Seleziona un pacchetto e inserisci l'importo", variant: "destructive" });
+      return;
+    }
+    setCreating(true);
+    const pkg = lessonPackages.find(p => p.id === newPackagePayment.package_id);
+    if (!pkg) { setCreating(false); return; }
+
+    // We need a subscription_id for payments table — create a dummy approach
+    // Better: record as a note on the package + use a general payment log
+    // For now, insert into payments with a special note
+    // Actually the payments table requires subscription_id, so let's just track it as a note update on the package
+    // and show it in the payments tab via a workaround
+    
+    // Update: payments table requires subscription_id (NOT NULL), so we can't use it directly for packages.
+    // Instead, let's update the package notes with payment info
+    const paymentNote = `Pagamento €${newPackagePayment.amount} (${newPackagePayment.method}) - ${format(new Date(), "dd/MM/yyyy")}${newPackagePayment.notes ? ` - ${newPackagePayment.notes}` : ''}`;
+    const existingNotes = pkg.notes || '';
+    const updatedNotes = existingNotes ? `${existingNotes}\n${paymentNote}` : paymentNote;
+
+    const { error } = await supabase.from("lesson_packages").update({ notes: updatedNotes }).eq("id", pkg.id);
+    if (error) {
+      toast({ title: "Errore", description: "Impossibile registrare il pagamento", variant: "destructive" });
+    } else {
+      toast({ title: "Pagamento registrato", description: `€${newPackagePayment.amount} per pacchetto lezioni` });
+      setNewPackagePayment({ package_id: "", amount: "", method: "contanti", notes: "" });
+      setIsPackagePaymentDialogOpen(false);
+      fetchData();
+    }
+    setCreating(false);
+  };
+
     if (!newSubscription.user_id || !newSubscription.plan_id) {
       toast({
         title: "Errore",
