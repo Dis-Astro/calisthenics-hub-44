@@ -121,10 +121,13 @@ const SubscriptionManagement = () => {
   const [clients, setClients] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [lessonPackages, setLessonPackages] = useState<LessonPackage[]>([]);
+  const [renewingId, setRenewingId] = useState<string | null>(null);
 
   // Dialog states
   const [isSubscriptionDialogOpen, setIsSubscriptionDialogOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  const [isPackageDialogOpen, setIsPackageDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
 
   // Form states
@@ -138,6 +141,13 @@ const SubscriptionManagement = () => {
     subscription_id: "",
     amount: "",
     method: "contanti",
+    notes: ""
+  });
+
+  const [newPackage, setNewPackage] = useState({
+    user_id: "",
+    total_lessons: "",
+    price: "",
     notes: ""
   });
 
