@@ -804,7 +804,8 @@ const SubscriptionManagement = () => {
                         <TableHead>Usate</TableHead>
                         <TableHead>Prezzo</TableHead>
                         <TableHead>Creato</TableHead>
-                      </TableRow>
+                        <TableHead>Note</TableHead>
+                        <TableHead className="text-right">Azioni</TableHead>
                     </TableHeader>
                     <TableBody>
                       {lessonPackages.map((pkg) => {
