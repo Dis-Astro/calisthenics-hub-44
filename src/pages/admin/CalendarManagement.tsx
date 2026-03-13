@@ -107,6 +107,12 @@ interface SubscriptionDeadline {
   plan_id: string;
 }
 
+interface LessonPackage {
+  id: string;
+  user_id: string;
+  remaining_lessons: number;
+  total_lessons: number;
+}
 type ViewMode = 'weekly' | 'monthly';
 
 type DragItem = 
