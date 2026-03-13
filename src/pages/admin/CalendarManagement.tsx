@@ -135,6 +135,21 @@ const CalendarManagement = () => {
   const [deleteCourseSessionId, setDeleteCourseSessionId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   
+  // Edit appointment
+  const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editDate, setEditDate] = useState<Date | undefined>();
+  const [editStartTime, setEditStartTime] = useState("09:00");
+  const [editEndTime, setEditEndTime] = useState("10:00");
+  const [editForm, setEditForm] = useState({
+    title: "",
+    description: "",
+    coach_id: "",
+    client_id: "",
+    color: "#3B82F6",
+    location: ""
+  });
+  
   // Day detail dialog
   const [dayDetailDate, setDayDetailDate] = useState<Date | null>(null);
 
