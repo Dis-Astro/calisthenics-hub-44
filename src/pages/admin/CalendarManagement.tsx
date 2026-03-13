@@ -390,7 +390,7 @@ const CalendarManagement = () => {
     const endDateTime = setMinutes(setHours(appointmentDate, endH), endM);
 
     setSaving(true);
-    const { error } = await supabase.from("appointments").insert({
+    const { data: insertedData, error } = await supabase.from("appointments").insert({
       title: newAppointment.title,
       description: newAppointment.description || null,
       start_time: startDateTime.toISOString(),
@@ -399,12 +399,18 @@ const CalendarManagement = () => {
       client_id: newAppointment.client_id || null,
       color: newAppointment.color,
       location: newAppointment.location || null
-    });
+    }).select("id").single();
 
     if (error) {
       toast({ title: "Errore", description: "Impossibile creare l'appuntamento", variant: "destructive" });
     } else {
       toast({ title: "Successo", description: "Appuntamento creato" });
+      
+      // Auto-decrement lesson package if client has one
+      if (newAppointment.client_id && insertedData) {
+        await decrementLessonPackage(newAppointment.client_id, insertedData.id);
+      }
+      
       setIsAppointmentDialogOpen(false);
       setNewAppointment({ title: "", description: "", coach_id: "", client_id: "", color: "#3B82F6", location: "" });
       setAppointmentDate(undefined);
