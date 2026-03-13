@@ -220,14 +220,15 @@ const CalendarManagement = () => {
     const startRange = format(rangeStart, "yyyy-MM-dd");
     const endRange = format(addHours(rangeEnd, 24), "yyyy-MM-dd");
 
-    const [appointmentsRes, sessionsRes, coachesRes, clientsRes, coursesRes, workoutRes, subsRes] = await Promise.all([
+    const [appointmentsRes, sessionsRes, coachesRes, clientsRes, coursesRes, workoutRes, subsRes, packagesRes] = await Promise.all([
       supabase.from("appointments").select("*").gte("start_time", startRange).lte("start_time", endRange),
       supabase.from("course_sessions").select("*, course:courses(*)").gte("start_time", startRange).lte("start_time", endRange),
       supabase.from("profiles").select("*").in("role", ["admin", "coach"]),
       supabase.from("profiles").select("*").in("role", ["cliente_palestra", "cliente_coaching"]),
       supabase.from("courses").select("*").eq("is_active", true),
       (supabase.from("workout_plans").select("id, name, client_id, end_date").gte("end_date", startRange).lte("end_date", endRange).eq("is_active", true) as any).is("deleted_at", null),
-      supabase.from("subscriptions").select("id, user_id, end_date, status, plan_id, membership_plans(name)").gte("end_date", startRange).lte("end_date", endRange)
+      supabase.from("subscriptions").select("id, user_id, end_date, status, plan_id, membership_plans(name)").gte("end_date", startRange).lte("end_date", endRange),
+      supabase.from("lesson_packages").select("id, user_id, remaining_lessons, total_lessons").gt("remaining_lessons", 0)
     ]);
 
     if (appointmentsRes.data) setAppointments(appointmentsRes.data);
