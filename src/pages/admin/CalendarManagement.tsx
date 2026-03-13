@@ -1031,9 +1031,9 @@ const CalendarManagement = () => {
                         return (
                           <div
                             key={deadline.id}
-                            className="text-[10px] p-1 rounded bg-destructive/20 text-destructive truncate flex items-center gap-1"
+                            className="text-[10px] p-1 rounded bg-destructive/20 text-destructive truncate flex items-center gap-1 cursor-pointer hover:bg-destructive/30 transition-colors"
                             title={`Scadenza scheda: ${deadline.name}${clientName ? ` - ${clientName}` : ''}`}
-                            onClick={(e) => e.stopPropagation()}
+                            onClick={(e) => handleDeadlineClick(deadline, e)}
                           >
                             <Dumbbell className="w-2 h-2" />
                             Scad. {clientName || deadline.name}
