@@ -1125,7 +1125,7 @@ const CalendarManagement = () => {
                       {format(day, "d")}
                     </div>
                     
-                    <div className="space-y-1">
+                    <div className="space-y-0.5">
                       {events.appointments.slice(0, 2).map(apt => {
                         const clientName = getClientName(apt.client_id);
                         return (
