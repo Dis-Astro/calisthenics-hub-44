@@ -27,7 +27,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Calendar, Plus, ChevronLeft, ChevronRight, Loader2, Clock, User, ExternalLink, Trash2, Dumbbell, CalendarIcon, Repeat, GripVertical, RefreshCw, CreditCard } from "lucide-react";
+import { Calendar, Plus, ChevronLeft, ChevronRight, Loader2, Clock, User, ExternalLink, Trash2, Dumbbell, CalendarIcon, Repeat, GripVertical, RefreshCw, CreditCard, Package } from "lucide-react";
 import { 
   format, 
   startOfWeek, 
