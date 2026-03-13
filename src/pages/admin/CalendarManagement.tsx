@@ -252,8 +252,44 @@ const CalendarManagement = () => {
         plan_id: s.plan_id
       })));
     }
+    if (packagesRes.data) setLessonPackages(packagesRes.data as unknown as LessonPackage[]);
 
     setLoading(false);
+  };
+
+  // Helper: get active lesson package for a client
+  const getClientPackage = (clientId: string | null) => {
+    if (!clientId) return null;
+    return lessonPackages.find(p => p.user_id === clientId && p.remaining_lessons > 0) || null;
+  };
+
+  // Auto-decrement lesson from package
+  const decrementLessonPackage = async (clientId: string, appointmentId: string) => {
+    const pkg = getClientPackage(clientId);
+    if (!pkg) return;
+
+    // Decrement remaining_lessons
+    const { error: updateError } = await supabase
+      .from("lesson_packages")
+      .update({ remaining_lessons: pkg.remaining_lessons - 1 })
+      .eq("id", pkg.id);
+
+    if (updateError) {
+      console.error("Error decrementing lesson package:", updateError);
+      return;
+    }
+
+    // Log the usage
+    await supabase.from("lesson_usage_log").insert({
+      package_id: pkg.id,
+      appointment_id: appointmentId,
+      created_by: profile?.user_id
+    });
+
+    toast({
+      title: "Lezione scalata",
+      description: `Pacchetto: ${pkg.remaining_lessons - 1}/${pkg.total_lessons} lezioni rimanenti`
+    });
   };
 
   // --- Click on day to create appointment (pre-fill date) ---
