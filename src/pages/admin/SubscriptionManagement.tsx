@@ -338,8 +338,8 @@ const SubscriptionManagement = () => {
     setCreating(false);
   };
 
+  const createSubscription = async () => {
     if (!newSubscription.user_id || !newSubscription.plan_id) {
-      toast({
         title: "Errore",
         description: "Seleziona un cliente e un piano",
         variant: "destructive"
