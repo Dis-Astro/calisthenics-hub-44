@@ -1120,7 +1120,7 @@ const CalendarManagement = () => {
                 {dayDetailEvents.appointments.map(apt => {
                   const clientName = getClientName(apt.client_id);
                   return (
-                    <div key={apt.id} className="flex items-start gap-3 p-3 rounded-lg border border-border">
+                    <div key={apt.id} className="flex items-start gap-3 p-3 rounded-lg border border-border cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => { setDayDetailDate(null); handleAppointmentClick(apt, { stopPropagation: () => {} } as React.MouseEvent); }}>
                       <div className="w-3 h-3 rounded-full mt-1 flex-shrink-0" style={{ backgroundColor: apt.color }} />
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-sm">{apt.title}</div>
@@ -1132,11 +1132,11 @@ const CalendarManagement = () => {
                       </div>
                       <div className="flex gap-1">
                         {apt.client_id && (
-                          <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => navigate(`/admin/utenti/${apt.client_id}`)}>
+                          <Button size="sm" variant="ghost" className="h-7 px-2" onClick={(e) => { e.stopPropagation(); navigate(`/admin/utenti/${apt.client_id}`); }}>
                             <ExternalLink className="w-3 h-3" />
                           </Button>
                         )}
-                        <Button size="sm" variant="ghost" className="h-7 px-2 text-destructive" onClick={() => setDeleteAppointmentId(apt.id)}>
+                        <Button size="sm" variant="ghost" className="h-7 px-2 text-destructive" onClick={(e) => { e.stopPropagation(); setDeleteAppointmentId(apt.id); }}>
                           <Trash2 className="w-3 h-3" />
                         </Button>
                       </div>
