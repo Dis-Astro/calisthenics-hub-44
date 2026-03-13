@@ -914,6 +914,24 @@ const SubscriptionManagement = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Delete Package Confirmation */}
+      <AlertDialog open={!!deletingPackageId} onOpenChange={() => setDeletingPackageId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare il pacchetto lezioni?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Questa azione non può essere annullata. Il pacchetto e il suo storico verranno rimossi.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={deletePackage} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AdminLayout>
   );
 };
