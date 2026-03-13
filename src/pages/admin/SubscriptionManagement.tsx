@@ -134,11 +134,13 @@ const SubscriptionManagement = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [lessonPackages, setLessonPackages] = useState<LessonPackage[]>([]);
   const [renewingId, setRenewingId] = useState<string | null>(null);
+  const [deletingPackageId, setDeletingPackageId] = useState<string | null>(null);
 
   // Dialog states
   const [isSubscriptionDialogOpen, setIsSubscriptionDialogOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [isPackageDialogOpen, setIsPackageDialogOpen] = useState(false);
+  const [isPackagePaymentDialogOpen, setIsPackagePaymentDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
 
   // Form states
