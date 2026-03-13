@@ -782,6 +782,7 @@ const SubscriptionManagement = () => {
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
