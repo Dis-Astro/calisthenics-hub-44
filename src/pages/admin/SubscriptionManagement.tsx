@@ -164,6 +164,13 @@ const SubscriptionManagement = () => {
     notes: ""
   });
 
+  const [newPackagePayment, setNewPackagePayment] = useState({
+    package_id: "",
+    amount: "",
+    method: "contanti",
+    notes: ""
+  });
+
   useEffect(() => {
     fetchData();
   }, []);
