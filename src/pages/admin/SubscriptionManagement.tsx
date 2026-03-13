@@ -222,8 +222,7 @@ const SubscriptionManagement = () => {
     }
     setRenewingId(sub.id);
     const currentEnd = new Date(sub.end_date);
-    const baseDate = isPast(currentEnd) ? new Date() : currentEnd;
-    const newEndDate = addMonths(baseDate, sub.membership_plans.duration_months);
+    const newEndDate = addMonths(currentEnd, sub.membership_plans.duration_months);
 
     const { error } = await supabase
       .from("subscriptions")
