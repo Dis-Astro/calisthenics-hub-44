@@ -77,6 +77,16 @@ interface Payment {
   profiles?: Profile;
 }
 
+interface LessonPackage {
+  id: string;
+  user_id: string;
+  total_lessons: number;
+  remaining_lessons: number;
+  price: number;
+  notes: string | null;
+  created_at: string;
+}
+
 const statusLabels: Record<SubscriptionStatus, string> = {
   attivo: "Attivo",
   scaduto: "Scaduto",
@@ -97,7 +107,6 @@ const paymentStatusLabels: Record<PaymentStatus, string> = {
   fallito: "Fallito",
   rimborsato: "Rimborsato"
 };
-
 const SubscriptionManagement = () => {
   const { profile } = useAuth();
   const { toast } = useToast();
