@@ -688,7 +688,63 @@ const SubscriptionManagement = () => {
                   <CardTitle className="font-display tracking-wider">Pacchetti Lezioni Private</CardTitle>
                   <CardDescription>{lessonPackages.length} pacchetti registrati</CardDescription>
                 </div>
-                <Dialog open={isPackageDialogOpen} onOpenChange={setIsPackageDialogOpen}>
+                <div className="flex gap-2">
+                <Dialog open={isPackagePaymentDialogOpen} onOpenChange={setIsPackagePaymentDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="secondary" className="gap-2"><Euro className="w-4 h-4" />Registra Pagamento</Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle className="font-display tracking-wider">Pagamento Pacchetto</DialogTitle>
+                      <DialogDescription>Registra un pagamento per un pacchetto lezioni</DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                      <div className="space-y-2">
+                        <Label>Pacchetto *</Label>
+                        <Select value={newPackagePayment.package_id} onValueChange={(v) => {
+                          const pkg = lessonPackages.find(p => p.id === v);
+                          setNewPackagePayment({ ...newPackagePayment, package_id: v, amount: pkg?.price?.toString() || "" });
+                        }}>
+                          <SelectTrigger><SelectValue placeholder="Seleziona pacchetto" /></SelectTrigger>
+                          <SelectContent>
+                            {lessonPackages.map(pkg => {
+                              const client = clients.find(c => c.user_id === pkg.user_id);
+                              return (
+                                <SelectItem key={pkg.id} value={pkg.id}>
+                                  {client ? `${client.first_name} ${client.last_name}` : "—"} — {pkg.total_lessons} lezioni (€{pkg.price})
+                                </SelectItem>
+                              );
+                            })}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Importo (€) *</Label>
+                        <Input type="number" value={newPackagePayment.amount} onChange={(e) => setNewPackagePayment({...newPackagePayment, amount: e.target.value})} placeholder="0.00" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Metodo di Pagamento</Label>
+                        <Select value={newPackagePayment.method} onValueChange={(v) => setNewPackagePayment({...newPackagePayment, method: v})}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="contanti">Contanti</SelectItem>
+                            <SelectItem value="carta">Carta</SelectItem>
+                            <SelectItem value="bonifico">Bonifico</SelectItem>
+                            <SelectItem value="satispay">Satispay</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Note</Label>
+                        <Input value={newPackagePayment.notes} onChange={(e) => setNewPackagePayment({...newPackagePayment, notes: e.target.value})} placeholder="Note opzionali" />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setIsPackagePaymentDialogOpen(false)}>Annulla</Button>
+                      <Button onClick={recordPackagePayment} disabled={creating}>{creating && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Registra</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
                   <DialogTrigger asChild>
                     <Button className="gap-2"><Plus className="w-4 h-4" />Nuovo Pacchetto</Button>
                   </DialogTrigger>
