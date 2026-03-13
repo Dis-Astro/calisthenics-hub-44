@@ -707,9 +707,34 @@ const CalendarManagement = () => {
               </DialogHeader>
               <ScrollArea className="flex-1 pr-4">
                 <div className="grid gap-4 py-4">
-                  <div className="space-y-2">
+                  <div className="space-y-2 relative" ref={titleInputRef}>
                     <Label>Titolo *</Label>
-                    <Input value={newAppointment.title} onChange={(e) => setNewAppointment({ ...newAppointment, title: e.target.value })} placeholder="Es. Sessione PT" />
+                    <Input 
+                      value={newAppointment.title} 
+                      onChange={(e) => handleTitleChange(e.target.value)} 
+                      onFocus={() => { if (titleSuggestions.length > 0) setShowTitleSuggestions(true); }}
+                      onBlur={() => setTimeout(() => setShowTitleSuggestions(false), 200)}
+                      placeholder="Es. Sessione PT o nome cliente..." 
+                      autoComplete="off"
+                    />
+                    {showTitleSuggestions && (
+                      <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border border-border rounded-md shadow-lg max-h-40 overflow-y-auto">
+                        {titleSuggestions.map(c => {
+                          const pkg = getClientPackage(c.user_id);
+                          return (
+                            <button
+                              key={c.user_id}
+                              type="button"
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors flex items-center justify-between"
+                              onMouseDown={(e) => { e.preventDefault(); selectTitleSuggestion(c); }}
+                            >
+                              <span>{c.first_name} {c.last_name}</span>
+                              {pkg && <span className="text-xs text-muted-foreground">📦 {pkg.remaining_lessons}/{pkg.total_lessons}</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                   
                   {/* Date Picker */}
