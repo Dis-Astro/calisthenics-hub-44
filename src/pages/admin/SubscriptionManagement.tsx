@@ -24,8 +24,19 @@ import {
   Users,
   RefreshCw,
   Package,
-  Minus
+  Minus,
+  Trash2
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import AdminLayout from "@/components/admin/AdminLayout";
 import type { Database } from "@/integrations/supabase/types";
 import { format, addMonths, differenceInDays, isPast, isFuture } from "date-fns";
