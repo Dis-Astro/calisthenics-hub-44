@@ -1163,13 +1163,14 @@ const CalendarManagement = () => {
                 {dayDetailEvents.deadlines.map(deadline => {
                   const clientName = getClientName(deadline.client_id);
                   return (
-                    <div key={deadline.id} className="flex items-start gap-3 p-3 rounded-lg border border-destructive/30 bg-destructive/5">
+                    <div key={deadline.id} className="flex items-start gap-3 p-3 rounded-lg border border-destructive/30 bg-destructive/5 cursor-pointer hover:bg-destructive/10 transition-colors" onClick={() => { setDayDetailDate(null); navigate(`/admin/utenti/${deadline.client_id}/scheda/${deadline.id}/modifica`); }}>
                       <Dumbbell className="w-4 h-4 text-destructive mt-0.5 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-sm">Scadenza Scheda</div>
                         <div className="text-xs text-muted-foreground">{deadline.name}</div>
                         {clientName && <div className="text-xs text-muted-foreground mt-1">{clientName}</div>}
                       </div>
+                      <ExternalLink className="w-4 h-4 text-muted-foreground mt-1" />
                     </div>
                   );
                 })}
