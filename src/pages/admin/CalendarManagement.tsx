@@ -523,6 +523,48 @@ const CalendarManagement = () => {
     setDeleteCourseSessionId(null);
   };
 
+  // Client name autocomplete helper
+  const handleTitleChange = (value: string, isEdit = false) => {
+    if (isEdit) {
+      setEditForm({ ...editForm, title: value });
+    } else {
+      setNewAppointment({ ...newAppointment, title: value });
+    }
+    
+    if (value.length >= 3) {
+      const query = value.toLowerCase();
+      const matches = clients.filter(c => 
+        `${c.first_name} ${c.last_name}`.toLowerCase().includes(query) ||
+        c.first_name.toLowerCase().includes(query) ||
+        c.last_name.toLowerCase().includes(query)
+      ).slice(0, 5);
+      if (isEdit) {
+        setEditTitleSuggestions(matches);
+        setShowEditTitleSuggestions(matches.length > 0);
+      } else {
+        setTitleSuggestions(matches);
+        setShowTitleSuggestions(matches.length > 0);
+      }
+    } else {
+      if (isEdit) {
+        setShowEditTitleSuggestions(false);
+      } else {
+        setShowTitleSuggestions(false);
+      }
+    }
+  };
+
+  const selectTitleSuggestion = (client: Profile, isEdit = false) => {
+    const name = `${client.first_name} ${client.last_name}`;
+    if (isEdit) {
+      setEditForm({ ...editForm, title: name, client_id: client.user_id });
+      setShowEditTitleSuggestions(false);
+    } else {
+      setNewAppointment({ ...newAppointment, title: name, client_id: client.user_id });
+      setShowTitleSuggestions(false);
+    }
+  };
+
   const isoDatePart = (iso: string) => iso.slice(0, 10);
   const isoHourPart = (iso: string) => Number(iso.slice(11, 13));
 
