@@ -135,6 +135,21 @@ const CalendarManagement = () => {
   const [deleteCourseSessionId, setDeleteCourseSessionId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   
+  // Edit appointment
+  const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editDate, setEditDate] = useState<Date | undefined>();
+  const [editStartTime, setEditStartTime] = useState("09:00");
+  const [editEndTime, setEditEndTime] = useState("10:00");
+  const [editForm, setEditForm] = useState({
+    title: "",
+    description: "",
+    coach_id: "",
+    client_id: "",
+    color: "#3B82F6",
+    location: ""
+  });
+  
   // Day detail dialog
   const [dayDetailDate, setDayDetailDate] = useState<Date | null>(null);
 
@@ -471,9 +486,61 @@ const CalendarManagement = () => {
 
   const handleAppointmentClick = (apt: Appointment, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (apt.client_id) {
-      navigate(`/admin/utenti/${apt.client_id}`);
+    // Open edit dialog for this appointment
+    setEditingAppointment(apt);
+    const startDate = parseISO(apt.start_time);
+    const endDate = parseISO(apt.end_time);
+    setEditDate(startDate);
+    setEditStartTime(format(startDate, "HH:mm"));
+    setEditEndTime(format(endDate, "HH:mm"));
+    setEditForm({
+      title: apt.title,
+      description: apt.description || "",
+      coach_id: apt.coach_id,
+      client_id: apt.client_id || "",
+      color: apt.color,
+      location: apt.location || ""
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const updateAppointment = async () => {
+    if (!editingAppointment || !editDate || !editForm.title || !editForm.coach_id) {
+      toast({ title: "Errore", description: "Compila tutti i campi obbligatori", variant: "destructive" });
+      return;
     }
+
+    const [startH, startM] = editStartTime.split(":").map(Number);
+    const [endH, endM] = editEndTime.split(":").map(Number);
+    const startDateTime = setMinutes(setHours(editDate, startH), startM);
+    const endDateTime = setMinutes(setHours(editDate, endH), endM);
+
+    setSaving(true);
+    const { error } = await supabase.from("appointments").update({
+      title: editForm.title,
+      description: editForm.description || null,
+      start_time: startDateTime.toISOString(),
+      end_time: endDateTime.toISOString(),
+      coach_id: editForm.coach_id,
+      client_id: editForm.client_id || null,
+      color: editForm.color,
+      location: editForm.location || null
+    }).eq("id", editingAppointment.id);
+
+    if (error) {
+      toast({ title: "Errore", description: "Impossibile aggiornare l'appuntamento", variant: "destructive" });
+    } else {
+      toast({ title: "Aggiornato", description: "Appuntamento aggiornato" });
+      setIsEditDialogOpen(false);
+      setEditingAppointment(null);
+      fetchData();
+    }
+    setSaving(false);
+  };
+
+  const handleDeadlineClick = (deadline: WorkoutPlan, e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigate(`/admin/utenti/${deadline.client_id}/scheda/${deadline.id}/modifica`);
   };
 
   const handleNavigate = (direction: 'prev' | 'next') => {
@@ -833,9 +900,9 @@ const CalendarManagement = () => {
                           return (
                             <div
                               key={deadline.id}
-                              className="text-xs p-1.5 rounded mb-1 bg-destructive/20 text-destructive truncate flex items-center gap-1"
+                              className="text-xs p-1.5 rounded mb-1 bg-destructive/20 text-destructive truncate flex items-center gap-1 cursor-pointer hover:bg-destructive/30 transition-colors"
                               title={`Scadenza scheda: ${deadline.name}${clientName ? ` - ${clientName}` : ''}`}
-                              onClick={(e) => e.stopPropagation()}
+                              onClick={(e) => handleDeadlineClick(deadline, e)}
                             >
                               <Dumbbell className="w-3 h-3 flex-shrink-0" />
                               <span className="truncate">Scad. {clientName || deadline.name}</span>
@@ -964,9 +1031,9 @@ const CalendarManagement = () => {
                         return (
                           <div
                             key={deadline.id}
-                            className="text-[10px] p-1 rounded bg-destructive/20 text-destructive truncate flex items-center gap-1"
+                            className="text-[10px] p-1 rounded bg-destructive/20 text-destructive truncate flex items-center gap-1 cursor-pointer hover:bg-destructive/30 transition-colors"
                             title={`Scadenza scheda: ${deadline.name}${clientName ? ` - ${clientName}` : ''}`}
-                            onClick={(e) => e.stopPropagation()}
+                            onClick={(e) => handleDeadlineClick(deadline, e)}
                           >
                             <Dumbbell className="w-2 h-2" />
                             Scad. {clientName || deadline.name}
@@ -1053,7 +1120,7 @@ const CalendarManagement = () => {
                 {dayDetailEvents.appointments.map(apt => {
                   const clientName = getClientName(apt.client_id);
                   return (
-                    <div key={apt.id} className="flex items-start gap-3 p-3 rounded-lg border border-border">
+                    <div key={apt.id} className="flex items-start gap-3 p-3 rounded-lg border border-border cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => { setDayDetailDate(null); handleAppointmentClick(apt, { stopPropagation: () => {} } as React.MouseEvent); }}>
                       <div className="w-3 h-3 rounded-full mt-1 flex-shrink-0" style={{ backgroundColor: apt.color }} />
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-sm">{apt.title}</div>
@@ -1065,11 +1132,11 @@ const CalendarManagement = () => {
                       </div>
                       <div className="flex gap-1">
                         {apt.client_id && (
-                          <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => navigate(`/admin/utenti/${apt.client_id}`)}>
+                          <Button size="sm" variant="ghost" className="h-7 px-2" onClick={(e) => { e.stopPropagation(); navigate(`/admin/utenti/${apt.client_id}`); }}>
                             <ExternalLink className="w-3 h-3" />
                           </Button>
                         )}
-                        <Button size="sm" variant="ghost" className="h-7 px-2 text-destructive" onClick={() => setDeleteAppointmentId(apt.id)}>
+                        <Button size="sm" variant="ghost" className="h-7 px-2 text-destructive" onClick={(e) => { e.stopPropagation(); setDeleteAppointmentId(apt.id); }}>
                           <Trash2 className="w-3 h-3" />
                         </Button>
                       </div>
@@ -1096,13 +1163,14 @@ const CalendarManagement = () => {
                 {dayDetailEvents.deadlines.map(deadline => {
                   const clientName = getClientName(deadline.client_id);
                   return (
-                    <div key={deadline.id} className="flex items-start gap-3 p-3 rounded-lg border border-destructive/30 bg-destructive/5">
+                    <div key={deadline.id} className="flex items-start gap-3 p-3 rounded-lg border border-destructive/30 bg-destructive/5 cursor-pointer hover:bg-destructive/10 transition-colors" onClick={() => { setDayDetailDate(null); navigate(`/admin/utenti/${deadline.client_id}/scheda/${deadline.id}/modifica`); }}>
                       <Dumbbell className="w-4 h-4 text-destructive mt-0.5 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-sm">Scadenza Scheda</div>
                         <div className="text-xs text-muted-foreground">{deadline.name}</div>
                         {clientName && <div className="text-xs text-muted-foreground mt-1">{clientName}</div>}
                       </div>
+                      <ExternalLink className="w-4 h-4 text-muted-foreground mt-1" />
                     </div>
                   );
                 })}
@@ -1140,7 +1208,96 @@ const CalendarManagement = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation */}
+      {/* Edit Appointment Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-md max-h-[90vh] flex flex-col">
+          <DialogHeader className="flex-shrink-0">
+            <DialogTitle>Modifica Appuntamento</DialogTitle>
+            <DialogDescription>Modifica i dettagli dell'appuntamento</DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="flex-1 pr-4">
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label>Titolo *</Label>
+                <Input value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Data *</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !editDate && "text-muted-foreground")}>
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {editDate ? format(editDate, "PPP", { locale: it }) : "Seleziona data"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent mode="single" selected={editDate} onSelect={setEditDate} locale={it} initialFocus className="p-3 pointer-events-auto" />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Ora Inizio *</Label>
+                  <Input type="time" value={editStartTime} onChange={(e) => setEditStartTime(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Ora Fine *</Label>
+                  <Input type="time" value={editEndTime} onChange={(e) => setEditEndTime(e.target.value)} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Coach *</Label>
+                <Select value={editForm.coach_id} onValueChange={(v) => setEditForm({ ...editForm, coach_id: v })}>
+                  <SelectTrigger><SelectValue placeholder="Seleziona coach" /></SelectTrigger>
+                  <SelectContent>
+                    {coaches.map(c => (
+                      <SelectItem key={c.user_id} value={c.user_id}>{c.first_name} {c.last_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Cliente</Label>
+                <Select value={editForm.client_id} onValueChange={(v) => setEditForm({ ...editForm, client_id: v })}>
+                  <SelectTrigger><SelectValue placeholder="Seleziona cliente (opzionale)" /></SelectTrigger>
+                  <SelectContent>
+                    {clients.map(c => (
+                      <SelectItem key={c.user_id} value={c.user_id}>{c.first_name} {c.last_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Descrizione</Label>
+                <Textarea value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Luogo</Label>
+                  <Input value={editForm.location} onChange={(e) => setEditForm({ ...editForm, location: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Colore</Label>
+                  <Input type="color" value={editForm.color} onChange={(e) => setEditForm({ ...editForm, color: e.target.value })} className="h-10" />
+                </div>
+              </div>
+            </div>
+          </ScrollArea>
+          <DialogFooter className="flex-shrink-0 pt-4 border-t gap-2">
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Annulla</Button>
+            {editingAppointment?.client_id && (
+              <Button variant="secondary" onClick={() => { setIsEditDialogOpen(false); navigate(`/admin/utenti/${editingAppointment.client_id}`); }}>
+                <ExternalLink className="w-4 h-4 mr-2" />Profilo Cliente
+              </Button>
+            )}
+            <Button onClick={updateAppointment} disabled={saving}>
+              {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Salva
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+
       <AlertDialog open={!!deleteAppointmentId} onOpenChange={() => setDeleteAppointmentId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
