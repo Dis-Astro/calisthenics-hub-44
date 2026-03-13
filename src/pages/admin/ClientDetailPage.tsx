@@ -181,11 +181,13 @@ const ClientDetailPage = () => {
     }
     setProfile(profileData);
 
-    const [subsRes, paymentsRes, plansRes, membershipPlansRes] = await Promise.all([
+    const [subsRes, paymentsRes, plansRes, membershipPlansRes, appointmentsRes, coachesRes] = await Promise.all([
       supabase.from("subscriptions").select("*, membership_plans(id, name, price, duration_months)").eq("user_id", userId).order("end_date", { ascending: false }),
       supabase.from("payments").select("*").eq("user_id", userId).order("payment_date", { ascending: false }),
       (supabase.from("workout_plans").select("*").eq("client_id", userId) as any).is("deleted_at", null).order("created_at", { ascending: false }),
-      supabase.from("membership_plans").select("id, name, price, duration_months").eq("is_active", true).order("price")
+      supabase.from("membership_plans").select("id, name, price, duration_months").eq("is_active", true).order("price"),
+      supabase.from("appointments").select("id, title, start_time, end_time, coach_id, description, location").eq("client_id", userId).order("start_time", { ascending: false }),
+      supabase.from("profiles").select("user_id, first_name, last_name").in("role", ["admin", "coach"])
     ]);
 
     setSubscriptions((subsRes.data as unknown as Subscription[]) || []);
