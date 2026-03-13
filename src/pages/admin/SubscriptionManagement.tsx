@@ -745,6 +745,7 @@ const SubscriptionManagement = () => {
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
+                <Dialog open={isPackageDialogOpen} onOpenChange={setIsPackageDialogOpen}>
                   <DialogTrigger asChild>
                     <Button className="gap-2"><Plus className="w-4 h-4" />Nuovo Pacchetto</Button>
                   </DialogTrigger>
