@@ -1105,7 +1105,7 @@ const CalendarManagement = () => {
                   <div 
                     key={day.toISOString()} 
                     className={cn(
-                      "min-h-[100px] p-2 border rounded-lg cursor-pointer hover:bg-accent/30 transition-colors",
+                      "h-[120px] p-1.5 border rounded-lg cursor-pointer hover:bg-accent/30 transition-colors overflow-hidden",
                       isToday ? 'bg-primary/10 border-primary' : 'border-border',
                       !isCurrentMonth && 'opacity-40',
                       dragOverDay === dayKey && 'bg-primary/20 border-primary'
