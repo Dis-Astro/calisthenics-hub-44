@@ -189,6 +189,7 @@ const SubscriptionManagement = () => {
     if (plansRes.error) console.error("Plans error:", plansRes.error);
     if (paymentsRes.error) console.error("Payments error:", paymentsRes.error);
     if (clientsRes.error) console.error("Clients error:", clientsRes.error);
+    if (packagesRes.error) console.error("Packages error:", packagesRes.error);
 
     // Create profiles map for manual join
     const profilesMap = new Map((clientsRes.data || []).map(p => [p.user_id, p]));
@@ -209,7 +210,66 @@ const SubscriptionManagement = () => {
     setPlans(plansRes.data || []);
     setPayments(paymentsWithProfiles as unknown as Payment[]);
     setClients(clientsRes.data || []);
+    setLessonPackages((packagesRes.data || []) as unknown as LessonPackage[]);
     setLoading(false);
+  };
+
+  // Renew subscription: extend end_date by plan's duration_months
+  const handleRenewSubscription = async (sub: Subscription) => {
+    if (!sub.membership_plans) {
+      toast({ title: "Errore", description: "Piano non trovato per questo abbonamento", variant: "destructive" });
+      return;
+    }
+    setRenewingId(sub.id);
+    const currentEnd = new Date(sub.end_date);
+    const baseDate = isPast(currentEnd) ? new Date() : currentEnd;
+    const newEndDate = addMonths(baseDate, sub.membership_plans.duration_months);
+
+    const { error } = await supabase
+      .from("subscriptions")
+      .update({ 
+        end_date: format(newEndDate, "yyyy-MM-dd"),
+        status: "attivo" as SubscriptionStatus
+      })
+      .eq("id", sub.id);
+
+    if (error) {
+      toast({ title: "Errore", description: "Impossibile rinnovare l'abbonamento", variant: "destructive" });
+    } else {
+      toast({ 
+        title: "Rinnovato!", 
+        description: `Abbonamento rinnovato fino al ${format(newEndDate, "dd MMM yyyy", { locale: it })}` 
+      });
+      fetchData();
+    }
+    setRenewingId(null);
+  };
+
+  // Create lesson package
+  const createPackage = async () => {
+    if (!newPackage.user_id || !newPackage.total_lessons || !newPackage.price) {
+      toast({ title: "Errore", description: "Compila tutti i campi obbligatori", variant: "destructive" });
+      return;
+    }
+    setCreating(true);
+    const { error } = await supabase.from("lesson_packages").insert({
+      user_id: newPackage.user_id,
+      total_lessons: parseInt(newPackage.total_lessons),
+      remaining_lessons: parseInt(newPackage.total_lessons),
+      price: parseFloat(newPackage.price),
+      notes: newPackage.notes || null,
+      created_by: profile?.user_id
+    });
+
+    if (error) {
+      toast({ title: "Errore", description: "Impossibile creare il pacchetto", variant: "destructive" });
+    } else {
+      toast({ title: "Pacchetto creato", description: `${newPackage.total_lessons} lezioni assegnate` });
+      setNewPackage({ user_id: "", total_lessons: "", price: "", notes: "" });
+      setIsPackageDialogOpen(false);
+      fetchData();
+    }
+    setCreating(false);
   };
 
   const createSubscription = async () => {
