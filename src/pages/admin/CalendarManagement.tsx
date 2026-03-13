@@ -1206,14 +1206,26 @@ const CalendarManagement = () => {
                         );
                       })}
                       
-                      {totalEvents > 4 && (
-                        <div 
-                          className="text-[10px] text-muted-foreground cursor-pointer hover:text-primary"
-                          onClick={(e) => handleDayNumberClick(day, e)}
-                        >
-                          +{totalEvents - 4} altri
-                        </div>
-                      )}
+                      {/* Show "+X altri" when there are more than what's shown */}
+                      {(() => {
+                        const shownAppts = Math.min(events.appointments.length, 2);
+                        const shownSessions = Math.min(events.sessions.length, 2);
+                        const shownDeadlines = Math.min(events.deadlines.length, 1);
+                        const shownSubDeadlines = Math.min(events.subDeadlines.length, 1);
+                        const totalShown = shownAppts + shownSessions + shownDeadlines + shownSubDeadlines;
+                        const remaining = totalEvents - totalShown;
+                        if (remaining > 0) {
+                          return (
+                            <div 
+                              className="text-[10px] text-muted-foreground cursor-pointer hover:text-primary font-medium"
+                              onClick={(e) => handleDayNumberClick(day, e)}
+                            >
+                              + {remaining} altri
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                   </div>
                 );
