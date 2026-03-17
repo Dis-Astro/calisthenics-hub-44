@@ -89,6 +89,7 @@ interface TestPlan {
   status: string;
   coach_notes: string | null;
   exercises: { id: string; exercise_name: string | null; day_of_week: number | null; order_index: number }[];
+  coachTestNotes: Map<string, { note: string; rating: number }>;
 }
 
 // ─── Component ───
