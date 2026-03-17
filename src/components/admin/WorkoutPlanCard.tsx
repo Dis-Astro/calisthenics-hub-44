@@ -139,7 +139,10 @@ const WorkoutPlanCard = ({ plan, onEdit, onView, onDelete }: WorkoutPlanCardProp
               {format(new Date(plan.start_date), "dd/MM/yyyy")} - {format(new Date(plan.end_date), "dd/MM/yyyy")}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {isTest && (
+              <CoachTestNotesDialog planId={plan.id} planName={plan.name} onNotesUpdated={onDelete} />
+            )}
             <Button variant="outline" size="sm" onClick={() => onEdit(plan.id)} className="gap-1">
               <Edit className="w-3 h-3" /> Modifica
             </Button>
