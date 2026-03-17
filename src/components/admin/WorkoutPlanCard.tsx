@@ -3,7 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dumbbell, Edit, Eye, Pause, Play, CheckCircle, Trash2 } from "lucide-react";
+import { Dumbbell, Edit, Eye, Pause, Play, CheckCircle, Trash2, FileText } from "lucide-react";
+import CoachTestNotesDialog from "@/components/admin/CoachTestNotesDialog";
 import { format } from "date-fns";
 import {
   AlertDialog,
