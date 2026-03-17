@@ -235,17 +235,36 @@ const WorkoutPlanEditor = () => {
 
     if (!testPlans || testPlans.length === 0) { setTests([]); return; }
 
-    const allIds = testPlans.map(t => t.id);
+    const allIds = testPlans.map((t: any) => t.id);
     const { data: exercises } = await supabase
       .from("workout_plan_exercises")
       .select("id, exercise_name, day_of_week, order_index, workout_plan_id")
       .in("workout_plan_id", allIds)
       .order("day_of_week").order("order_index");
 
-    setTests(testPlans.map(t => ({
-      ...t, status: (t as any).status || "attiva",
-      exercises: (exercises || []).filter(e => e.workout_plan_id === t.id),
-    })));
+    // Load coach test notes for all exercises
+    const allExIds = (exercises || []).map(e => e.id);
+    const { data: coachNotes } = allExIds.length > 0
+      ? await (supabase.from("coach_test_notes" as any) as any)
+          .select("workout_plan_exercise_id, note, rating")
+          .in("workout_plan_exercise_id", allExIds)
+      : { data: [] };
+
+    setTests(testPlans.map((t: any) => {
+      const testExercises = (exercises || []).filter(e => e.workout_plan_id === t.id);
+      const testExIds = testExercises.map(e => e.id);
+      const notesMap = new Map<string, { note: string; rating: number }>();
+      (coachNotes || [])
+        .filter((n: any) => testExIds.includes(n.workout_plan_exercise_id))
+        .forEach((n: any) => {
+          notesMap.set(n.workout_plan_exercise_id, { note: n.note || "", rating: n.rating || 0 });
+        });
+      return {
+        ...t, status: (t as any).status || "attiva",
+        exercises: testExercises,
+        coachTestNotes: notesMap,
+      };
+    }));
   };
 
   // ─── Day/Exercise Management ───
