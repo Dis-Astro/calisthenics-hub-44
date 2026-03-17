@@ -149,6 +149,44 @@ export type Database = {
         }
         Relationships: []
       }
+      coach_test_notes: {
+        Row: {
+          coach_id: string
+          created_at: string
+          id: string
+          note: string | null
+          rating: number | null
+          updated_at: string
+          workout_plan_exercise_id: string
+        }
+        Insert: {
+          coach_id: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          rating?: number | null
+          updated_at?: string
+          workout_plan_exercise_id: string
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          rating?: number | null
+          updated_at?: string
+          workout_plan_exercise_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coach_test_notes_workout_plan_exercise_id_fkey"
+            columns: ["workout_plan_exercise_id"]
+            isOneToOne: false
+            referencedRelation: "workout_plan_exercises"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       course_participants: {
         Row: {
           course_id: string
