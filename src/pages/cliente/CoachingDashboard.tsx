@@ -124,6 +124,24 @@ const CoachingDashboard = () => {
 
     if (appointments) setUpcomingAppointments(appointments);
 
+    // Fetch active subscription
+    const { data: subs } = await supabase
+      .from("subscriptions")
+      .select("id, status, end_date, plan:membership_plans(name)")
+      .eq("user_id", userId)
+      .eq("status", "attivo")
+      .order("end_date", { ascending: false })
+      .limit(1);
+
+    if (subs && subs.length > 0) {
+      setSubscription({
+        id: subs[0].id,
+        status: subs[0].status,
+        end_date: subs[0].end_date,
+        plan_name: (subs[0].plan as any)?.name || "Piano"
+      });
+    }
+
     // Calculate actual week progress from workout_completions
     if (plans && plans.length > 0) {
       const planId = plans[0].id;
