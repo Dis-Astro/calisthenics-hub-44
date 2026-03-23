@@ -388,6 +388,55 @@ const CoachingDashboard = () => {
                 </Card>
               </div>
 
+              {/* Scadenze */}
+              {(activePlan || subscription) && (
+                <Card className="bg-card border-border">
+                  <CardHeader>
+                    <CardTitle className="font-display tracking-wider flex items-center gap-2">
+                      <CalendarDays className="w-5 h-5 text-primary" />
+                      Le Tue Scadenze
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {activePlan && (
+                      <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+                        <div className="flex items-center gap-3">
+                          <Dumbbell className="w-5 h-5 text-primary" />
+                          <div>
+                            <p className="font-medium text-sm">Scheda: {activePlan.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Scade il {format(new Date(activePlan.end_date), "d MMMM yyyy", { locale: it })}
+                            </p>
+                          </div>
+                        </div>
+                        <Badge variant={getDaysRemaining() <= 7 ? "destructive" : "secondary"}>
+                          {getDaysRemaining() > 0 ? `${getDaysRemaining()} giorni` : "Scaduta"}
+                        </Badge>
+                      </div>
+                    )}
+                    {subscription && (() => {
+                      const subDays = differenceInDays(new Date(subscription.end_date), new Date());
+                      return (
+                        <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+                          <div className="flex items-center gap-3">
+                            <CreditCard className="w-5 h-5 text-primary" />
+                            <div>
+                              <p className="font-medium text-sm">Abbonamento: {subscription.plan_name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                Scade il {format(new Date(subscription.end_date), "d MMMM yyyy", { locale: it })}
+                              </p>
+                            </div>
+                          </div>
+                          <Badge variant={subDays <= 7 ? "destructive" : "secondary"}>
+                            {subDays > 0 ? `${subDays} giorni` : "Scaduto"}
+                          </Badge>
+                        </div>
+                      );
+                    })()}
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Quick Actions */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card className="bg-card border-border">
