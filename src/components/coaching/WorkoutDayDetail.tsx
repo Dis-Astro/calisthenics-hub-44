@@ -152,11 +152,20 @@ const WorkoutDayDetail = () => {
 
     if (planExercises) {
       const exerciseIds = planExercises.map(e => e.id);
-      const { data: completions } = await supabase
-        .from("workout_completions")
-        .select("*")
-        .eq("client_id", userId!)
-        .in("workout_plan_exercise_id", exerciseIds);
+      const [completionsRes, testNotesRes] = await Promise.all([
+        supabase
+          .from("workout_completions")
+          .select("*")
+          .eq("client_id", userId!)
+          .in("workout_plan_exercise_id", exerciseIds),
+        supabase
+          .from("coach_test_notes")
+          .select("*")
+          .in("workout_plan_exercise_id", exerciseIds)
+      ]);
+
+      const completions = completionsRes.data;
+      const testNotes = testNotesRes.data as CoachTestNote[] | null;
 
       const exercisesWithWeeks: ExerciseWithWeeks[] = planExercises.map(ex => {
         const existingCompletions = completions?.filter(c => c.workout_plan_exercise_id === ex.id) || [];
@@ -172,11 +181,14 @@ const WorkoutDayDetail = () => {
           });
         }
 
+        const coachTestNote = testNotes?.find(n => n.workout_plan_exercise_id === ex.id);
+
         return {
           ...ex,
           exercise_name: (ex as any).exercise_name || "Esercizio",
           video: ex.video as unknown as ExerciseVideo | null,
-          weekCompletions
+          weekCompletions,
+          coachTestNote
         };
       });
 
