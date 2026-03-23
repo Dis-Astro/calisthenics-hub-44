@@ -50,6 +50,13 @@ interface Coach {
   last_name: string;
 }
 
+interface Subscription {
+  id: string;
+  status: string;
+  end_date: string;
+  plan_name: string;
+}
+
 const CoachingDashboard = () => {
   const { profile, signOut } = useAuth();
   const location = useLocation();
