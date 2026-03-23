@@ -475,7 +475,6 @@ const CalendarManagement = () => {
           start_time: startDateTime.toISOString(),
           end_time: endDateTime.toISOString()
         });
-        });
         
         currentDateIter = addDays(currentDateIter, 7);
       }
