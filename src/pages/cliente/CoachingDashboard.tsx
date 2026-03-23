@@ -22,7 +22,10 @@ import {
   Clock,
   Star,
   Loader2,
-  User
+  User,
+  AlertCircle,
+  CalendarDays,
+  CreditCard
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { format, isSameDay, parseISO, differenceInDays } from "date-fns";
