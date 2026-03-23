@@ -121,7 +121,7 @@ serve(async (req) => {
     }
 
     // Validate role
-    const validRoles = ['admin', 'coach', 'cliente_palestra', 'cliente_coaching']
+    const validRoles = ['admin', 'coach', 'cliente_palestra', 'cliente_coaching', 'cliente_corso']
     if (!validRoles.includes(body.role)) {
       return new Response(
         JSON.stringify({ error: 'Ruolo non valido' }),
