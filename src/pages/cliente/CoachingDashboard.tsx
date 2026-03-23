@@ -65,6 +65,7 @@ const CoachingDashboard = () => {
   const [activePlan, setActivePlan] = useState<WorkoutPlan | null>(null);
   const [upcomingAppointments, setUpcomingAppointments] = useState<Appointment[]>([]);
   const [myCoach, setMyCoach] = useState<Coach | null>(null);
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [weekProgress, setWeekProgress] = useState(0);
   const [completedWorkouts, setCompletedWorkouts] = useState(0);
 
