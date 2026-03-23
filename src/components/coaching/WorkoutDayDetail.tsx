@@ -279,9 +279,9 @@ const WorkoutDayDetail = () => {
                             <CheckCircle2 className="w-3 h-3" /> Tutte le settimane
                           </Badge>
                         )}
-                        <h3 className="font-display text-lg tracking-wider">
+                        <p className="text-lg font-semibold">
                           {exercise.exercise_name ? renderColoredText(exercise.exercise_name) : "Esercizio"}
-                        </h3>
+                        </p>
                         <p className="text-muted-foreground text-sm">
                           ({status.completed}/{status.total} sett. valutate)
                         </p>
