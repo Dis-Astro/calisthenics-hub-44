@@ -959,7 +959,7 @@ const CalendarManagement = () => {
                   {days.map((day) => {
                     const events = getEventsForDay(day);
                     const hourAppointments = events.appointments.filter(a => new Date(a.start_time).getHours() === hour);
-                    const hourSessions = events.sessions.filter(s => isoHourPart(s.start_time) === hour);
+                    const hourSessions = events.sessions.filter(s => new Date(s.start_time).getHours() === hour);
                     const dayKey = format(day, "yyyy-MM-dd");
 
                     return (
