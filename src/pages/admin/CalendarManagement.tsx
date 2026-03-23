@@ -232,7 +232,7 @@ const CalendarManagement = () => {
       supabase.from("appointments").select("*").gte("start_time", startRange).lte("start_time", endRange),
       supabase.from("course_sessions").select("*, course:courses(*)").gte("start_time", startRange).lte("start_time", endRange),
       supabase.from("profiles").select("*").in("role", ["admin", "coach"]),
-      supabase.from("profiles").select("*").in("role", ["cliente_palestra", "cliente_coaching"]),
+      supabase.from("profiles").select("*").in("role", ["cliente_palestra", "cliente_coaching", "cliente_corso"]),
       supabase.from("courses").select("*").eq("is_active", true),
       (supabase.from("workout_plans").select("id, name, client_id, end_date").gte("end_date", startRange).lte("end_date", endRange).eq("is_active", true) as any).is("deleted_at", null),
       supabase.from("subscriptions").select("id, user_id, end_date, status, plan_id, membership_plans(name)").gte("end_date", startRange).lte("end_date", endRange),
@@ -467,17 +467,13 @@ const CalendarManagement = () => {
       currentDateIter = addDays(currentDateIter, daysToAdd);
       
       while (currentDateIter <= oneYearFromNow) {
-        const year = currentDateIter.getFullYear();
-        const month = String(currentDateIter.getMonth() + 1).padStart(2, '0');
-        const dayNum = String(currentDateIter.getDate()).padStart(2, '0');
-        
-        const startDateTimeISO = `${year}-${month}-${dayNum}T${courseSessionStartTime}:00.000Z`;
-        const endDateTimeISO = `${year}-${month}-${dayNum}T${courseSessionEndTime}:00.000Z`;
+        const startDateTime = setMinutes(setHours(new Date(currentDateIter), startH), startM);
+        const endDateTime = setMinutes(setHours(new Date(currentDateIter), endH), endM);
         
         sessionsToCreate.push({
           course_id: newCourseSession.course_id,
-          start_time: startDateTimeISO,
-          end_time: endDateTimeISO
+          start_time: startDateTime.toISOString(),
+          end_time: endDateTime.toISOString()
         });
         
         currentDateIter = addDays(currentDateIter, 7);
@@ -566,7 +562,6 @@ const CalendarManagement = () => {
   };
 
   const isoDatePart = (iso: string) => iso.slice(0, 10);
-  const isoHourPart = (iso: string) => Number(iso.slice(11, 13));
 
   const getEventsForDay = (day: Date) => {
     const dayAppointments = appointments.filter(a => isSameDay(parseISO(a.start_time), day));
@@ -960,7 +955,7 @@ const CalendarManagement = () => {
                   {days.map((day) => {
                     const events = getEventsForDay(day);
                     const hourAppointments = events.appointments.filter(a => new Date(a.start_time).getHours() === hour);
-                    const hourSessions = events.sessions.filter(s => isoHourPart(s.start_time) === hour);
+                    const hourSessions = events.sessions.filter(s => new Date(s.start_time).getHours() === hour);
                     const dayKey = format(day, "yyyy-MM-dd");
 
                     return (
@@ -1264,7 +1259,7 @@ const CalendarManagement = () => {
             </DialogTitle>
             <DialogDescription>Tutti gli eventi della giornata</DialogDescription>
           </DialogHeader>
-          <ScrollArea className="flex-1">
+          <div className="flex-1 min-h-0 overflow-y-auto pr-2">
             {dayDetailEvents && (
               <div className="space-y-3 pr-4">
                 {dayDetailEvents.appointments.length === 0 && dayDetailEvents.sessions.length === 0 && dayDetailEvents.deadlines.length === 0 && dayDetailEvents.subDeadlines.length === 0 && (
@@ -1353,7 +1348,7 @@ const CalendarManagement = () => {
                 })}
               </div>
             )}
-          </ScrollArea>
+          </div>
           <DialogFooter className="flex-shrink-0 pt-4 border-t">
             <Button onClick={() => { setDayDetailDate(null); if (dayDetailDate) handleDayClick(dayDetailDate); }} className="gap-2">
               <Plus className="w-4 h-4" />Nuovo Appuntamento

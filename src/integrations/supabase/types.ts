@@ -930,7 +930,12 @@ export type Database = {
       error_report_status: "aperta" | "in_lavorazione" | "risolta" | "chiusa"
       payment_status: "completato" | "in_attesa" | "fallito" | "rimborsato"
       subscription_status: "attivo" | "scaduto" | "sospeso" | "cancellato"
-      user_role: "admin" | "coach" | "cliente_palestra" | "cliente_coaching"
+      user_role:
+        | "admin"
+        | "coach"
+        | "cliente_palestra"
+        | "cliente_coaching"
+        | "cliente_corso"
       workout_plan_status: "attiva" | "in_pausa" | "conclusa"
     }
     CompositeTypes: {
@@ -1062,7 +1067,13 @@ export const Constants = {
       error_report_status: ["aperta", "in_lavorazione", "risolta", "chiusa"],
       payment_status: ["completato", "in_attesa", "fallito", "rimborsato"],
       subscription_status: ["attivo", "scaduto", "sospeso", "cancellato"],
-      user_role: ["admin", "coach", "cliente_palestra", "cliente_coaching"],
+      user_role: [
+        "admin",
+        "coach",
+        "cliente_palestra",
+        "cliente_coaching",
+        "cliente_corso",
+      ],
       workout_plan_status: ["attiva", "in_pausa", "conclusa"],
     },
   },

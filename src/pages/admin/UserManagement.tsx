@@ -35,14 +35,16 @@ const roleLabels: Record<UserRole, string> = {
   admin: "Amministratore",
   coach: "Coach",
   cliente_palestra: "Cliente Palestra",
-  cliente_coaching: "Cliente Coaching"
+  cliente_coaching: "Cliente Coaching",
+  cliente_corso: "Cliente Corso"
 };
 
 const roleBadgeVariant: Record<UserRole, "default" | "secondary" | "destructive" | "outline"> = {
   admin: "destructive",
   coach: "default",
   cliente_palestra: "secondary",
-  cliente_coaching: "outline"
+  cliente_coaching: "outline",
+  cliente_corso: "secondary"
 };
 
 const UserManagement = () => {
@@ -208,6 +210,7 @@ const UserManagement = () => {
             <SelectItem value="coach">Coach</SelectItem>
             <SelectItem value="cliente_palestra">Clienti Palestra</SelectItem>
             <SelectItem value="cliente_coaching">Clienti Coaching</SelectItem>
+            <SelectItem value="cliente_corso">Clienti Corso</SelectItem>
           </SelectContent>
         </Select>
         
@@ -248,6 +251,7 @@ const UserManagement = () => {
                     <SelectItem value="coach">Coach</SelectItem>
                     <SelectItem value="cliente_palestra">Cliente Palestra</SelectItem>
                     <SelectItem value="cliente_coaching">Cliente Coaching</SelectItem>
+                    <SelectItem value="cliente_corso">Cliente Corso</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -391,6 +395,7 @@ const UserManagement = () => {
                     <SelectItem value="coach">Coach</SelectItem>
                     <SelectItem value="cliente_palestra">Cliente Palestra</SelectItem>
                     <SelectItem value="cliente_coaching">Cliente Coaching</SelectItem>
+                    <SelectItem value="cliente_corso">Cliente Corso</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

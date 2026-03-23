@@ -22,7 +22,10 @@ import {
   Clock,
   Star,
   Loader2,
-  User
+  User,
+  AlertCircle,
+  CalendarDays,
+  CreditCard
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { format, isSameDay, parseISO, differenceInDays } from "date-fns";
@@ -50,6 +53,13 @@ interface Coach {
   last_name: string;
 }
 
+interface Subscription {
+  id: string;
+  status: string;
+  end_date: string;
+  plan_name: string;
+}
+
 const CoachingDashboard = () => {
   const { profile, signOut } = useAuth();
   const location = useLocation();
@@ -58,6 +68,7 @@ const CoachingDashboard = () => {
   const [activePlan, setActivePlan] = useState<WorkoutPlan | null>(null);
   const [upcomingAppointments, setUpcomingAppointments] = useState<Appointment[]>([]);
   const [myCoach, setMyCoach] = useState<Coach | null>(null);
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [weekProgress, setWeekProgress] = useState(0);
   const [completedWorkouts, setCompletedWorkouts] = useState(0);
 
@@ -115,6 +126,24 @@ const CoachingDashboard = () => {
       .limit(3);
 
     if (appointments) setUpcomingAppointments(appointments);
+
+    // Fetch active subscription
+    const { data: subs } = await supabase
+      .from("subscriptions")
+      .select("id, status, end_date, plan:membership_plans(name)")
+      .eq("user_id", userId)
+      .eq("status", "attivo")
+      .order("end_date", { ascending: false })
+      .limit(1);
+
+    if (subs && subs.length > 0) {
+      setSubscription({
+        id: subs[0].id,
+        status: subs[0].status,
+        end_date: subs[0].end_date,
+        plan_name: (subs[0].plan as any)?.name || "Piano"
+      });
+    }
 
     // Calculate actual week progress from workout_completions
     if (plans && plans.length > 0) {
@@ -358,6 +387,55 @@ const CoachingDashboard = () => {
                   </CardContent>
                 </Card>
               </div>
+
+              {/* Scadenze */}
+              {(activePlan || subscription) && (
+                <Card className="bg-card border-border">
+                  <CardHeader>
+                    <CardTitle className="font-display tracking-wider flex items-center gap-2">
+                      <CalendarDays className="w-5 h-5 text-primary" />
+                      Le Tue Scadenze
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {activePlan && (
+                      <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+                        <div className="flex items-center gap-3">
+                          <Dumbbell className="w-5 h-5 text-primary" />
+                          <div>
+                            <p className="font-medium text-sm">Scheda: {activePlan.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Scade il {format(new Date(activePlan.end_date), "d MMMM yyyy", { locale: it })}
+                            </p>
+                          </div>
+                        </div>
+                        <Badge variant={getDaysRemaining() <= 7 ? "destructive" : "secondary"}>
+                          {getDaysRemaining() > 0 ? `${getDaysRemaining()} giorni` : "Scaduta"}
+                        </Badge>
+                      </div>
+                    )}
+                    {subscription && (() => {
+                      const subDays = differenceInDays(new Date(subscription.end_date), new Date());
+                      return (
+                        <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+                          <div className="flex items-center gap-3">
+                            <CreditCard className="w-5 h-5 text-primary" />
+                            <div>
+                              <p className="font-medium text-sm">Abbonamento: {subscription.plan_name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                Scade il {format(new Date(subscription.end_date), "d MMMM yyyy", { locale: it })}
+                              </p>
+                            </div>
+                          </div>
+                          <Badge variant={subDays <= 7 ? "destructive" : "secondary"}>
+                            {subDays > 0 ? `${subDays} giorni` : "Scaduto"}
+                          </Badge>
+                        </div>
+                      );
+                    })()}
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Quick Actions */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

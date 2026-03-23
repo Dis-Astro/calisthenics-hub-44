@@ -47,6 +47,13 @@ interface ExerciseVideo {
   video_url: string;
 }
 
+interface CoachTestNote {
+  id: string;
+  note: string | null;
+  rating: number | null;
+  workout_plan_exercise_id: string;
+}
+
 interface WorkoutPlanExercise {
   id: string;
   notes: string | null;
@@ -66,6 +73,7 @@ interface WeekCompletion {
 
 interface ExerciseWithWeeks extends WorkoutPlanExercise {
   weekCompletions: WeekCompletion[];
+  coachTestNote?: CoachTestNote;
 }
 
 interface WorkoutPlan {
@@ -144,11 +152,20 @@ const WorkoutDayDetail = () => {
 
     if (planExercises) {
       const exerciseIds = planExercises.map(e => e.id);
-      const { data: completions } = await supabase
-        .from("workout_completions")
-        .select("*")
-        .eq("client_id", userId!)
-        .in("workout_plan_exercise_id", exerciseIds);
+      const [completionsRes, testNotesRes] = await Promise.all([
+        supabase
+          .from("workout_completions")
+          .select("*")
+          .eq("client_id", userId!)
+          .in("workout_plan_exercise_id", exerciseIds),
+        supabase
+          .from("coach_test_notes")
+          .select("*")
+          .in("workout_plan_exercise_id", exerciseIds)
+      ]);
+
+      const completions = completionsRes.data;
+      const testNotes = testNotesRes.data as CoachTestNote[] | null;
 
       const exercisesWithWeeks: ExerciseWithWeeks[] = planExercises.map(ex => {
         const existingCompletions = completions?.filter(c => c.workout_plan_exercise_id === ex.id) || [];
@@ -164,11 +181,14 @@ const WorkoutDayDetail = () => {
           });
         }
 
+        const coachTestNote = testNotes?.find(n => n.workout_plan_exercise_id === ex.id);
+
         return {
           ...ex,
           exercise_name: (ex as any).exercise_name || "Esercizio",
           video: ex.video as unknown as ExerciseVideo | null,
-          weekCompletions
+          weekCompletions,
+          coachTestNote
         };
       });
 
@@ -279,9 +299,9 @@ const WorkoutDayDetail = () => {
                             <CheckCircle2 className="w-3 h-3" /> Tutte le settimane
                           </Badge>
                         )}
-                        <h3 className="font-display text-lg tracking-wider">
+                        <p className="text-lg font-semibold">
                           {exercise.exercise_name ? renderColoredText(exercise.exercise_name) : "Esercizio"}
-                        </h3>
+                        </p>
                         <p className="text-muted-foreground text-sm">
                           ({status.completed}/{status.total} sett. valutate)
                         </p>
@@ -303,6 +323,22 @@ const WorkoutDayDetail = () => {
                     <div className="px-4 py-3 bg-muted/50 border-t border-border">
                       <div className="flex items-center gap-2 text-sm font-medium mb-1"><MessageSquare className="w-4 h-4" />Nota del Coach</div>
                       <p className="text-sm text-muted-foreground">{exercise.notes}</p>
+                    </div>
+                  )}
+
+                  {exercise.coachTestNote && (exercise.coachTestNote.note || exercise.coachTestNote.rating) && (
+                    <div className="px-4 py-3 bg-orange-500/5 border-t border-orange-500/20">
+                      <div className="flex items-center gap-2 text-sm font-medium mb-1 text-orange-700 dark:text-orange-400">
+                        <span>⚡</span>Correzione Test
+                        {exercise.coachTestNote.rating && (
+                          <span className="text-xs bg-orange-500/20 px-2 py-0.5 rounded-full">
+                            {exercise.coachTestNote.rating}/10
+                          </span>
+                        )}
+                      </div>
+                      {exercise.coachTestNote.note && (
+                        <p className="text-sm text-muted-foreground">{exercise.coachTestNote.note}</p>
+                      )}
                     </div>
                   )}
 

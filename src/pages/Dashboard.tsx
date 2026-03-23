@@ -29,6 +29,9 @@ const Dashboard = () => {
       case 'cliente_palestra':
         navigate("/palestra", { replace: true });
         break;
+      case 'cliente_corso':
+        navigate("/palestra", { replace: true });
+        break;
       default:
         navigate("/palestra", { replace: true });
     }

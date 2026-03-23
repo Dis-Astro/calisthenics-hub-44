@@ -163,12 +163,12 @@ const App = () => (
             
             {/* Cliente Palestra routes */}
             <Route path="/palestra" element={
-              <ProtectedRoute allowedRoles={['cliente_palestra']}>
+              <ProtectedRoute allowedRoles={['cliente_palestra', 'cliente_corso']}>
                 <PalestraDashboard />
               </ProtectedRoute>
             } />
             <Route path="/palestra/*" element={
-              <ProtectedRoute allowedRoles={['cliente_palestra']}>
+              <ProtectedRoute allowedRoles={['cliente_palestra', 'cliente_corso']}>
                 <PalestraDashboard />
               </ProtectedRoute>
             } />
