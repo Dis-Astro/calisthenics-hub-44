@@ -326,6 +326,22 @@ const WorkoutDayDetail = () => {
                     </div>
                   )}
 
+                  {exercise.coachTestNote && (exercise.coachTestNote.note || exercise.coachTestNote.rating) && (
+                    <div className="px-4 py-3 bg-orange-500/5 border-t border-orange-500/20">
+                      <div className="flex items-center gap-2 text-sm font-medium mb-1 text-orange-700 dark:text-orange-400">
+                        <span>⚡</span>Correzione Test
+                        {exercise.coachTestNote.rating && (
+                          <span className="text-xs bg-orange-500/20 px-2 py-0.5 rounded-full">
+                            {exercise.coachTestNote.rating}/10
+                          </span>
+                        )}
+                      </div>
+                      {exercise.coachTestNote.note && (
+                        <p className="text-sm text-muted-foreground">{exercise.coachTestNote.note}</p>
+                      )}
+                    </div>
+                  )}
+
                   <CardContent className="p-4 space-y-4">
                     {exercise.weekCompletions.map((week) => {
                       const isCurrentWeek = week.week_number === currentWeek;
