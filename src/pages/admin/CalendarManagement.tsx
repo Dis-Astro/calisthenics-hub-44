@@ -1353,7 +1353,7 @@ const CalendarManagement = () => {
                 })}
               </div>
             )}
-          </ScrollArea>
+          </div>
           <DialogFooter className="flex-shrink-0 pt-4 border-t">
             <Button onClick={() => { setDayDetailDate(null); if (dayDetailDate) handleDayClick(dayDetailDate); }} className="gap-2">
               <Plus className="w-4 h-4" />Nuovo Appuntamento
