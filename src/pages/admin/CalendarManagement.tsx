@@ -566,7 +566,6 @@ const CalendarManagement = () => {
   };
 
   const isoDatePart = (iso: string) => iso.slice(0, 10);
-  const isoHourPart = (iso: string) => Number(iso.slice(11, 13));
 
   const getEventsForDay = (day: Date) => {
     const dayAppointments = appointments.filter(a => isSameDay(parseISO(a.start_time), day));
