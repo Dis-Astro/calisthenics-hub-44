@@ -1264,7 +1264,7 @@ const CalendarManagement = () => {
             </DialogTitle>
             <DialogDescription>Tutti gli eventi della giornata</DialogDescription>
           </DialogHeader>
-          <ScrollArea className="flex-1">
+          <div className="flex-1 min-h-0 overflow-y-auto pr-2">
             {dayDetailEvents && (
               <div className="space-y-3 pr-4">
                 {dayDetailEvents.appointments.length === 0 && dayDetailEvents.sessions.length === 0 && dayDetailEvents.deadlines.length === 0 && dayDetailEvents.subDeadlines.length === 0 && (
