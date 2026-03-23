@@ -117,6 +117,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const isStaff = isAdmin || isCoach;
   const isClientePalestra = profile?.role === 'cliente_palestra';
   const isClienteCoaching = profile?.role === 'cliente_coaching';
+  const isClienteCorso = profile?.role === 'cliente_corso';
 
   return (
     <AuthContext.Provider
@@ -132,6 +133,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         isStaff,
         isClientePalestra,
         isClienteCoaching,
+        isClienteCorso,
       }}
     >
       {children}
