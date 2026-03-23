@@ -210,6 +210,7 @@ const UserManagement = () => {
             <SelectItem value="coach">Coach</SelectItem>
             <SelectItem value="cliente_palestra">Clienti Palestra</SelectItem>
             <SelectItem value="cliente_coaching">Clienti Coaching</SelectItem>
+            <SelectItem value="cliente_corso">Clienti Corso</SelectItem>
           </SelectContent>
         </Select>
         
