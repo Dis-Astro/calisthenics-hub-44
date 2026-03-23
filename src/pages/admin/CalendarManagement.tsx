@@ -467,17 +467,14 @@ const CalendarManagement = () => {
       currentDateIter = addDays(currentDateIter, daysToAdd);
       
       while (currentDateIter <= oneYearFromNow) {
-        const year = currentDateIter.getFullYear();
-        const month = String(currentDateIter.getMonth() + 1).padStart(2, '0');
-        const dayNum = String(currentDateIter.getDate()).padStart(2, '0');
-        
-        const startDateTimeISO = `${year}-${month}-${dayNum}T${courseSessionStartTime}:00.000Z`;
-        const endDateTimeISO = `${year}-${month}-${dayNum}T${courseSessionEndTime}:00.000Z`;
+        const startDateTime = setMinutes(setHours(new Date(currentDateIter), startH), startM);
+        const endDateTime = setMinutes(setHours(new Date(currentDateIter), endH), endM);
         
         sessionsToCreate.push({
           course_id: newCourseSession.course_id,
-          start_time: startDateTimeISO,
-          end_time: endDateTimeISO
+          start_time: startDateTime.toISOString(),
+          end_time: endDateTime.toISOString()
+        });
         });
         
         currentDateIter = addDays(currentDateIter, 7);
