@@ -47,6 +47,13 @@ interface ExerciseVideo {
   video_url: string;
 }
 
+interface CoachTestNote {
+  id: string;
+  note: string | null;
+  rating: number | null;
+  workout_plan_exercise_id: string;
+}
+
 interface WorkoutPlanExercise {
   id: string;
   notes: string | null;
@@ -66,6 +73,7 @@ interface WeekCompletion {
 
 interface ExerciseWithWeeks extends WorkoutPlanExercise {
   weekCompletions: WeekCompletion[];
+  coachTestNote?: CoachTestNote;
 }
 
 interface WorkoutPlan {
