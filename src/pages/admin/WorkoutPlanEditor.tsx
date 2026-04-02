@@ -823,13 +823,27 @@ const WorkoutPlanEditor = () => {
           {/* Left: Previous Plan + Feedback */}
           <div className="col-span-3">
             <Card>
-              <div className="bg-muted px-4 py-2 border-b">
+              <div className="bg-muted px-4 py-2 border-b space-y-1.5">
                 <h3 className="font-display text-sm tracking-wider flex items-center gap-2">
                   <ClipboardList className="w-4 h-4 text-primary" />
-                  Scheda Precedente
+                  Scheda Laterale
                 </h3>
+                {allPlans.length > 0 && (
+                  <Select value={selectedLeftPlanId} onValueChange={setSelectedLeftPlanId}>
+                    <SelectTrigger className="h-7 text-xs">
+                      <SelectValue placeholder="Seleziona scheda..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {allPlans.map(p => (
+                        <SelectItem key={p.id} value={p.id} className="text-xs">
+                          {p.name} — {format(new Date(p.start_date), "d MMM yy", { locale: it })}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
-              <CardContent className="p-3 max-h-[calc(100vh-220px)] overflow-y-auto">
+              <CardContent className="p-3 max-h-[calc(100vh-260px)] overflow-y-auto">
                 {renderPreviousPlan()}
               </CardContent>
             </Card>
@@ -853,13 +867,27 @@ const WorkoutPlanEditor = () => {
           {/* Right: Tests / Notes */}
           <div className="col-span-3">
             <Card>
-              <div className="bg-muted px-4 py-2 border-b">
+              <div className="bg-muted px-4 py-2 border-b space-y-1.5">
                 <h3 className="font-display text-sm tracking-wider flex items-center gap-2">
                   <FileText className="w-4 h-4 text-primary" />
                   Test & Note
                 </h3>
+                {tests.length > 0 && (
+                  <Select value={selectedRightTestId} onValueChange={setSelectedRightTestId}>
+                    <SelectTrigger className="h-7 text-xs">
+                      <SelectValue placeholder="Seleziona test..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tests.map(t => (
+                        <SelectItem key={t.id} value={t.id} className="text-xs">
+                          {t.name} — {format(new Date(t.start_date), "d MMM yy", { locale: it })}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
-              <CardContent className="p-3 max-h-[calc(100vh-220px)] overflow-y-auto">
+              <CardContent className="p-3 max-h-[calc(100vh-260px)] overflow-y-auto">
                 {renderTests()}
               </CardContent>
             </Card>
