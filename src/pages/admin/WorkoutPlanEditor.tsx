@@ -121,8 +121,10 @@ const WorkoutPlanEditor = () => {
   const [days, setDays] = useState<DayBlock[]>([{ day_number: 1, exercises: [{ exercise_name_free: "", order_index: 0, isNew: true }] }]);
 
   // Side panels
-  const [previousPlan, setPreviousPlan] = useState<PreviousPlan | null>(null);
+  const [allPlans, setAllPlans] = useState<PreviousPlan[]>([]);
+  const [selectedLeftPlanId, setSelectedLeftPlanId] = useState<string>("");
   const [tests, setTests] = useState<TestPlan[]>([]);
+  const [selectedRightTestId, setSelectedRightTestId] = useState<string>("");
   const [openFeedbackExercises, setOpenFeedbackExercises] = useState<Set<string>>(new Set());
 
   // Mobile tab
@@ -183,44 +185,60 @@ const WorkoutPlanEditor = () => {
   };
 
   const loadPreviousPlan = async () => {
-    // Get the most recent workout_plan for this client (excluding current if editing)
-    let query = supabase.from("workout_plans").select("id, name, start_date, end_date, status, coach_notes, description")
+    // Load ALL plans for this client (excluding current if editing)
+    const { data: plans } = await supabase
+      .from("workout_plans")
+      .select("id, name, start_date, end_date, status, coach_notes, description")
       .eq("client_id", userId!)
       .is("deleted_at" as any, null)
-      .order("created_at", { ascending: false })
-      .limit(2);
+      .order("created_at", { ascending: false });
 
-    const { data: plans } = await query;
-    if (!plans || plans.length === 0) { setPreviousPlan(null); return; }
+    if (!plans || plans.length === 0) { setAllPlans([]); return; }
 
-    // Pick the plan that isn't the one being edited
-    const prev = isEditing ? plans.find(p => p.id !== planId) || null : plans[0] || null;
-    if (!prev) { setPreviousPlan(null); return; }
+    // Exclude current plan if editing
+    const availablePlans = isEditing ? plans.filter(p => p.id !== planId) : plans;
+    if (availablePlans.length === 0) { setAllPlans([]); return; }
 
-    const { data: exercises } = await supabase
-      .from("workout_plan_exercises")
-      .select("id, exercise_name, day_of_week, order_index")
-      .eq("workout_plan_id", prev.id)
-      .order("day_of_week").order("order_index");
+    // Load exercises + feedbacks for all available plans
+    const allPlanIds = availablePlans.map(p => p.id);
+    const [exercisesRes, completionsRes] = await Promise.all([
+      supabase.from("workout_plan_exercises")
+        .select("id, exercise_name, day_of_week, order_index, workout_plan_id")
+        .in("workout_plan_id", allPlanIds)
+        .order("day_of_week").order("order_index"),
+      supabase.from("workout_completions")
+        .select("*")
+        .eq("client_id", userId!)
+        .or("client_notes.not.is.null,difficulty_rating.gt.0")
+        .order("set_number"),
+    ]);
 
-    // Get feedbacks
-    const exIds = exercises?.map(e => e.id) || [];
-    const { data: completions } = await supabase
-      .from("workout_completions")
-      .select("*")
-      .eq("client_id", userId!)
-      .in("workout_plan_exercise_id", exIds)
-      .or("client_notes.not.is.null,difficulty_rating.gt.0")
-      .order("set_number");
+    const exercises = exercisesRes.data || [];
+    const completions = completionsRes.data || [];
 
-    setPreviousPlan({
-      ...prev, status: (prev as any).status || "attiva",
-      exercises: exercises || [],
-      feedbacks: (completions || []).filter(c => c.client_notes || (c.difficulty_rating && c.difficulty_rating > 0)).map(c => ({
-        exercise_id: c.workout_plan_exercise_id, week_number: c.set_number,
-        rating: c.difficulty_rating || 0, notes: c.client_notes || "", completed_at: c.completed_at,
-      })),
+    const loadedPlans: PreviousPlan[] = availablePlans.map(p => {
+      const planExercises = exercises.filter(e => e.workout_plan_id === p.id);
+      const exIds = planExercises.map(e => e.id);
+      const planFeedbacks = completions
+        .filter(c => exIds.includes(c.workout_plan_exercise_id))
+        .filter(c => c.client_notes || (c.difficulty_rating && c.difficulty_rating > 0))
+        .map(c => ({
+          exercise_id: c.workout_plan_exercise_id, week_number: c.set_number,
+          rating: c.difficulty_rating || 0, notes: c.client_notes || "", completed_at: c.completed_at,
+        }));
+
+      return {
+        ...p, status: (p as any).status || "attiva",
+        exercises: planExercises,
+        feedbacks: planFeedbacks,
+      };
     });
+
+    setAllPlans(loadedPlans);
+    // Auto-select the most recent one
+    if (!selectedLeftPlanId || !loadedPlans.find(p => p.id === selectedLeftPlanId)) {
+      setSelectedLeftPlanId(loadedPlans[0].id);
+    }
   };
 
   const loadTests = async () => {
@@ -230,8 +248,7 @@ const WorkoutPlanEditor = () => {
       .eq("client_id", userId!) as any)
       .eq("plan_type", "test")
       .is("deleted_at", null)
-      .order("created_at", { ascending: false })
-      .limit(5) as any;
+      .order("created_at", { ascending: false }) as any;
 
     if (!testPlans || testPlans.length === 0) { setTests([]); return; }
 
@@ -250,7 +267,7 @@ const WorkoutPlanEditor = () => {
           .in("workout_plan_exercise_id", allExIds)
       : { data: [] };
 
-    setTests(testPlans.map((t: any) => {
+    const loadedTests = testPlans.map((t: any) => {
       const testExercises = (exercises || []).filter(e => e.workout_plan_id === t.id);
       const testExIds = testExercises.map(e => e.id);
       const notesMap = new Map<string, { note: string; rating: number }>();
@@ -264,7 +281,13 @@ const WorkoutPlanEditor = () => {
         exercises: testExercises,
         coachTestNotes: notesMap,
       };
-    }));
+    });
+
+    setTests(loadedTests);
+    // Auto-select the most recent test
+    if (!selectedRightTestId || !loadedTests.find((t: any) => t.id === selectedRightTestId)) {
+      setSelectedRightTestId(loadedTests[0].id);
+    }
   };
 
   // ─── Day/Exercise Management ───
@@ -446,8 +469,10 @@ const WorkoutPlanEditor = () => {
   };
 
   // ─── Render Left Panel: Previous Plan + Feedback ───
+  const previousPlan = allPlans.find(p => p.id === selectedLeftPlanId) || null;
+
   const renderPreviousPlan = () => {
-    if (!previousPlan) {
+    if (allPlans.length === 0) {
       return (
         <div className="text-center py-12 text-muted-foreground">
           <ClipboardList className="w-12 h-12 mx-auto mb-4 opacity-30" />
@@ -456,6 +481,8 @@ const WorkoutPlanEditor = () => {
         </div>
       );
     }
+
+    if (!previousPlan) return null;
 
     const exercisesByDay = previousPlan.exercises.reduce((acc, ex) => {
       const day = ex.day_of_week || 1;
@@ -466,13 +493,11 @@ const WorkoutPlanEditor = () => {
 
     return (
       <div className="space-y-3">
-        <div className="p-3 bg-muted rounded-lg">
-          <h4 className="font-display tracking-wider text-sm">{previousPlan.name}</h4>
-          <p className="text-xs text-muted-foreground mt-1">
-            {format(new Date(previousPlan.start_date), "d MMM yyyy", { locale: it })} — {format(new Date(previousPlan.end_date), "d MMM yyyy", { locale: it })}
-          </p>
-          {previousPlan.description && <p className="text-xs text-muted-foreground mt-1">{previousPlan.description}</p>}
-        </div>
+        {previousPlan.description && (
+          <div className="p-3 bg-muted rounded-lg">
+            <p className="text-xs text-muted-foreground">{previousPlan.description}</p>
+          </div>
+        )}
 
         {previousPlan.coach_notes && (
           <div className="p-3 bg-primary/10 border-l-4 border-primary rounded-lg">
@@ -531,7 +556,9 @@ const WorkoutPlanEditor = () => {
     );
   };
 
-  // ─── Render Right Panel: Tests ───
+  // ─── Render Right Panel: Selected Test ───
+  const selectedTest = tests.find(t => t.id === selectedRightTestId) || null;
+
   const renderTests = () => {
     if (tests.length === 0) {
       return (
@@ -551,90 +578,76 @@ const WorkoutPlanEditor = () => {
       );
     }
 
+    if (!selectedTest) return null;
+
+    const test = selectedTest;
+    const exercisesByDay = test.exercises.reduce((acc, ex) => {
+      const day = ex.day_of_week || 1;
+      if (!acc[day]) acc[day] = [];
+      acc[day].push(ex);
+      return acc;
+    }, {} as Record<number, typeof test.exercises>);
+
+    const filledCount = Array.from(test.coachTestNotes.values()).filter(n => n.note || n.rating).length;
+
     return (
       <div className="space-y-3">
-        {tests.map(test => {
-          const exercisesByDay = test.exercises.reduce((acc, ex) => {
-            const day = ex.day_of_week || 1;
-            if (!acc[day]) acc[day] = [];
-            acc[day].push(ex);
-            return acc;
-          }, {} as Record<number, typeof test.exercises>);
+        {filledCount > 0 && (
+          <Badge variant="outline" className="text-[10px] h-5 border-primary/30 text-primary">
+            {filledCount}/{test.exercises.length} note
+          </Badge>
+        )}
 
-          const filledCount = Array.from(test.coachTestNotes.values()).filter(n => n.note || n.rating).length;
+        {test.coach_notes && (
+          <div className="p-2 bg-primary/10 border-l-2 border-primary rounded text-xs">
+            <p className="font-medium mb-0.5">Note Coach</p>
+            <p className="text-muted-foreground">{test.coach_notes}</p>
+          </div>
+        )}
 
-          return (
-            <Card key={test.id} className="overflow-hidden">
-              <div className="bg-muted px-3 py-2 border-b">
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="text-[10px] h-5">Test</Badge>
-                  <h4 className="font-medium text-sm">{test.name}</h4>
-                </div>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <p className="text-xs text-muted-foreground">
-                    {format(new Date(test.start_date), "d MMM", { locale: it })} — {format(new Date(test.end_date), "d MMM yyyy", { locale: it })}
-                  </p>
-                  {filledCount > 0 && (
-                    <Badge variant="outline" className="text-[10px] h-4 border-orange-300 text-orange-600">
-                      {filledCount}/{test.exercises.length} note
-                    </Badge>
-                  )}
-                </div>
-              </div>
-              <CardContent className="p-2">
-                {test.coach_notes && (
-                  <div className="p-2 bg-primary/10 border-l-2 border-primary rounded text-xs mb-2">
-                    <p className="font-medium mb-0.5">Note Coach</p>
-                    <p className="text-muted-foreground">{test.coach_notes}</p>
-                  </div>
-                )}
-                {Object.entries(exercisesByDay).sort(([a], [b]) => Number(a) - Number(b)).map(([day, exs]) => (
-                  <div key={day} className="mb-2">
-                    <p className="text-[10px] font-medium text-muted-foreground mb-1">Giorno {day}</p>
-                    {exs.map((ex, idx) => {
-                      const coachNote = test.coachTestNotes.get(ex.id);
-                      const hasNote = !!(coachNote?.note || coachNote?.rating);
-                      const isOpen = openFeedbackExercises.has(`test-${ex.id}`);
+        {Object.entries(exercisesByDay).sort(([a], [b]) => Number(a) - Number(b)).map(([day, exs]) => (
+          <div key={day} className="mb-2">
+            <p className="text-[10px] font-medium text-muted-foreground mb-1">Giorno {day}</p>
+            {exs.map((ex, idx) => {
+              const coachNote = test.coachTestNotes.get(ex.id);
+              const hasNote = !!(coachNote?.note || coachNote?.rating);
+              const isOpen = openFeedbackExercises.has(`test-${ex.id}`);
 
-                      return (
-                        <Collapsible key={ex.id} open={isOpen} onOpenChange={() => toggleFeedbackExercise(`test-${ex.id}`)}>
-                          <CollapsibleTrigger className="w-full">
-                            <div className={`px-2 py-1.5 rounded flex items-center justify-between text-left hover:bg-muted/30 transition-colors ${hasNote ? 'bg-orange-50/50' : ''}`}>
-                              <div className="flex items-center gap-2 min-w-0">
-                                <span className="text-muted-foreground text-xs">{idx + 1}.</span>
-                                <p className="text-xs truncate whitespace-pre-wrap">
-                                  {ex.exercise_name ? renderColoredText(ex.exercise_name) : "Esercizio"}
-                                </p>
-                              </div>
-                              <div className="flex items-center gap-1 flex-shrink-0">
-                                {hasNote && <div className="w-1.5 h-1.5 rounded-full bg-orange-400" />}
-                                {isOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                              </div>
-                            </div>
-                          </CollapsibleTrigger>
-                          <CollapsibleContent>
-                            <div className="px-2 pb-2 ml-5">
-                              {coachNote?.rating ? (
-                                <div className="mb-1">
-                                  <LightningRating value={coachNote.rating} readonly size="sm" />
-                                </div>
-                              ) : null}
-                              {coachNote?.note ? (
-                                <p className="text-xs text-muted-foreground">{coachNote.note}</p>
-                              ) : (
-                                <p className="text-xs text-muted-foreground italic">Nessuna nota</p>
-                              )}
-                            </div>
-                          </CollapsibleContent>
-                        </Collapsible>
-                      );
-                    })}
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          );
-        })}
+              return (
+                <Collapsible key={ex.id} open={isOpen} onOpenChange={() => toggleFeedbackExercise(`test-${ex.id}`)}>
+                  <CollapsibleTrigger className="w-full">
+                    <div className={`px-2 py-1.5 rounded flex items-center justify-between text-left hover:bg-muted/30 transition-colors ${hasNote ? 'bg-accent/50' : ''}`}>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-muted-foreground text-xs">{idx + 1}.</span>
+                        <p className="text-xs truncate whitespace-pre-wrap">
+                          {ex.exercise_name ? renderColoredText(ex.exercise_name) : "Esercizio"}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        {hasNote && <div className="w-1.5 h-1.5 rounded-full bg-primary" />}
+                        {isOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                      </div>
+                    </div>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="px-2 pb-2 ml-5">
+                      {coachNote?.rating ? (
+                        <div className="mb-1">
+                          <LightningRating value={coachNote.rating} readonly size="sm" />
+                        </div>
+                      ) : null}
+                      {coachNote?.note ? (
+                        <p className="text-xs text-muted-foreground">{coachNote.note}</p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic">Nessuna nota</p>
+                      )}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              );
+            })}
+          </div>
+        ))}
       </div>
     );
   };
@@ -809,13 +822,27 @@ const WorkoutPlanEditor = () => {
           {/* Left: Previous Plan + Feedback */}
           <div className="col-span-3">
             <Card>
-              <div className="bg-muted px-4 py-2 border-b">
+              <div className="bg-muted px-4 py-2 border-b space-y-1.5">
                 <h3 className="font-display text-sm tracking-wider flex items-center gap-2">
                   <ClipboardList className="w-4 h-4 text-primary" />
-                  Scheda Precedente
+                  Scheda Laterale
                 </h3>
+                {allPlans.length > 0 && (
+                  <Select value={selectedLeftPlanId} onValueChange={setSelectedLeftPlanId}>
+                    <SelectTrigger className="h-7 text-xs">
+                      <SelectValue placeholder="Seleziona scheda..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {allPlans.map(p => (
+                        <SelectItem key={p.id} value={p.id} className="text-xs">
+                          {p.name} — {format(new Date(p.start_date), "d MMM yy", { locale: it })}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
-              <CardContent className="p-3 max-h-[calc(100vh-220px)] overflow-y-auto">
+              <CardContent className="p-3 max-h-[calc(100vh-260px)] overflow-y-auto">
                 {renderPreviousPlan()}
               </CardContent>
             </Card>
@@ -839,13 +866,27 @@ const WorkoutPlanEditor = () => {
           {/* Right: Tests / Notes */}
           <div className="col-span-3">
             <Card>
-              <div className="bg-muted px-4 py-2 border-b">
+              <div className="bg-muted px-4 py-2 border-b space-y-1.5">
                 <h3 className="font-display text-sm tracking-wider flex items-center gap-2">
                   <FileText className="w-4 h-4 text-primary" />
                   Test & Note
                 </h3>
+                {tests.length > 0 && (
+                  <Select value={selectedRightTestId} onValueChange={setSelectedRightTestId}>
+                    <SelectTrigger className="h-7 text-xs">
+                      <SelectValue placeholder="Seleziona test..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tests.map(t => (
+                        <SelectItem key={t.id} value={t.id} className="text-xs">
+                          {t.name} — {format(new Date(t.start_date), "d MMM yy", { locale: it })}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
-              <CardContent className="p-3 max-h-[calc(100vh-220px)] overflow-y-auto">
+              <CardContent className="p-3 max-h-[calc(100vh-260px)] overflow-y-auto">
                 {renderTests()}
               </CardContent>
             </Card>
