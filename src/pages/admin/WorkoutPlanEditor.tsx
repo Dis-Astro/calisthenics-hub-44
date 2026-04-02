@@ -248,8 +248,7 @@ const WorkoutPlanEditor = () => {
       .eq("client_id", userId!) as any)
       .eq("plan_type", "test")
       .is("deleted_at", null)
-      .order("created_at", { ascending: false })
-      as any;
+      .order("created_at", { ascending: false }) as any;
 
     if (!testPlans || testPlans.length === 0) { setTests([]); return; }
 
