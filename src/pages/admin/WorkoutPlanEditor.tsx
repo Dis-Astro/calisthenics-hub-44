@@ -249,7 +249,7 @@ const WorkoutPlanEditor = () => {
       .eq("plan_type", "test")
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
-      .limit(5) as any;
+      as any;
 
     if (!testPlans || testPlans.length === 0) { setTests([]); return; }
 
