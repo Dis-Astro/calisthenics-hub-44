@@ -268,7 +268,7 @@ const WorkoutPlanEditor = () => {
           .in("workout_plan_exercise_id", allExIds)
       : { data: [] };
 
-    setTests(testPlans.map((t: any) => {
+    const loadedTests = testPlans.map((t: any) => {
       const testExercises = (exercises || []).filter(e => e.workout_plan_id === t.id);
       const testExIds = testExercises.map(e => e.id);
       const notesMap = new Map<string, { note: string; rating: number }>();
@@ -282,7 +282,13 @@ const WorkoutPlanEditor = () => {
         exercises: testExercises,
         coachTestNotes: notesMap,
       };
-    }));
+    });
+
+    setTests(loadedTests);
+    // Auto-select the most recent test
+    if (!selectedRightTestId || !loadedTests.find((t: any) => t.id === selectedRightTestId)) {
+      setSelectedRightTestId(loadedTests[0].id);
+    }
   };
 
   // ─── Day/Exercise Management ───
