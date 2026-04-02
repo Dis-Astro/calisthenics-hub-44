@@ -121,8 +121,10 @@ const WorkoutPlanEditor = () => {
   const [days, setDays] = useState<DayBlock[]>([{ day_number: 1, exercises: [{ exercise_name_free: "", order_index: 0, isNew: true }] }]);
 
   // Side panels
-  const [previousPlan, setPreviousPlan] = useState<PreviousPlan | null>(null);
+  const [allPlans, setAllPlans] = useState<PreviousPlan[]>([]);
+  const [selectedLeftPlanId, setSelectedLeftPlanId] = useState<string>("");
   const [tests, setTests] = useState<TestPlan[]>([]);
+  const [selectedRightTestId, setSelectedRightTestId] = useState<string>("");
   const [openFeedbackExercises, setOpenFeedbackExercises] = useState<Set<string>>(new Set());
 
   // Mobile tab
