@@ -185,44 +185,60 @@ const WorkoutPlanEditor = () => {
   };
 
   const loadPreviousPlan = async () => {
-    // Get the most recent workout_plan for this client (excluding current if editing)
-    let query = supabase.from("workout_plans").select("id, name, start_date, end_date, status, coach_notes, description")
+    // Load ALL plans for this client (excluding current if editing)
+    const { data: plans } = await supabase
+      .from("workout_plans")
+      .select("id, name, start_date, end_date, status, coach_notes, description")
       .eq("client_id", userId!)
       .is("deleted_at" as any, null)
-      .order("created_at", { ascending: false })
-      .limit(2);
+      .order("created_at", { ascending: false });
 
-    const { data: plans } = await query;
-    if (!plans || plans.length === 0) { setPreviousPlan(null); return; }
+    if (!plans || plans.length === 0) { setAllPlans([]); return; }
 
-    // Pick the plan that isn't the one being edited
-    const prev = isEditing ? plans.find(p => p.id !== planId) || null : plans[0] || null;
-    if (!prev) { setPreviousPlan(null); return; }
+    // Exclude current plan if editing
+    const availablePlans = isEditing ? plans.filter(p => p.id !== planId) : plans;
+    if (availablePlans.length === 0) { setAllPlans([]); return; }
 
-    const { data: exercises } = await supabase
-      .from("workout_plan_exercises")
-      .select("id, exercise_name, day_of_week, order_index")
-      .eq("workout_plan_id", prev.id)
-      .order("day_of_week").order("order_index");
+    // Load exercises + feedbacks for all available plans
+    const allPlanIds = availablePlans.map(p => p.id);
+    const [exercisesRes, completionsRes] = await Promise.all([
+      supabase.from("workout_plan_exercises")
+        .select("id, exercise_name, day_of_week, order_index, workout_plan_id")
+        .in("workout_plan_id", allPlanIds)
+        .order("day_of_week").order("order_index"),
+      supabase.from("workout_completions")
+        .select("*")
+        .eq("client_id", userId!)
+        .or("client_notes.not.is.null,difficulty_rating.gt.0")
+        .order("set_number"),
+    ]);
 
-    // Get feedbacks
-    const exIds = exercises?.map(e => e.id) || [];
-    const { data: completions } = await supabase
-      .from("workout_completions")
-      .select("*")
-      .eq("client_id", userId!)
-      .in("workout_plan_exercise_id", exIds)
-      .or("client_notes.not.is.null,difficulty_rating.gt.0")
-      .order("set_number");
+    const exercises = exercisesRes.data || [];
+    const completions = completionsRes.data || [];
 
-    setPreviousPlan({
-      ...prev, status: (prev as any).status || "attiva",
-      exercises: exercises || [],
-      feedbacks: (completions || []).filter(c => c.client_notes || (c.difficulty_rating && c.difficulty_rating > 0)).map(c => ({
-        exercise_id: c.workout_plan_exercise_id, week_number: c.set_number,
-        rating: c.difficulty_rating || 0, notes: c.client_notes || "", completed_at: c.completed_at,
-      })),
+    const loadedPlans: PreviousPlan[] = availablePlans.map(p => {
+      const planExercises = exercises.filter(e => e.workout_plan_id === p.id);
+      const exIds = planExercises.map(e => e.id);
+      const planFeedbacks = completions
+        .filter(c => exIds.includes(c.workout_plan_exercise_id))
+        .filter(c => c.client_notes || (c.difficulty_rating && c.difficulty_rating > 0))
+        .map(c => ({
+          exercise_id: c.workout_plan_exercise_id, week_number: c.set_number,
+          rating: c.difficulty_rating || 0, notes: c.client_notes || "", completed_at: c.completed_at,
+        }));
+
+      return {
+        ...p, status: (p as any).status || "attiva",
+        exercises: planExercises,
+        feedbacks: planFeedbacks,
+      };
     });
+
+    setAllPlans(loadedPlans);
+    // Auto-select the most recent one
+    if (!selectedLeftPlanId || !loadedPlans.find(p => p.id === selectedLeftPlanId)) {
+      setSelectedLeftPlanId(loadedPlans[0].id);
+    }
   };
 
   const loadTests = async () => {
