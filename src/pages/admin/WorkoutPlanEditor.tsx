@@ -470,8 +470,10 @@ const WorkoutPlanEditor = () => {
   };
 
   // ─── Render Left Panel: Previous Plan + Feedback ───
+  const previousPlan = allPlans.find(p => p.id === selectedLeftPlanId) || null;
+
   const renderPreviousPlan = () => {
-    if (!previousPlan) {
+    if (allPlans.length === 0) {
       return (
         <div className="text-center py-12 text-muted-foreground">
           <ClipboardList className="w-12 h-12 mx-auto mb-4 opacity-30" />
@@ -480,6 +482,8 @@ const WorkoutPlanEditor = () => {
         </div>
       );
     }
+
+    if (!previousPlan) return null;
 
     const exercisesByDay = previousPlan.exercises.reduce((acc, ex) => {
       const day = ex.day_of_week || 1;
@@ -490,13 +494,11 @@ const WorkoutPlanEditor = () => {
 
     return (
       <div className="space-y-3">
-        <div className="p-3 bg-muted rounded-lg">
-          <h4 className="font-display tracking-wider text-sm">{previousPlan.name}</h4>
-          <p className="text-xs text-muted-foreground mt-1">
-            {format(new Date(previousPlan.start_date), "d MMM yyyy", { locale: it })} — {format(new Date(previousPlan.end_date), "d MMM yyyy", { locale: it })}
-          </p>
-          {previousPlan.description && <p className="text-xs text-muted-foreground mt-1">{previousPlan.description}</p>}
-        </div>
+        {previousPlan.description && (
+          <div className="p-3 bg-muted rounded-lg">
+            <p className="text-xs text-muted-foreground">{previousPlan.description}</p>
+          </div>
+        )}
 
         {previousPlan.coach_notes && (
           <div className="p-3 bg-primary/10 border-l-4 border-primary rounded-lg">
