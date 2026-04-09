@@ -197,7 +197,7 @@ const SubscriptionManagement = () => {
       supabase
         .from("profiles")
         .select("*")
-        .in("role", ["cliente_palestra", "cliente_coaching"])
+        .in("role", ["cliente_palestra", "cliente_coaching", "cliente_corso"])
         .order("last_name", { ascending: true }),
       supabase
         .from("lesson_packages")
