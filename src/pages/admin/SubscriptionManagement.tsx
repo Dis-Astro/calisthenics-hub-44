@@ -638,16 +638,19 @@ const SubscriptionManagement = () => {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Cliente</TableHead><TableHead>Piano</TableHead>
+                        <TableHead>Cliente</TableHead><TableHead>Tipo</TableHead><TableHead>Piano</TableHead>
                         <TableHead>Inizio</TableHead><TableHead>Scadenza</TableHead><TableHead>Stato</TableHead><TableHead className="text-right">Azioni</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredSubscriptions.map((sub) => {
                         const expStatus = getExpirationStatus(sub.end_date);
+                        const roleLabel = sub.profiles?.role === 'cliente_coaching' ? 'Coaching' : sub.profiles?.role === 'cliente_corso' ? 'Corso' : 'Palestra';
+                        const roleVariant = sub.profiles?.role === 'cliente_coaching' ? 'default' : sub.profiles?.role === 'cliente_corso' ? 'secondary' : 'outline';
                         return (
                           <TableRow key={sub.id}>
                             <TableCell className="font-medium">{sub.profiles?.first_name} {sub.profiles?.last_name}</TableCell>
+                            <TableCell><Badge variant={roleVariant as any}>{roleLabel}</Badge></TableCell>
                             <TableCell>{sub.membership_plans?.name}</TableCell>
                             <TableCell>{format(new Date(sub.start_date), "dd MMM yyyy", { locale: it })}</TableCell>
                             <TableCell>{format(new Date(sub.end_date), "dd MMM yyyy", { locale: it })}</TableCell>

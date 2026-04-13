@@ -58,7 +58,8 @@ const WorkoutPlanDays = () => {
     const userId = profile?.user_id;
     const today = new Date().toISOString().split('T')[0];
 
-    const { data: plans } = await supabase
+    // First try to find an active plan within date range
+    let { data: plans } = await supabase
       .from("workout_plans")
       .select("*")
       .eq("client_id", userId)
@@ -67,6 +68,19 @@ const WorkoutPlanDays = () => {
       .gte("end_date", today)
       .order("created_at", { ascending: false })
       .limit(1);
+
+    // If no active plan in range, show the most recent plan (even expired)
+    if (!plans || plans.length === 0) {
+      const { data: recentPlans } = await supabase
+        .from("workout_plans")
+        .select("*")
+        .eq("client_id", userId)
+        .eq("plan_type", "workout_plan")
+        .is("deleted_at", null)
+        .order("end_date", { ascending: false })
+        .limit(1);
+      plans = recentPlans;
+    }
 
     if (plans && plans.length > 0) {
       setActivePlan(plans[0] as any);
