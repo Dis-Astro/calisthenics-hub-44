@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Users, Plus, Loader2, Edit, Trash2 } from "lucide-react";
+import { Users, Plus, Loader2, Edit, Trash2, UserPlus, X } from "lucide-react";
 
 interface Course {
   id: string;
@@ -31,17 +31,34 @@ interface Profile {
   user_id: string;
   first_name: string;
   last_name: string;
+  role: string;
+}
+
+interface CourseParticipant {
+  id: string;
+  course_id: string;
+  user_id: string;
+  joined_at: string;
 }
 
 const CourseManagement = () => {
   const { toast } = useToast();
   const [courses, setCourses] = useState<Course[]>([]);
   const [coaches, setCoaches] = useState<Profile[]>([]);
+  const [allClients, setAllClients] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
+  
+  // Participants dialog
+  const [participantsDialogOpen, setParticipantsDialogOpen] = useState(false);
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+  const [participants, setParticipants] = useState<CourseParticipant[]>([]);
+  const [loadingParticipants, setLoadingParticipants] = useState(false);
+  const [addingParticipant, setAddingParticipant] = useState(false);
+  const [selectedClientId, setSelectedClientId] = useState("");
   
   const [formData, setFormData] = useState({
     name: "",
@@ -60,28 +77,21 @@ const CourseManagement = () => {
 
   const fetchData = async () => {
     setLoading(true);
-    const [coursesRes, coachesRes] = await Promise.all([
+    const [coursesRes, coachesRes, clientsRes] = await Promise.all([
       supabase.from("courses").select("*").order("name"),
-      supabase.from("profiles").select("*").in("role", ["admin", "coach"])
+      supabase.from("profiles").select("*").in("role", ["admin", "coach"]),
+      supabase.from("profiles").select("*").in("role", ["cliente_corso", "cliente_palestra", "cliente_coaching"])
     ]);
 
     if (coursesRes.data) setCourses(coursesRes.data);
     if (coachesRes.data) setCoaches(coachesRes.data);
+    if (clientsRes.data) setAllClients(clientsRes.data);
     setLoading(false);
   };
 
   const openCreateDialog = () => {
     setEditingCourse(null);
-    setFormData({
-      name: "",
-      description: "",
-      coach_id: "",
-      color: "#10B981",
-      max_participants: "",
-      duration_minutes: "60",
-      schedule: "",
-      is_active: true
-    });
+    setFormData({ name: "", description: "", coach_id: "", color: "#10B981", max_participants: "", duration_minutes: "60", schedule: "", is_active: true });
     setIsDialogOpen(true);
   };
 
@@ -158,6 +168,74 @@ const CourseManagement = () => {
     return coach ? `${coach.first_name} ${coach.last_name}` : "-";
   };
 
+  // Participants management
+  const openParticipantsDialog = async (course: Course) => {
+    setSelectedCourse(course);
+    setParticipantsDialogOpen(true);
+    setSelectedClientId("");
+    await fetchParticipants(course.id);
+  };
+
+  const fetchParticipants = async (courseId: string) => {
+    setLoadingParticipants(true);
+    const { data } = await supabase
+      .from("course_participants")
+      .select("*")
+      .eq("course_id", courseId)
+      .order("joined_at", { ascending: false });
+    setParticipants(data || []);
+    setLoadingParticipants(false);
+  };
+
+  const addParticipant = async () => {
+    if (!selectedClientId || !selectedCourse) return;
+    
+    // Check if already added
+    if (participants.some(p => p.user_id === selectedClientId)) {
+      toast({ title: "Attenzione", description: "Questo utente è già iscritto al corso", variant: "destructive" });
+      return;
+    }
+
+    setAddingParticipant(true);
+    const { error } = await supabase
+      .from("course_participants")
+      .insert({ course_id: selectedCourse.id, user_id: selectedClientId });
+
+    if (error) {
+      toast({ title: "Errore", description: "Impossibile aggiungere il partecipante", variant: "destructive" });
+    } else {
+      toast({ title: "Aggiunto", description: "Partecipante aggiunto al corso" });
+      setSelectedClientId("");
+      await fetchParticipants(selectedCourse.id);
+    }
+    setAddingParticipant(false);
+  };
+
+  const removeParticipant = async (participantId: string) => {
+    if (!selectedCourse) return;
+    const { error } = await supabase
+      .from("course_participants")
+      .delete()
+      .eq("id", participantId);
+
+    if (error) {
+      toast({ title: "Errore", description: "Impossibile rimuovere il partecipante", variant: "destructive" });
+    } else {
+      toast({ title: "Rimosso", description: "Partecipante rimosso dal corso" });
+      await fetchParticipants(selectedCourse.id);
+    }
+  };
+
+  const getClientName = (userId: string) => {
+    const client = allClients.find(c => c.user_id === userId);
+    return client ? `${client.first_name} ${client.last_name}` : "Utente sconosciuto";
+  };
+
+  // Clients not yet in this course
+  const availableClients = allClients.filter(
+    c => !participants.some(p => p.user_id === c.user_id)
+  );
+
   return (
     <AdminLayout title="CORSI" icon={<Users className="w-6 h-6" />}>
       <div className="flex justify-end mb-6">
@@ -177,19 +255,11 @@ const CourseManagement = () => {
             <div className="grid gap-4 py-4">
               <div className="space-y-2">
                 <Label>Nome *</Label>
-                <Input
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Es. Yoga Mattutino"
-                />
+                <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="Es. Yoga Mattutino" />
               </div>
               <div className="space-y-2">
                 <Label>Descrizione</Label>
-                <Textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Descrivi il corso..."
-                />
+                <Textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} placeholder="Descrivi il corso..." />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -205,46 +275,25 @@ const CourseManagement = () => {
                 </div>
                 <div className="space-y-2">
                   <Label>Durata (min)</Label>
-                  <Input
-                    type="number"
-                    value={formData.duration_minutes}
-                    onChange={(e) => setFormData({ ...formData, duration_minutes: e.target.value })}
-                  />
+                  <Input type="number" value={formData.duration_minutes} onChange={(e) => setFormData({ ...formData, duration_minutes: e.target.value })} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Max Partecipanti</Label>
-                  <Input
-                    type="number"
-                    value={formData.max_participants}
-                    onChange={(e) => setFormData({ ...formData, max_participants: e.target.value })}
-                    placeholder="Illimitato"
-                  />
+                  <Input type="number" value={formData.max_participants} onChange={(e) => setFormData({ ...formData, max_participants: e.target.value })} placeholder="Illimitato" />
                 </div>
                 <div className="space-y-2">
                   <Label>Colore</Label>
-                  <Input
-                    type="color"
-                    value={formData.color}
-                    onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                    className="h-10"
-                  />
+                  <Input type="color" value={formData.color} onChange={(e) => setFormData({ ...formData, color: e.target.value })} className="h-10" />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label>Orario Ricorrente</Label>
-                <Input
-                  value={formData.schedule}
-                  onChange={(e) => setFormData({ ...formData, schedule: e.target.value })}
-                  placeholder="Es. Lun-Mer-Ven 18:00"
-                />
+                <Input value={formData.schedule} onChange={(e) => setFormData({ ...formData, schedule: e.target.value })} placeholder="Es. Lun-Mer-Ven 18:00" />
               </div>
               <div className="flex items-center gap-3">
-                <Switch
-                  checked={formData.is_active}
-                  onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
-                />
+                <Switch checked={formData.is_active} onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })} />
                 <Label>Corso attivo</Label>
               </div>
             </div>
@@ -304,6 +353,9 @@ const CourseManagement = () => {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
+                      <Button variant="ghost" size="icon" onClick={() => openParticipantsDialog(course)} title="Gestisci iscritti">
+                        <UserPlus className="w-4 h-4" />
+                      </Button>
                       <Button variant="ghost" size="icon" onClick={() => openEditDialog(course)}>
                         <Edit className="w-4 h-4" />
                       </Button>
@@ -318,6 +370,68 @@ const CourseManagement = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Participants Dialog */}
+      <Dialog open={participantsDialogOpen} onOpenChange={setParticipantsDialogOpen}>
+        <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-display tracking-wider">
+              Iscritti — {selectedCourse?.name}
+            </DialogTitle>
+            <DialogDescription>
+              Gestisci i partecipanti di questo corso
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Add participant */}
+          <div className="flex gap-2">
+            <Select value={selectedClientId} onValueChange={setSelectedClientId}>
+              <SelectTrigger className="flex-1">
+                <SelectValue placeholder="Seleziona un utente..." />
+              </SelectTrigger>
+              <SelectContent>
+                {availableClients.map(c => (
+                  <SelectItem key={c.user_id} value={c.user_id}>
+                    {c.first_name} {c.last_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button onClick={addParticipant} disabled={!selectedClientId || addingParticipant} size="sm">
+              {addingParticipant ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+            </Button>
+          </div>
+
+          {/* Participants list */}
+          {loadingParticipants ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            </div>
+          ) : participants.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">Nessun iscritto</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">{participants.length} iscritti</p>
+              {participants.map(p => (
+                <div key={p.id} className="flex items-center justify-between p-3 rounded-lg border border-border bg-card">
+                  <div>
+                    <p className="font-medium text-sm">{getClientName(p.user_id)}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Iscritto dal {new Date(p.joined_at).toLocaleDateString("it-IT")}
+                    </p>
+                  </div>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeParticipant(p.id)}>
+                    <X className="w-4 h-4 text-destructive" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 };
