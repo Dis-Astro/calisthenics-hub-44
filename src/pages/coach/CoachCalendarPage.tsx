@@ -180,7 +180,8 @@ const CoachCalendarPage = () => {
                     );
                   })}
                 </div>
-              </>
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>
