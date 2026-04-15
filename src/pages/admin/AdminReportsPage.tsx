@@ -3,6 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
 import { 
   MessageSquare, 
   User,
@@ -14,7 +17,10 @@ import {
   ChevronRight,
   ArrowLeft,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Edit,
+  Save,
+  X
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import LightningRating from "@/components/coaching/LightningRating";
@@ -32,7 +38,6 @@ const COLOR_MAP: Record<string, string> = {
 };
 
 function renderColoredText(value: string) {
-  // Support multiline
   const lines = value.split(/(\n)/);
   return lines.map((line, lineIdx) => {
     if (line === "\n") return <br key={`br-${lineIdx}`} />;
@@ -74,6 +79,7 @@ interface ExerciseWithFeedback {
 }
 
 interface WeekFeedback {
+  completion_id: string;
   week_number: number;
   difficulty_rating: number;
   client_notes: string;
@@ -81,6 +87,7 @@ interface WeekFeedback {
 }
 
 const AdminReportsPage = () => {
+  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [clients, setClients] = useState<ClientSummary[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
@@ -89,6 +96,11 @@ const AdminReportsPage = () => {
   const [loadingPlans, setLoadingPlans] = useState(false);
   const [openExercises, setOpenExercises] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
+  
+  // Edit state
+  const [editingWeek, setEditingWeek] = useState<string | null>(null);
+  const [editNotes, setEditNotes] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const filteredClients = useMemo(() => {
     if (!searchQuery.trim()) return clients;
@@ -103,7 +115,6 @@ const AdminReportsPage = () => {
   const fetchClients = async () => {
     setLoading(true);
 
-    // Fetch all plans (not deleted)
     const { data: plans } = await supabase
       .from("workout_plans")
       .select("id, name, client_id, coach_id")
@@ -131,7 +142,6 @@ const AdminReportsPage = () => {
 
     const exerciseIds = exercises.map(e => e.id);
 
-    // Get completions with feedback
     const { data: completions } = await supabase
       .from("workout_completions")
       .select("id, client_id, workout_plan_exercise_id, completed_at, client_notes, difficulty_rating, set_number")
@@ -146,7 +156,6 @@ const AdminReportsPage = () => {
     const userMap = new Map(profiles?.map(p => [p.user_id, `${p.first_name} ${p.last_name}`]) || []);
     const exercisePlanMap = new Map(exercises.map(e => [e.id, e.workout_plan_id]));
 
-    // Build client summaries
     const clientMap = new Map<string, ClientSummary>();
     const clientPlanSets = new Map<string, Set<string>>();
 
@@ -227,6 +236,7 @@ const AdminReportsPage = () => {
         completionsByExercise.set(c.workout_plan_exercise_id, []);
       }
       completionsByExercise.get(c.workout_plan_exercise_id)!.push({
+        completion_id: c.id,
         week_number: c.set_number,
         difficulty_rating: c.difficulty_rating || 0,
         client_notes: c.client_notes || "",
@@ -281,6 +291,46 @@ const AdminReportsPage = () => {
       else newSet.add(exerciseId);
       return newSet;
     });
+  };
+
+  const startEditWeek = (completionId: string, currentNotes: string) => {
+    setEditingWeek(completionId);
+    setEditNotes(currentNotes);
+  };
+
+  const cancelEdit = () => {
+    setEditingWeek(null);
+    setEditNotes("");
+  };
+
+  const saveEdit = async (completionId: string) => {
+    setSavingEdit(true);
+    const { error } = await supabase
+      .from("workout_completions")
+      .update({ client_notes: editNotes || null })
+      .eq("id", completionId);
+
+    if (error) {
+      toast({ title: "Errore", description: "Impossibile salvare la modifica", variant: "destructive" });
+    } else {
+      toast({ title: "Salvato", description: "Commento aggiornato" });
+      // Update local state
+      setClientPlans(prev => prev.map(plan => ({
+        ...plan,
+        days: plan.days.map(day => ({
+          ...day,
+          exercises: day.exercises.map(ex => ({
+            ...ex,
+            weeks: ex.weeks.map(w => 
+              w.completion_id === completionId ? { ...w, client_notes: editNotes } : w
+            )
+          }))
+        }))
+      })));
+      setEditingWeek(null);
+      setEditNotes("");
+    }
+    setSavingEdit(false);
   };
 
   return (
@@ -393,23 +443,54 @@ const AdminReportsPage = () => {
                               <CollapsibleContent>
                                 <div className="px-4 pb-4 space-y-3">
                                   {exercise.weeks.map(week => (
-                                    <div key={week.week_number} className="p-3 rounded-lg bg-primary/5 border border-primary/20">
+                                    <div key={week.completion_id} className="p-3 rounded-lg bg-primary/5 border border-primary/20">
                                       <div className="flex items-center justify-between mb-2">
                                         <span className="font-display text-sm">Settimana {week.week_number}</span>
-                                        <span className="text-xs text-muted-foreground">
-                                          {format(parseISO(week.completed_at), "dd MMM yyyy", { locale: it })}
-                                        </span>
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-xs text-muted-foreground">
+                                            {format(parseISO(week.completed_at), "dd MMM yyyy", { locale: it })}
+                                          </span>
+                                          {editingWeek !== week.completion_id && (
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              className="h-6 w-6"
+                                              onClick={() => startEditWeek(week.completion_id, week.client_notes)}
+                                              title="Modifica commento"
+                                            >
+                                              <Edit className="w-3 h-3" />
+                                            </Button>
+                                          )}
+                                        </div>
                                       </div>
                                       {week.difficulty_rating > 0 && (
                                         <div className="mb-2">
                                           <LightningRating value={week.difficulty_rating} readonly size="sm" />
                                         </div>
                                       )}
-                                      {week.client_notes && (
+                                      {editingWeek === week.completion_id ? (
+                                        <div className="space-y-2">
+                                          <Textarea
+                                            value={editNotes}
+                                            onChange={(e) => setEditNotes(e.target.value)}
+                                            className="text-sm min-h-[60px]"
+                                            placeholder="Scrivi un commento..."
+                                          />
+                                          <div className="flex gap-2 justify-end">
+                                            <Button variant="ghost" size="sm" onClick={cancelEdit} disabled={savingEdit}>
+                                              <X className="w-3 h-3 mr-1" />Annulla
+                                            </Button>
+                                            <Button size="sm" onClick={() => saveEdit(week.completion_id)} disabled={savingEdit}>
+                                              {savingEdit ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Save className="w-3 h-3 mr-1" />}
+                                              Salva
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      ) : week.client_notes ? (
                                         <p className="text-sm bg-background rounded-lg p-2 border border-border">
                                           {week.client_notes}
                                         </p>
-                                      )}
+                                      ) : null}
                                     </div>
                                   ))}
                                 </div>
