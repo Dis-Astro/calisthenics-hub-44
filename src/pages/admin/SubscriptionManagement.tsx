@@ -25,7 +25,8 @@ import {
   RefreshCw,
   Package,
   Minus,
-  Trash2
+  Trash2,
+  Edit
 } from "lucide-react";
 import {
   AlertDialog,
@@ -988,34 +989,141 @@ const SubscriptionManagement = () => {
 
         <TabsContent value="plans">
           <Card>
-            <CardHeader>
-              <CardTitle className="font-display tracking-wider">Piani Disponibili</CardTitle>
-              <CardDescription>{plans.length} piani attivi</CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="font-display tracking-wider">Gestione Piani</CardTitle>
+                <CardDescription>{allPlans.length} piani configurati</CardDescription>
+              </div>
+              <Button className="gap-2" onClick={openCreatePlanDialog}>
+                <Plus className="w-4 h-4" />
+                Nuovo Piano
+              </Button>
             </CardHeader>
             <CardContent>
               {loading ? (
                 <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+              ) : allPlans.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <CreditCard className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>Nessun piano configurato</p>
+                  <Button variant="outline" className="mt-4 gap-2" onClick={openCreatePlanDialog}>
+                    <Plus className="w-4 h-4" />Crea il primo piano
+                  </Button>
+                </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {plans.map((plan) => (
-                    <Card key={plan.id} className="border-2">
-                      <CardHeader>
-                        <CardTitle className="flex items-center justify-between">
-                          {plan.name}<Badge variant="secondary">{plan.duration_months} mesi</Badge>
-                        </CardTitle>
-                        <CardDescription>{plan.description}</CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-3xl font-display">€{plan.price}<span className="text-sm text-muted-foreground font-normal">/{plan.duration_months === 1 ? "mese" : `${plan.duration_months} mesi`}</span></p>
-                      </CardContent>
-                    </Card>
-                  ))}
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Nome</TableHead>
+                        <TableHead>Prezzo</TableHead>
+                        <TableHead>Durata</TableHead>
+                        <TableHead>Tipo</TableHead>
+                        <TableHead>Stato</TableHead>
+                        <TableHead className="text-right">Azioni</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {allPlans.map((plan) => (
+                        <TableRow key={plan.id}>
+                          <TableCell className="font-medium">{plan.name}</TableCell>
+                          <TableCell><span className="flex items-center gap-1"><Euro className="w-4 h-4" />{plan.price}</span></TableCell>
+                          <TableCell>{plan.duration_months} {plan.duration_months === 1 ? "mese" : "mesi"}</TableCell>
+                          <TableCell><Badge variant="outline">{planTypeLabels[plan.plan_type] || plan.plan_type}</Badge></TableCell>
+                          <TableCell><Badge variant={plan.is_active ? "default" : "secondary"}>{plan.is_active ? "Attivo" : "Inattivo"}</Badge></TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="ghost" size="icon" onClick={() => openEditPlanDialog(plan)}><Edit className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="icon" onClick={() => setDeletePlanId(plan.id)} className="text-destructive hover:text-destructive"><Trash2 className="w-4 h-4" /></Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </div>
               )}
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Plan Create/Edit Dialog */}
+      <Dialog open={isPlanDialogOpen} onOpenChange={setIsPlanDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-display tracking-wider">
+              {editingPlan ? "Modifica Piano" : "Nuovo Piano"}
+            </DialogTitle>
+            <DialogDescription>
+              {editingPlan ? "Modifica i dettagli del piano" : "Crea un nuovo piano di abbonamento"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label>Nome *</Label>
+              <Input value={planForm.name} onChange={(e) => setPlanForm({ ...planForm, name: e.target.value })} placeholder="Es. Abbonamento Mensile" />
+            </div>
+            <div className="space-y-2">
+              <Label>Descrizione</Label>
+              <Input value={planForm.description} onChange={(e) => setPlanForm({ ...planForm, description: e.target.value })} placeholder="Descrizione opzionale..." />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Prezzo (€) *</Label>
+                <Input type="number" value={planForm.price} onChange={(e) => setPlanForm({ ...planForm, price: e.target.value })} placeholder="0.00" />
+              </div>
+              <div className="space-y-2">
+                <Label>Durata (mesi)</Label>
+                <Select value={planForm.duration_months} onValueChange={(v) => setPlanForm({ ...planForm, duration_months: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1 mese</SelectItem>
+                    <SelectItem value="2">2 mesi</SelectItem>
+                    <SelectItem value="3">3 mesi</SelectItem>
+                    <SelectItem value="6">6 mesi</SelectItem>
+                    <SelectItem value="12">12 mesi</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Tipo di Piano</Label>
+              <Select value={planForm.plan_type} onValueChange={(v: UserRole) => setPlanForm({ ...planForm, plan_type: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cliente_palestra">Cliente Palestra</SelectItem>
+                  <SelectItem value="cliente_coaching">Cliente Coaching</SelectItem>
+                  <SelectItem value="cliente_corso">Cliente Corso</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center justify-between">
+              <Label>Piano Attivo</Label>
+              <Switch checked={planForm.is_active} onCheckedChange={(checked) => setPlanForm({ ...planForm, is_active: checked })} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsPlanDialogOpen(false)}>Annulla</Button>
+            <Button onClick={handleSavePlan} disabled={savingPlan}>
+              {savingPlan && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {editingPlan ? "Salva" : "Crea"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Plan Confirmation */}
+      <AlertDialog open={!!deletePlanId} onOpenChange={() => setDeletePlanId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare il piano?</AlertDialogTitle>
+            <AlertDialogDescription>Questa azione non può essere annullata.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeletePlan} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Elimina</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete Package Confirmation */}
       <AlertDialog open={!!deletingPackageId} onOpenChange={() => setDeletingPackageId(null)}>
