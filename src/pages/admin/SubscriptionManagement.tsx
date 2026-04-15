@@ -118,6 +118,16 @@ const paymentStatusLabels: Record<PaymentStatus, string> = {
   fallito: "Fallito",
   rimborsato: "Rimborsato"
 };
+type UserRole = Database["public"]["Enums"]["user_role"];
+
+const planTypeLabels: Record<string, string> = {
+  admin: "Amministratore",
+  coach: "Coach",
+  cliente_palestra: "Cliente Palestra",
+  cliente_coaching: "Cliente Coaching",
+  cliente_corso: "Cliente Corso"
+};
+
 const SubscriptionManagement = () => {
   const { profile } = useAuth();
   const { toast } = useToast();
@@ -128,6 +138,7 @@ const SubscriptionManagement = () => {
   // Data states
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [plans, setPlans] = useState<MembershipPlan[]>([]);
+  const [allPlans, setAllPlans] = useState<MembershipPlan[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [clients, setClients] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -135,6 +146,20 @@ const SubscriptionManagement = () => {
   const [lessonPackages, setLessonPackages] = useState<LessonPackage[]>([]);
   const [renewingId, setRenewingId] = useState<string | null>(null);
   const [deletingPackageId, setDeletingPackageId] = useState<string | null>(null);
+
+  // Plan management states
+  const [isPlanDialogOpen, setIsPlanDialogOpen] = useState(false);
+  const [editingPlan, setEditingPlan] = useState<MembershipPlan | null>(null);
+  const [deletePlanId, setDeletePlanId] = useState<string | null>(null);
+  const [savingPlan, setSavingPlan] = useState(false);
+  const [planForm, setPlanForm] = useState({
+    name: "",
+    description: "",
+    price: "",
+    duration_months: "1",
+    plan_type: "cliente_palestra" as UserRole,
+    is_active: true
+  });
 
   // Dialog states
   const [isSubscriptionDialogOpen, setIsSubscriptionDialogOpen] = useState(false);
@@ -178,8 +203,8 @@ const SubscriptionManagement = () => {
   const fetchData = async () => {
     setLoading(true);
     
-    // Fetch all data in parallel - no FK hints, we'll join manually
-    const [subsRes, plansRes, paymentsRes, clientsRes, packagesRes] = await Promise.all([
+    // Fetch all data in parallel
+    const [subsRes, plansRes, allPlansRes, paymentsRes, clientsRes, packagesRes] = await Promise.all([
       supabase
         .from("subscriptions")
         .select("*, membership_plans(id, name, price, duration_months)")
@@ -189,6 +214,10 @@ const SubscriptionManagement = () => {
         .select("*")
         .eq("is_active", true)
         .order("price", { ascending: true }),
+      supabase
+        .from("membership_plans")
+        .select("*")
+        .order("created_at", { ascending: false }),
       supabase
         .from("payments")
         .select("*")
