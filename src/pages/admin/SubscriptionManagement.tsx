@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { 
   CreditCard, 
@@ -25,7 +26,8 @@ import {
   RefreshCw,
   Package,
   Minus,
-  Trash2
+  Trash2,
+  Edit
 } from "lucide-react";
 import {
   AlertDialog,
@@ -118,6 +120,16 @@ const paymentStatusLabels: Record<PaymentStatus, string> = {
   fallito: "Fallito",
   rimborsato: "Rimborsato"
 };
+type UserRole = Database["public"]["Enums"]["user_role"];
+
+const planTypeLabels: Record<string, string> = {
+  admin: "Amministratore",
+  coach: "Coach",
+  cliente_palestra: "Cliente Palestra",
+  cliente_coaching: "Cliente Coaching",
+  cliente_corso: "Cliente Corso"
+};
+
 const SubscriptionManagement = () => {
   const { profile } = useAuth();
   const { toast } = useToast();
@@ -128,6 +140,7 @@ const SubscriptionManagement = () => {
   // Data states
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [plans, setPlans] = useState<MembershipPlan[]>([]);
+  const [allPlans, setAllPlans] = useState<MembershipPlan[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [clients, setClients] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -135,6 +148,20 @@ const SubscriptionManagement = () => {
   const [lessonPackages, setLessonPackages] = useState<LessonPackage[]>([]);
   const [renewingId, setRenewingId] = useState<string | null>(null);
   const [deletingPackageId, setDeletingPackageId] = useState<string | null>(null);
+
+  // Plan management states
+  const [isPlanDialogOpen, setIsPlanDialogOpen] = useState(false);
+  const [editingPlan, setEditingPlan] = useState<MembershipPlan | null>(null);
+  const [deletePlanId, setDeletePlanId] = useState<string | null>(null);
+  const [savingPlan, setSavingPlan] = useState(false);
+  const [planForm, setPlanForm] = useState({
+    name: "",
+    description: "",
+    price: "",
+    duration_months: "1",
+    plan_type: "cliente_palestra" as UserRole,
+    is_active: true
+  });
 
   // Dialog states
   const [isSubscriptionDialogOpen, setIsSubscriptionDialogOpen] = useState(false);
@@ -178,8 +205,8 @@ const SubscriptionManagement = () => {
   const fetchData = async () => {
     setLoading(true);
     
-    // Fetch all data in parallel - no FK hints, we'll join manually
-    const [subsRes, plansRes, paymentsRes, clientsRes, packagesRes] = await Promise.all([
+    // Fetch all data in parallel
+    const [subsRes, plansRes, allPlansRes, paymentsRes, clientsRes, packagesRes] = await Promise.all([
       supabase
         .from("subscriptions")
         .select("*, membership_plans(id, name, price, duration_months)")
@@ -189,6 +216,10 @@ const SubscriptionManagement = () => {
         .select("*")
         .eq("is_active", true)
         .order("price", { ascending: true }),
+      supabase
+        .from("membership_plans")
+        .select("*")
+        .order("created_at", { ascending: false }),
       supabase
         .from("payments")
         .select("*")
@@ -228,10 +259,80 @@ const SubscriptionManagement = () => {
 
     setSubscriptions(subscriptionsWithProfiles as unknown as Subscription[]);
     setPlans(plansRes.data || []);
+    setAllPlans((allPlansRes.data || []) as MembershipPlan[]);
     setPayments(paymentsWithProfiles as unknown as Payment[]);
     setClients(clientsRes.data || []);
     setLessonPackages((packagesRes.data || []) as unknown as LessonPackage[]);
     setLoading(false);
+  };
+
+  // Plan management functions
+  const openCreatePlanDialog = () => {
+    setEditingPlan(null);
+    setPlanForm({ name: "", description: "", price: "", duration_months: "1", plan_type: "cliente_palestra", is_active: true });
+    setIsPlanDialogOpen(true);
+  };
+
+  const openEditPlanDialog = (plan: MembershipPlan) => {
+    setEditingPlan(plan);
+    setPlanForm({
+      name: plan.name,
+      description: plan.description || "",
+      price: plan.price.toString(),
+      duration_months: plan.duration_months.toString(),
+      plan_type: plan.plan_type as UserRole,
+      is_active: plan.is_active
+    });
+    setIsPlanDialogOpen(true);
+  };
+
+  const handleSavePlan = async () => {
+    if (!planForm.name || !planForm.price) {
+      toast({ title: "Errore", description: "Compila nome e prezzo", variant: "destructive" });
+      return;
+    }
+    setSavingPlan(true);
+    const planData = {
+      name: planForm.name,
+      description: planForm.description || null,
+      price: parseFloat(planForm.price),
+      duration_months: parseInt(planForm.duration_months),
+      plan_type: planForm.plan_type,
+      is_active: planForm.is_active
+    };
+
+    if (editingPlan) {
+      const { error } = await supabase.from("membership_plans").update(planData).eq("id", editingPlan.id);
+      if (error) {
+        toast({ title: "Errore", description: "Impossibile aggiornare il piano", variant: "destructive" });
+      } else {
+        toast({ title: "Successo", description: "Piano aggiornato" });
+        setIsPlanDialogOpen(false);
+        fetchData();
+      }
+    } else {
+      const { error } = await supabase.from("membership_plans").insert(planData);
+      if (error) {
+        toast({ title: "Errore", description: "Impossibile creare il piano", variant: "destructive" });
+      } else {
+        toast({ title: "Successo", description: "Piano creato" });
+        setIsPlanDialogOpen(false);
+        fetchData();
+      }
+    }
+    setSavingPlan(false);
+  };
+
+  const handleDeletePlan = async () => {
+    if (!deletePlanId) return;
+    const { error } = await supabase.from("membership_plans").delete().eq("id", deletePlanId);
+    if (error) {
+      toast({ title: "Errore", description: "Impossibile eliminare il piano", variant: "destructive" });
+    } else {
+      toast({ title: "Eliminato", description: "Piano eliminato" });
+      fetchData();
+    }
+    setDeletePlanId(null);
   };
 
   // Renew subscription: extend end_date by plan's duration_months
@@ -889,34 +990,141 @@ const SubscriptionManagement = () => {
 
         <TabsContent value="plans">
           <Card>
-            <CardHeader>
-              <CardTitle className="font-display tracking-wider">Piani Disponibili</CardTitle>
-              <CardDescription>{plans.length} piani attivi</CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="font-display tracking-wider">Gestione Piani</CardTitle>
+                <CardDescription>{allPlans.length} piani configurati</CardDescription>
+              </div>
+              <Button className="gap-2" onClick={openCreatePlanDialog}>
+                <Plus className="w-4 h-4" />
+                Nuovo Piano
+              </Button>
             </CardHeader>
             <CardContent>
               {loading ? (
                 <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+              ) : allPlans.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <CreditCard className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>Nessun piano configurato</p>
+                  <Button variant="outline" className="mt-4 gap-2" onClick={openCreatePlanDialog}>
+                    <Plus className="w-4 h-4" />Crea il primo piano
+                  </Button>
+                </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {plans.map((plan) => (
-                    <Card key={plan.id} className="border-2">
-                      <CardHeader>
-                        <CardTitle className="flex items-center justify-between">
-                          {plan.name}<Badge variant="secondary">{plan.duration_months} mesi</Badge>
-                        </CardTitle>
-                        <CardDescription>{plan.description}</CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-3xl font-display">€{plan.price}<span className="text-sm text-muted-foreground font-normal">/{plan.duration_months === 1 ? "mese" : `${plan.duration_months} mesi`}</span></p>
-                      </CardContent>
-                    </Card>
-                  ))}
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Nome</TableHead>
+                        <TableHead>Prezzo</TableHead>
+                        <TableHead>Durata</TableHead>
+                        <TableHead>Tipo</TableHead>
+                        <TableHead>Stato</TableHead>
+                        <TableHead className="text-right">Azioni</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {allPlans.map((plan) => (
+                        <TableRow key={plan.id}>
+                          <TableCell className="font-medium">{plan.name}</TableCell>
+                          <TableCell><span className="flex items-center gap-1"><Euro className="w-4 h-4" />{plan.price}</span></TableCell>
+                          <TableCell>{plan.duration_months} {plan.duration_months === 1 ? "mese" : "mesi"}</TableCell>
+                          <TableCell><Badge variant="outline">{planTypeLabels[plan.plan_type] || plan.plan_type}</Badge></TableCell>
+                          <TableCell><Badge variant={plan.is_active ? "default" : "secondary"}>{plan.is_active ? "Attivo" : "Inattivo"}</Badge></TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="ghost" size="icon" onClick={() => openEditPlanDialog(plan)}><Edit className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="icon" onClick={() => setDeletePlanId(plan.id)} className="text-destructive hover:text-destructive"><Trash2 className="w-4 h-4" /></Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </div>
               )}
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Plan Create/Edit Dialog */}
+      <Dialog open={isPlanDialogOpen} onOpenChange={setIsPlanDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-display tracking-wider">
+              {editingPlan ? "Modifica Piano" : "Nuovo Piano"}
+            </DialogTitle>
+            <DialogDescription>
+              {editingPlan ? "Modifica i dettagli del piano" : "Crea un nuovo piano di abbonamento"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label>Nome *</Label>
+              <Input value={planForm.name} onChange={(e) => setPlanForm({ ...planForm, name: e.target.value })} placeholder="Es. Abbonamento Mensile" />
+            </div>
+            <div className="space-y-2">
+              <Label>Descrizione</Label>
+              <Input value={planForm.description} onChange={(e) => setPlanForm({ ...planForm, description: e.target.value })} placeholder="Descrizione opzionale..." />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Prezzo (€) *</Label>
+                <Input type="number" value={planForm.price} onChange={(e) => setPlanForm({ ...planForm, price: e.target.value })} placeholder="0.00" />
+              </div>
+              <div className="space-y-2">
+                <Label>Durata (mesi)</Label>
+                <Select value={planForm.duration_months} onValueChange={(v) => setPlanForm({ ...planForm, duration_months: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1 mese</SelectItem>
+                    <SelectItem value="2">2 mesi</SelectItem>
+                    <SelectItem value="3">3 mesi</SelectItem>
+                    <SelectItem value="6">6 mesi</SelectItem>
+                    <SelectItem value="12">12 mesi</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Tipo di Piano</Label>
+              <Select value={planForm.plan_type} onValueChange={(v: UserRole) => setPlanForm({ ...planForm, plan_type: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cliente_palestra">Cliente Palestra</SelectItem>
+                  <SelectItem value="cliente_coaching">Cliente Coaching</SelectItem>
+                  <SelectItem value="cliente_corso">Cliente Corso</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center justify-between">
+              <Label>Piano Attivo</Label>
+              <Switch checked={planForm.is_active} onCheckedChange={(checked) => setPlanForm({ ...planForm, is_active: checked })} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsPlanDialogOpen(false)}>Annulla</Button>
+            <Button onClick={handleSavePlan} disabled={savingPlan}>
+              {savingPlan && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {editingPlan ? "Salva" : "Crea"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Plan Confirmation */}
+      <AlertDialog open={!!deletePlanId} onOpenChange={() => setDeletePlanId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare il piano?</AlertDialogTitle>
+            <AlertDialogDescription>Questa azione non può essere annullata.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeletePlan} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Elimina</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete Package Confirmation */}
       <AlertDialog open={!!deletingPackageId} onOpenChange={() => setDeletingPackageId(null)}>

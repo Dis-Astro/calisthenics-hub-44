@@ -962,7 +962,7 @@ const CalendarManagement = () => {
                       <div
                         key={`${day.toISOString()}-${hour}`}
                         className={cn(
-                          "p-1 min-h-[60px] border-r border-border last:border-r-0 relative cursor-pointer hover:bg-accent/30 transition-colors",
+                          "p-0.5 md:p-1 min-h-[40px] md:min-h-[60px] border-r border-border last:border-r-0 relative cursor-pointer hover:bg-accent/30 transition-colors",
                           dragOverDay === dayKey && 'bg-primary/10'
                         )}
                         onClick={() => handleDayClick(day)}
@@ -1100,7 +1100,7 @@ const CalendarManagement = () => {
                   <div 
                     key={day.toISOString()} 
                     className={cn(
-                      "h-[120px] p-1.5 border rounded-lg cursor-pointer hover:bg-accent/30 transition-colors overflow-hidden",
+                      "h-[80px] md:h-[120px] p-1 md:p-1.5 border rounded-lg cursor-pointer hover:bg-accent/30 transition-colors overflow-hidden",
                       isToday ? 'bg-primary/10 border-primary' : 'border-border',
                       !isCurrentMonth && 'opacity-40',
                       dragOverDay === dayKey && 'bg-primary/20 border-primary'
