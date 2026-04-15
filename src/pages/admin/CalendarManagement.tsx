@@ -1079,11 +1079,13 @@ const CalendarManagement = () => {
       ) : (
         /* Monthly View */
         <Card>
-          <CardContent className="p-4">
-            <div className="grid grid-cols-7 gap-1">
+          <CardContent className="p-2 md:p-4">
+            <div className="overflow-x-auto">
+            <div className="min-w-[320px]">
+            <div className="grid grid-cols-7 gap-px md:gap-1">
               {/* Day headers */}
               {['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'].map(day => (
-                <div key={day} className="p-2 text-center text-sm font-medium text-muted-foreground">
+                <div key={day} className="p-1 text-center text-[10px] md:text-sm font-medium text-muted-foreground">
                   {day}
                 </div>
               ))}
