@@ -118,24 +118,25 @@ const CoachCalendarPage = () => {
               </Button>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-2 md:p-6">
             {loading ? (
               <div className="flex items-center justify-center py-20">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
               </div>
             ) : (
-              <>
+              <div className="overflow-x-auto">
+                <div className="min-w-[320px]">
                 {/* Week headers */}
-                <div className="grid grid-cols-7 mb-2">
+                <div className="grid grid-cols-7 mb-1">
                   {weekDays.map(day => (
-                    <div key={day} className="text-center text-xs font-medium text-muted-foreground py-2">
+                    <div key={day} className="text-center text-[10px] md:text-xs font-medium text-muted-foreground py-1">
                       {day}
                     </div>
                   ))}
                 </div>
 
                 {/* Calendar days */}
-                <div className="grid grid-cols-7 gap-0.5 md:gap-1">
+                <div className="grid grid-cols-7 gap-px md:gap-1">
                   {/* Empty cells for days before first of month */}
                   {Array.from({ length: (days[0].getDay() + 6) % 7 }).map((_, i) => (
                     <div key={`empty-${i}`} className="h-14 md:h-24" />
