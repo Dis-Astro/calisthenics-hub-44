@@ -33,7 +33,7 @@ const CoachLayout = ({ children, title, icon }: CoachLayoutProps) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="h-screen bg-background flex overflow-hidden">
+    <div className="h-screen bg-background flex overflow-hidden w-full">
       {/* Sidebar */}
       <aside className={`
         fixed inset-y-0 left-0 z-50 w-64 bg-sidebar-background border-r border-sidebar-border
@@ -88,18 +88,18 @@ const CoachLayout = ({ children, title, icon }: CoachLayoutProps) => {
 
       {sidebarOpen && <div className="fixed inset-0 bg-background/80 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />}
 
-      <main className="flex-1 flex flex-col min-h-0">
-        <header className="h-16 flex-shrink-0 bg-card border-b border-border flex items-center px-6">
+      <main className="flex-1 flex flex-col min-h-0 min-w-0 w-full">
+        <header className="h-16 flex-shrink-0 bg-card border-b border-border flex items-center px-4 md:px-6 min-w-0">
           <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-foreground mr-4">
             <Menu className="w-6 h-6" />
           </button>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             {icon}
-            <h1 className="font-display text-2xl tracking-wider">{title}</h1>
+            <h1 className="font-display text-xl md:text-2xl tracking-wider truncate">{title}</h1>
           </div>
         </header>
 
-        <div className="flex-1 p-6 overflow-y-auto">
+        <div className="flex-1 min-w-0 p-4 md:p-6 overflow-y-auto overflow-x-hidden">
           {children}
         </div>
       </main>

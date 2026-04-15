@@ -615,17 +615,19 @@ const SubscriptionManagement = () => {
         </Card>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <div className="flex flex-col md:flex-row gap-4 mb-6 justify-between">
-          <TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="min-w-0">
+        <div className="flex flex-col gap-4 mb-6 justify-between min-w-0">
+          <div className="overflow-x-auto pb-1 -mx-1 px-1">
+          <TabsList className="inline-flex min-w-max md:min-w-0">
             <TabsTrigger value="subscriptions">Abbonamenti</TabsTrigger>
             <TabsTrigger value="packages">Pacchetti Lezioni</TabsTrigger>
             <TabsTrigger value="payments">Pagamenti</TabsTrigger>
             <TabsTrigger value="plans">Piani</TabsTrigger>
           </TabsList>
-          <div className="flex gap-2 flex-wrap">
+          </div>
+          <div className="flex flex-col md:flex-row gap-2 min-w-0">
             <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setSearchParams(v === "tutti" ? {} : { filter: v }); }}>
-              <SelectTrigger className="w-[160px]">
+              <SelectTrigger className="w-full md:w-[160px]">
                 <SelectValue placeholder="Filtra" />
               </SelectTrigger>
               <SelectContent>
@@ -634,13 +636,13 @@ const SubscriptionManagement = () => {
                 <SelectItem value="in_scadenza">In Scadenza (7gg)</SelectItem>
               </SelectContent>
             </Select>
-            <div className="relative flex-1 md:w-64">
+            <div className="relative flex-1 min-w-0 md:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input placeholder="Cerca cliente..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
             </div>
             <Dialog open={isSubscriptionDialogOpen} onOpenChange={setIsSubscriptionDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="gap-2"><Plus className="w-4 h-4" />Nuovo Abbonamento</Button>
+                <Button className="gap-2 w-full md:w-auto"><Plus className="w-4 h-4" />Nuovo Abbonamento</Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
@@ -675,7 +677,7 @@ const SubscriptionManagement = () => {
             </Dialog>
             <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
               <DialogTrigger asChild>
-                <Button variant="secondary" className="gap-2"><Euro className="w-4 h-4" />Registra Pagamento</Button>
+                <Button variant="secondary" className="gap-2 w-full md:w-auto"><Euro className="w-4 h-4" />Registra Pagamento</Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
@@ -735,7 +737,7 @@ const SubscriptionManagement = () => {
               ) : filteredSubscriptions.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground"><CreditCard className="w-12 h-12 mx-auto mb-4 opacity-50" /><p>Nessun abbonamento trovato</p></div>
               ) : (
-                <div className="overflow-x-auto">
+                <div className="w-full overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -792,10 +794,10 @@ const SubscriptionManagement = () => {
                   <CardTitle className="font-display tracking-wider">Pacchetti Lezioni Private</CardTitle>
                   <CardDescription>{lessonPackages.length} pacchetti registrati</CardDescription>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
                 <Dialog open={isPackagePaymentDialogOpen} onOpenChange={setIsPackagePaymentDialogOpen}>
                   <DialogTrigger asChild>
-                    <Button variant="secondary" className="gap-2"><Euro className="w-4 h-4" />Registra Pagamento</Button>
+                    <Button variant="secondary" className="gap-2 w-full md:w-auto"><Euro className="w-4 h-4" />Registra Pagamento</Button>
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
@@ -851,7 +853,7 @@ const SubscriptionManagement = () => {
                 </Dialog>
                 <Dialog open={isPackageDialogOpen} onOpenChange={setIsPackageDialogOpen}>
                   <DialogTrigger asChild>
-                    <Button className="gap-2"><Plus className="w-4 h-4" />Nuovo Pacchetto</Button>
+                    <Button className="gap-2 w-full md:w-auto"><Plus className="w-4 h-4" />Nuovo Pacchetto</Button>
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
