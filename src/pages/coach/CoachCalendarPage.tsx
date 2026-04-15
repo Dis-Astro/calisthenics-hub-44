@@ -118,27 +118,28 @@ const CoachCalendarPage = () => {
               </Button>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-2 md:p-6">
             {loading ? (
               <div className="flex items-center justify-center py-20">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
               </div>
             ) : (
-              <>
+              <div className="overflow-x-auto">
+                <div className="min-w-[320px]">
                 {/* Week headers */}
-                <div className="grid grid-cols-7 mb-2">
+                <div className="grid grid-cols-7 mb-1">
                   {weekDays.map(day => (
-                    <div key={day} className="text-center text-xs font-medium text-muted-foreground py-2">
+                    <div key={day} className="text-center text-[10px] md:text-xs font-medium text-muted-foreground py-1">
                       {day}
                     </div>
                   ))}
                 </div>
 
                 {/* Calendar days */}
-                <div className="grid grid-cols-7 gap-0.5 md:gap-1">
+                <div className="grid grid-cols-7 gap-px md:gap-1">
                   {/* Empty cells for days before first of month */}
                   {Array.from({ length: (days[0].getDay() + 6) % 7 }).map((_, i) => (
-                    <div key={`empty-${i}`} className="h-14 md:h-24" />
+                    <div key={`empty-${i}`} className="h-10 md:h-24" />
                   ))}
                   
                   {days.map(day => {
@@ -150,16 +151,16 @@ const CoachCalendarPage = () => {
                       <button
                         key={day.toISOString()}
                         onClick={() => setSelectedDate(day)}
-                        className={`h-14 md:h-24 p-0.5 md:p-1 border rounded-lg transition-colors text-left ${
+                        className={`h-10 md:h-24 p-0.5 md:p-1 border rounded transition-colors text-left ${
                           isSelected 
                             ? 'border-primary bg-primary/5' 
                             : 'border-border hover:border-primary/50'
                         } ${isToday ? 'bg-muted/50' : ''}`}
                       >
-                        <span className={`text-sm font-medium ${isToday ? 'text-primary' : ''}`}>
+                        <span className={`text-[10px] md:text-sm font-medium ${isToday ? 'text-primary' : ''}`}>
                           {format(day, "d")}
                         </span>
-                        <div className="mt-1 space-y-1">
+                        <div className="hidden md:block mt-1 space-y-1">
                           {dayAppointments.slice(0, 2).map(apt => (
                             <div 
                               key={apt.id} 
@@ -175,11 +176,23 @@ const CoachCalendarPage = () => {
                             </div>
                           )}
                         </div>
+                        {dayAppointments.length > 0 && (
+                          <div className="md:hidden flex gap-0.5 mt-0.5 justify-center">
+                            {dayAppointments.slice(0, 3).map(apt => (
+                              <div 
+                                key={apt.id} 
+                                className="w-1.5 h-1.5 rounded-full"
+                                style={{ backgroundColor: apt.color || '#3B82F6' }}
+                              />
+                            ))}
+                          </div>
+                        )}
                       </button>
                     );
                   })}
                 </div>
-              </>
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>

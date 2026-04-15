@@ -1079,11 +1079,13 @@ const CalendarManagement = () => {
       ) : (
         /* Monthly View */
         <Card>
-          <CardContent className="p-4">
-            <div className="grid grid-cols-7 gap-1">
+          <CardContent className="p-2 md:p-4">
+            <div className="overflow-x-auto">
+            <div className="min-w-[320px]">
+            <div className="grid grid-cols-7 gap-px md:gap-1">
               {/* Day headers */}
               {['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'].map(day => (
-                <div key={day} className="p-2 text-center text-sm font-medium text-muted-foreground">
+                <div key={day} className="p-1 text-center text-[10px] md:text-sm font-medium text-muted-foreground">
                   {day}
                 </div>
               ))}
@@ -1100,7 +1102,7 @@ const CalendarManagement = () => {
                   <div 
                     key={day.toISOString()} 
                     className={cn(
-                      "h-[80px] md:h-[120px] p-1 md:p-1.5 border rounded-lg cursor-pointer hover:bg-accent/30 transition-colors overflow-hidden",
+                      "h-[60px] md:h-[120px] p-0.5 md:p-1.5 border rounded cursor-pointer hover:bg-accent/30 transition-colors overflow-hidden",
                       isToday ? 'bg-primary/10 border-primary' : 'border-border',
                       !isCurrentMonth && 'opacity-40',
                       dragOverDay === dayKey && 'bg-primary/20 border-primary'
@@ -1225,6 +1227,8 @@ const CalendarManagement = () => {
                   </div>
                 );
               })}
+            </div>
+            </div>
             </div>
           </CardContent>
         </Card>
