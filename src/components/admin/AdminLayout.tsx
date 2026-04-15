@@ -28,16 +28,16 @@ const AdminLayout = ({ children, title, icon, showBackLink = false, hideSidebar 
   }
 
   return (
-    <div className="min-h-screen bg-background flex">
+    <div className="h-screen bg-background flex overflow-hidden">
       <AdminSidebar 
         isOpen={sidebarOpen} 
         onClose={() => setSidebarOpen(false)}
         showBackLink={showBackLink}
       />
 
-      <main className="flex-1 flex flex-col min-h-screen">
+      <main className="flex-1 flex flex-col min-h-0">
         {/* Header */}
-        <header className="h-16 bg-card border-b border-border flex items-center px-6">
+        <header className="h-16 flex-shrink-0 bg-card border-b border-border flex items-center px-6">
           <button 
             onClick={() => setSidebarOpen(true)} 
             className="lg:hidden text-foreground mr-4"
@@ -48,8 +48,8 @@ const AdminLayout = ({ children, title, icon, showBackLink = false, hideSidebar 
           <h1 className="font-display text-2xl tracking-wider">{title}</h1>
         </header>
 
-        {/* Content */}
-        <div className="flex-1 p-6">
+        {/* Content - scrollable */}
+        <div className="flex-1 p-6 overflow-y-auto">
           {children}
         </div>
       </main>
