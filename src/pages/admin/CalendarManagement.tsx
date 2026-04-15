@@ -1228,6 +1228,8 @@ const CalendarManagement = () => {
                 );
               })}
             </div>
+            </div>
+            </div>
           </CardContent>
         </Card>
       )}
