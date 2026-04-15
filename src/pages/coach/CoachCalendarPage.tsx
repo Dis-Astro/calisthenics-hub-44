@@ -135,10 +135,10 @@ const CoachCalendarPage = () => {
                 </div>
 
                 {/* Calendar days */}
-                <div className="grid grid-cols-7 gap-1">
+                <div className="grid grid-cols-7 gap-0.5 md:gap-1">
                   {/* Empty cells for days before first of month */}
                   {Array.from({ length: (days[0].getDay() + 6) % 7 }).map((_, i) => (
-                    <div key={`empty-${i}`} className="h-24" />
+                    <div key={`empty-${i}`} className="h-14 md:h-24" />
                   ))}
                   
                   {days.map(day => {
@@ -150,7 +150,7 @@ const CoachCalendarPage = () => {
                       <button
                         key={day.toISOString()}
                         onClick={() => setSelectedDate(day)}
-                        className={`h-24 p-1 border rounded-lg transition-colors text-left ${
+                        className={`h-14 md:h-24 p-0.5 md:p-1 border rounded-lg transition-colors text-left ${
                           isSelected 
                             ? 'border-primary bg-primary/5' 
                             : 'border-border hover:border-primary/50'
