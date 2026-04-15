@@ -257,10 +257,80 @@ const SubscriptionManagement = () => {
 
     setSubscriptions(subscriptionsWithProfiles as unknown as Subscription[]);
     setPlans(plansRes.data || []);
+    setAllPlans((allPlansRes.data || []) as MembershipPlan[]);
     setPayments(paymentsWithProfiles as unknown as Payment[]);
     setClients(clientsRes.data || []);
     setLessonPackages((packagesRes.data || []) as unknown as LessonPackage[]);
     setLoading(false);
+  };
+
+  // Plan management functions
+  const openCreatePlanDialog = () => {
+    setEditingPlan(null);
+    setPlanForm({ name: "", description: "", price: "", duration_months: "1", plan_type: "cliente_palestra", is_active: true });
+    setIsPlanDialogOpen(true);
+  };
+
+  const openEditPlanDialog = (plan: MembershipPlan) => {
+    setEditingPlan(plan);
+    setPlanForm({
+      name: plan.name,
+      description: plan.description || "",
+      price: plan.price.toString(),
+      duration_months: plan.duration_months.toString(),
+      plan_type: plan.plan_type as UserRole,
+      is_active: plan.is_active
+    });
+    setIsPlanDialogOpen(true);
+  };
+
+  const handleSavePlan = async () => {
+    if (!planForm.name || !planForm.price) {
+      toast({ title: "Errore", description: "Compila nome e prezzo", variant: "destructive" });
+      return;
+    }
+    setSavingPlan(true);
+    const planData = {
+      name: planForm.name,
+      description: planForm.description || null,
+      price: parseFloat(planForm.price),
+      duration_months: parseInt(planForm.duration_months),
+      plan_type: planForm.plan_type,
+      is_active: planForm.is_active
+    };
+
+    if (editingPlan) {
+      const { error } = await supabase.from("membership_plans").update(planData).eq("id", editingPlan.id);
+      if (error) {
+        toast({ title: "Errore", description: "Impossibile aggiornare il piano", variant: "destructive" });
+      } else {
+        toast({ title: "Successo", description: "Piano aggiornato" });
+        setIsPlanDialogOpen(false);
+        fetchData();
+      }
+    } else {
+      const { error } = await supabase.from("membership_plans").insert(planData);
+      if (error) {
+        toast({ title: "Errore", description: "Impossibile creare il piano", variant: "destructive" });
+      } else {
+        toast({ title: "Successo", description: "Piano creato" });
+        setIsPlanDialogOpen(false);
+        fetchData();
+      }
+    }
+    setSavingPlan(false);
+  };
+
+  const handleDeletePlan = async () => {
+    if (!deletePlanId) return;
+    const { error } = await supabase.from("membership_plans").delete().eq("id", deletePlanId);
+    if (error) {
+      toast({ title: "Errore", description: "Impossibile eliminare il piano", variant: "destructive" });
+    } else {
+      toast({ title: "Eliminato", description: "Piano eliminato" });
+      fetchData();
+    }
+    setDeletePlanId(null);
   };
 
   // Renew subscription: extend end_date by plan's duration_months
