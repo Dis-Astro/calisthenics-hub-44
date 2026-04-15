@@ -160,7 +160,7 @@ const CoachCalendarPage = () => {
                         <span className={`text-[10px] md:text-sm font-medium ${isToday ? 'text-primary' : ''}`}>
                           {format(day, "d")}
                         </span>
-                        <div className="mt-1 space-y-1">
+                        <div className="hidden md:block mt-1 space-y-1">
                           {dayAppointments.slice(0, 2).map(apt => (
                             <div 
                               key={apt.id} 
@@ -176,6 +176,17 @@ const CoachCalendarPage = () => {
                             </div>
                           )}
                         </div>
+                        {dayAppointments.length > 0 && (
+                          <div className="md:hidden flex gap-0.5 mt-0.5 justify-center">
+                            {dayAppointments.slice(0, 3).map(apt => (
+                              <div 
+                                key={apt.id} 
+                                className="w-1.5 h-1.5 rounded-full"
+                                style={{ backgroundColor: apt.color || '#3B82F6' }}
+                              />
+                            ))}
+                          </div>
+                        )}
                       </button>
                     );
                   })}
