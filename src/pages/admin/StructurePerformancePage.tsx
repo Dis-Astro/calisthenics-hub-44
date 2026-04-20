@@ -35,7 +35,19 @@ import {
   Filter,
   BarChart3
 } from "lucide-react";
-import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
+import {
+  format,
+  subMonths,
+  subDays,
+  startOfMonth,
+  endOfMonth,
+  startOfWeek,
+  endOfWeek,
+  eachDayOfInterval,
+  eachWeekOfInterval,
+  eachMonthOfInterval,
+  differenceInDays,
+} from "date-fns";
 import { it } from "date-fns/locale";
 
 interface KPIData {
@@ -49,8 +61,8 @@ interface KPIData {
   monthlyRecurringRevenue: number;
 }
 
-interface MonthlyData {
-  month: string;
+interface TrendData {
+  label: string;
   revenue: number;
   expenses: number;
   profit: number;
@@ -106,7 +118,8 @@ const StructurePerformancePage = () => {
     monthlyRecurringRevenue: 0
   });
 
-  const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
+  const [trendData, setTrendData] = useState<TrendData[]>([]);
+  const [trendTitle, setTrendTitle] = useState("Andamento Mensile");
   const [expenses, setExpenses] = useState<ExpenseCategory[]>([]);
   const [revenues, setRevenues] = useState<RevenueSource[]>([]);
   const [businessMetrics, setBusinessMetrics] = useState<BusinessLineMetrics[]>([]);
