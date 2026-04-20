@@ -27,6 +27,7 @@ import GymHoursManagement from "./pages/admin/GymHoursManagement";
 import CourseManagement from "./pages/admin/CourseManagement";
 import MembershipPlanManagement from "./pages/admin/MembershipPlanManagement";
 import AdminReportsPage from "./pages/admin/AdminReportsPage";
+import StructurePerformancePage from "./pages/admin/StructurePerformancePage";
 
 // Coach pages
 import CoachDashboard from "./pages/coach/CoachDashboard";
@@ -126,6 +127,11 @@ const App = () => (
             <Route path="/admin/segnalazioni" element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <AdminReportsPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/andamento-struttura" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <StructurePerformancePage />
               </ProtectedRoute>
             } />
             
