@@ -28,6 +28,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Calendar, Plus, ChevronLeft, ChevronRight, Loader2, Clock, User, ExternalLink, Trash2, Dumbbell, CalendarIcon, Repeat, GripVertical, RefreshCw, CreditCard, Package } from "lucide-react";
+import { MobileWeeklyCalendar, DeadlinesPanel, LastWorkoutPlanCard } from "@/components/admin/MobileCalendarComponents";
 import { 
   format, 
   startOfWeek, 
@@ -906,6 +907,47 @@ const CalendarManagement = () => {
         </div>
       </div>
 
+      {/* Mobile Calendar View */}
+      {!loading && (
+        <>
+          {/* Deadlines Panel */}
+          <DeadlinesPanel 
+            upcomingDeadlines={[
+              ...workoutDeadlines
+                .filter(d => {
+                  const daysUntilDeadline = Math.ceil((new Date(d.end_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                  return daysUntilDeadline >= 0 && daysUntilDeadline <= 7;
+                })
+                .map(d => ({
+                  id: d.id,
+                  title: `Scadenza Scheda: ${d.name}`,
+                  date: d.end_date,
+                  type: 'workout'
+                })),
+              ...subscriptionDeadlines
+                .filter(s => {
+                  const daysUntilDeadline = Math.ceil((new Date(s.end_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                  return daysUntilDeadline >= 0 && daysUntilDeadline <= 7;
+                })
+                .map(s => ({
+                  id: s.id,
+                  title: `Scadenza Abb.: ${s.plan_name}`,
+                  date: s.end_date,
+                  type: 'subscription'
+                }))
+            ]}
+          />
+
+          {/* Last Workout Plan Card */}
+          {workoutDeadlines.length > 0 && (
+            <LastWorkoutPlanCard 
+              workoutPlan={workoutDeadlines[workoutDeadlines.length - 1]}
+              daysRemaining={Math.ceil((new Date(workoutDeadlines[workoutDeadlines.length - 1].end_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))}
+            />
+          )}
+        </>
+      )}
+
       {/* Calendar Grid */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
@@ -913,7 +955,7 @@ const CalendarManagement = () => {
         </div>
       ) : viewMode === 'weekly' ? (
         /* Weekly View */
-        <Card>
+        <Card className="hidden lg:block">
           <CardContent className="p-0 overflow-x-auto">
             <div className="min-w-[800px]">
               {/* Header */}
@@ -1235,7 +1277,7 @@ const CalendarManagement = () => {
       )}
 
       {/* Legend */}
-      <div className="mt-4 flex flex-wrap gap-4 text-sm">
+      <div className="mt-4 flex flex-wrap gap-4 text-sm hidden lg:flex">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded bg-[#3B82F6]"></div>
           <span className="text-muted-foreground">Appuntamenti</span>
