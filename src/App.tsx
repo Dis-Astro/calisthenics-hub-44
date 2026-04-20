@@ -27,7 +27,8 @@ import GymHoursManagement from "./pages/admin/GymHoursManagement";
 import CourseManagement from "./pages/admin/CourseManagement";
 import MembershipPlanManagement from "./pages/admin/MembershipPlanManagement";
 import AdminReportsPage from "./pages/admin/AdminReportsPage";
-import StructurePerformancePage from "./pages/admin/StructurePerformancePage";
+import StructurePerformancePageFIXED from "./pages/admin/StructurePerformancePage-FIXED";
+import ExpensesManagement from "./pages/admin/ExpensesManagement";
 
 // Coach pages
 import CoachDashboard from "./pages/coach/CoachDashboard";
@@ -131,7 +132,12 @@ const App = () => (
             } />
             <Route path="/admin/andamento-struttura" element={
               <ProtectedRoute allowedRoles={['admin']}>
-                <StructurePerformancePage />
+                <StructurePerformancePageFIXED />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/spese" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <ExpensesManagement />
               </ProtectedRoute>
             } />
             
