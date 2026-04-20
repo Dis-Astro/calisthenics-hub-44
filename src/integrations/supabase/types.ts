@@ -421,6 +421,54 @@ export type Database = {
         }
         Relationships: []
       }
+      expenses: {
+        Row: {
+          amount: number
+          category: Database["public"]["Enums"]["expense_category"]
+          created_at: string
+          created_by: string | null
+          date: string
+          id: string
+          is_deductible: boolean
+          is_paid: boolean
+          is_recurring: boolean
+          notes: string | null
+          provider: string | null
+          subcategory: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          category?: Database["public"]["Enums"]["expense_category"]
+          created_at?: string
+          created_by?: string | null
+          date?: string
+          id?: string
+          is_deductible?: boolean
+          is_paid?: boolean
+          is_recurring?: boolean
+          notes?: string | null
+          provider?: string | null
+          subcategory: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          category?: Database["public"]["Enums"]["expense_category"]
+          created_at?: string
+          created_by?: string | null
+          date?: string
+          id?: string
+          is_deductible?: boolean
+          is_paid?: boolean
+          is_recurring?: boolean
+          notes?: string | null
+          provider?: string | null
+          subcategory?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       gym_hours: {
         Row: {
           close_time: string
@@ -928,6 +976,7 @@ export type Database = {
     }
     Enums: {
       error_report_status: "aperta" | "in_lavorazione" | "risolta" | "chiusa"
+      expense_category: "fissa" | "variabile"
       payment_status: "completato" | "in_attesa" | "fallito" | "rimborsato"
       subscription_status: "attivo" | "scaduto" | "sospeso" | "cancellato"
       user_role:
@@ -1065,6 +1114,7 @@ export const Constants = {
   public: {
     Enums: {
       error_report_status: ["aperta", "in_lavorazione", "risolta", "chiusa"],
+      expense_category: ["fissa", "variabile"],
       payment_status: ["completato", "in_attesa", "fallito", "rimborsato"],
       subscription_status: ["attivo", "scaduto", "sospeso", "cancellato"],
       user_role: [
