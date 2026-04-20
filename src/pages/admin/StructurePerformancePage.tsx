@@ -35,7 +35,19 @@ import {
   Filter,
   BarChart3
 } from "lucide-react";
-import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
+import {
+  format,
+  subMonths,
+  subDays,
+  startOfMonth,
+  endOfMonth,
+  startOfWeek,
+  endOfWeek,
+  eachDayOfInterval,
+  eachWeekOfInterval,
+  eachMonthOfInterval,
+  differenceInDays,
+} from "date-fns";
 import { it } from "date-fns/locale";
 
 interface KPIData {
@@ -49,8 +61,8 @@ interface KPIData {
   monthlyRecurringRevenue: number;
 }
 
-interface MonthlyData {
-  month: string;
+interface TrendData {
+  label: string;
   revenue: number;
   expenses: number;
   profit: number;
@@ -106,7 +118,8 @@ const StructurePerformancePage = () => {
     monthlyRecurringRevenue: 0
   });
 
-  const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
+  const [trendData, setTrendData] = useState<TrendData[]>([]);
+  const [trendTitle, setTrendTitle] = useState("Andamento Mensile");
   const [expenses, setExpenses] = useState<ExpenseCategory[]>([]);
   const [revenues, setRevenues] = useState<RevenueSource[]>([]);
   const [businessMetrics, setBusinessMetrics] = useState<BusinessLineMetrics[]>([]);
@@ -206,25 +219,81 @@ const StructurePerformancePage = () => {
         monthlyRecurringRevenue
       });
 
-      // Generate monthly data for chart
-      const monthlyChartData: MonthlyData[] = [];
-      for (let i = 11; i >= 0; i--) {
-        const month = subMonths(new Date(), i);
-        const monthStart = format(startOfMonth(month), "yyyy-MM-dd");
-        const monthEnd = format(endOfMonth(month), "yyyy-MM-dd");
-        
-        const monthRevenue = (payments || [])
-          .filter(p => p.payment_date >= monthStart && p.payment_date <= monthEnd)
-          .reduce((sum, p) => sum + (p.amount || 0), 0);
+      // Generate trend data with adaptive granularity (day / week / month)
+      const rangeStart = new Date(start);
+      const rangeEnd = new Date(end);
+      const daysDiff = differenceInDays(rangeEnd, rangeStart);
 
-        monthlyChartData.push({
-          month: format(month, "MMM", { locale: it }),
-          revenue: monthRevenue,
-          expenses: 0,
-          profit: monthRevenue
+      let granularity: "day" | "week" | "month" = "month";
+      if (daysDiff <= 31) granularity = "day";
+      else if (daysDiff <= 120) granularity = "week";
+
+      // Re-fetch payments/expenses for the full window to bucketize
+      const [{ data: trendPayments }, { data: trendExpenses }] = await Promise.all([
+        supabase.from("payments").select("amount, payment_date").gte("payment_date", start).lte("payment_date", end),
+        supabase.from("expenses").select("amount, date").gte("date", start).lte("date", end),
+      ]);
+
+      const buckets: TrendData[] = [];
+
+      if (granularity === "day") {
+        const days = eachDayOfInterval({ start: rangeStart, end: rangeEnd });
+        days.forEach((day) => {
+          const dayStr = format(day, "yyyy-MM-dd");
+          const rev = (trendPayments || [])
+            .filter((p) => p.payment_date === dayStr)
+            .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+          const exp = (trendExpenses || [])
+            .filter((e) => e.date === dayStr)
+            .reduce((sum, e) => sum + Number(e.amount || 0), 0);
+          buckets.push({
+            label: format(day, "dd MMM", { locale: it }),
+            revenue: rev,
+            expenses: exp,
+            profit: rev - exp,
+          });
         });
+        setTrendTitle("Andamento Giornaliero");
+      } else if (granularity === "week") {
+        const weeks = eachWeekOfInterval({ start: rangeStart, end: rangeEnd }, { weekStartsOn: 1 });
+        weeks.forEach((weekStart) => {
+          const wStart = format(startOfWeek(weekStart, { weekStartsOn: 1 }), "yyyy-MM-dd");
+          const wEnd = format(endOfWeek(weekStart, { weekStartsOn: 1 }), "yyyy-MM-dd");
+          const rev = (trendPayments || [])
+            .filter((p) => p.payment_date >= wStart && p.payment_date <= wEnd)
+            .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+          const exp = (trendExpenses || [])
+            .filter((e) => e.date >= wStart && e.date <= wEnd)
+            .reduce((sum, e) => sum + Number(e.amount || 0), 0);
+          buckets.push({
+            label: `${format(weekStart, "dd MMM", { locale: it })}`,
+            revenue: rev,
+            expenses: exp,
+            profit: rev - exp,
+          });
+        });
+        setTrendTitle("Andamento Settimanale");
+      } else {
+        const months = eachMonthOfInterval({ start: rangeStart, end: rangeEnd });
+        months.forEach((month) => {
+          const mStart = format(startOfMonth(month), "yyyy-MM-dd");
+          const mEnd = format(endOfMonth(month), "yyyy-MM-dd");
+          const rev = (trendPayments || [])
+            .filter((p) => p.payment_date >= mStart && p.payment_date <= mEnd)
+            .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+          const exp = (trendExpenses || [])
+            .filter((e) => e.date >= mStart && e.date <= mEnd)
+            .reduce((sum, e) => sum + Number(e.amount || 0), 0);
+          buckets.push({
+            label: format(month, "MMM yy", { locale: it }),
+            revenue: rev,
+            expenses: exp,
+            profit: rev - exp,
+          });
+        });
+        setTrendTitle("Andamento Mensile");
       }
-      setMonthlyData(monthlyChartData);
+      setTrendData(buckets);
 
       // Set business metrics
       const metrics: BusinessLineMetrics[] = [
@@ -451,14 +520,14 @@ const StructurePerformancePage = () => {
               {/* Monthly Trend */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="font-display tracking-wider">Andamento Mensile</CardTitle>
-                  <CardDescription>Entrate, Spese e Utile</CardDescription>
+                  <CardTitle className="font-display tracking-wider">{trendTitle}</CardTitle>
+                  <CardDescription>Entrate, Spese e Utile nel periodo selezionato</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={monthlyData}>
+                    <LineChart data={trendData}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="month" />
+                      <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                       <YAxis />
                       <Tooltip />
                       <Legend />
