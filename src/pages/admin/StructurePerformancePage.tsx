@@ -153,7 +153,7 @@ const StructurePerformancePage = () => {
       // Fetch subscriptions for revenue
       const { data: subscriptions } = await supabase
         .from("subscriptions")
-        .select("*, membership_plans(price, duration_months)")
+        .select("*, membership_plans(price, duration_months, plan_type)")
         .gte("start_date", start)
         .lte("start_date", end);
 
@@ -163,6 +163,13 @@ const StructurePerformancePage = () => {
         .select("*")
         .gte("payment_date", start)
         .lte("payment_date", end);
+
+      // Fetch expenses
+      const { data: expensesData } = await supabase
+        .from("expenses")
+        .select("*")
+        .gte("date", start)
+        .lte("date", end);
 
       // Fetch active clients
       const { data: clients } = await supabase
@@ -178,7 +185,7 @@ const StructurePerformancePage = () => {
 
       // Calculate KPIs
       const totalRevenue = (payments || []).reduce((sum, p) => sum + (p.amount || 0), 0);
-      const totalExpenses = 0; // Will be calculated from expenses table when created
+      const totalExpenses = (expensesData || []).reduce((sum, e) => sum + Number(e.amount || 0), 0);
       const netProfit = totalRevenue - totalExpenses;
       const marginPercentage = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
       const activeClients = clients?.length || 0;
@@ -224,7 +231,7 @@ const StructurePerformancePage = () => {
         {
           name: "Palestra",
           revenue: (subscriptions || [])
-            .filter(s => s.plan_type === "cliente_palestra")
+            .filter(s => s.membership_plans?.plan_type === "cliente_palestra")
             .reduce((sum, s) => sum + (s.membership_plans?.price || 0), 0),
           costs: 0,
           margin: 0,
@@ -234,7 +241,7 @@ const StructurePerformancePage = () => {
         {
           name: "Coaching",
           revenue: (subscriptions || [])
-            .filter(s => s.plan_type === "cliente_coaching")
+            .filter(s => s.membership_plans?.plan_type === "cliente_coaching")
             .reduce((sum, s) => sum + (s.membership_plans?.price || 0), 0),
           costs: 0,
           margin: 0,
@@ -244,7 +251,7 @@ const StructurePerformancePage = () => {
         {
           name: "Corsi",
           revenue: (subscriptions || [])
-            .filter(s => s.plan_type === "cliente_corso")
+            .filter(s => s.membership_plans?.plan_type === "cliente_corso")
             .reduce((sum, s) => sum + (s.membership_plans?.price || 0), 0),
           costs: 0,
           margin: 0,
