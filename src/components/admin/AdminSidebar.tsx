@@ -12,7 +12,8 @@ import {
   Clock,
   ArrowLeft,
   BookOpen,
-  MessageSquare
+  MessageSquare,
+  TrendingDown
 } from "lucide-react";
 
 interface AdminSidebarProps {
@@ -28,6 +29,8 @@ const navigationItems = [
   { icon: CreditCard, label: "Abbonamenti", href: "/admin/abbonamenti" },
   { icon: BookOpen, label: "Corsi", href: "/admin/corsi" },
   { icon: Clock, label: "Orari Palestra", href: "/admin/orari" },
+  { icon: BarChart3, label: "Andamento Struttura", href: "/admin/andamento-struttura" },
+  { icon: TrendingDown, label: "Gestione Spese", href: "/admin/spese" },
   { icon: MessageSquare, label: "Feedback Clienti", href: "/admin/segnalazioni" },
 ];
 
