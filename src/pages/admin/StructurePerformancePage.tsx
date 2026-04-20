@@ -520,14 +520,14 @@ const StructurePerformancePage = () => {
               {/* Monthly Trend */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="font-display tracking-wider">Andamento Mensile</CardTitle>
-                  <CardDescription>Entrate, Spese e Utile</CardDescription>
+                  <CardTitle className="font-display tracking-wider">{trendTitle}</CardTitle>
+                  <CardDescription>Entrate, Spese e Utile nel periodo selezionato</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={monthlyData}>
+                    <LineChart data={trendData}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="month" />
+                      <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                       <YAxis />
                       <Tooltip />
                       <Legend />
