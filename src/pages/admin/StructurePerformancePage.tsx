@@ -164,6 +164,13 @@ const StructurePerformancePage = () => {
         .gte("payment_date", start)
         .lte("payment_date", end);
 
+      // Fetch expenses
+      const { data: expensesData } = await supabase
+        .from("expenses")
+        .select("*")
+        .gte("date", start)
+        .lte("date", end);
+
       // Fetch active clients
       const { data: clients } = await supabase
         .from("profiles")
@@ -178,7 +185,7 @@ const StructurePerformancePage = () => {
 
       // Calculate KPIs
       const totalRevenue = (payments || []).reduce((sum, p) => sum + (p.amount || 0), 0);
-      const totalExpenses = 0; // Will be calculated from expenses table when created
+      const totalExpenses = (expensesData || []).reduce((sum, e) => sum + Number(e.amount || 0), 0);
       const netProfit = totalRevenue - totalExpenses;
       const marginPercentage = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
       const activeClients = clients?.length || 0;
