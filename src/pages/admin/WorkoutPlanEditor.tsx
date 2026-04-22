@@ -562,14 +562,18 @@ const WorkoutPlanEditor = () => {
                     </CollapsibleTrigger>
                     {hasFeedback && (
                       <CollapsibleContent>
-                        <div className="px-3 pb-2 space-y-1.5">
+                        <div className="px-3 pb-2 divide-y divide-border/40 border border-border/40 rounded bg-muted/10">
                           {feedbacks.sort((a, b) => a.week_number - b.week_number).map(fb => (
-                            <div key={`${fb.exercise_id}-${fb.week_number}`} className="p-2 rounded bg-primary/5 border border-primary/10 text-xs">
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="font-medium">Sett. {fb.week_number}</span>
-                              </div>
-                              {fb.rating > 0 && <LightningRating value={fb.rating} readonly size="sm" />}
-                              {fb.notes && <p className="mt-1 text-muted-foreground">{fb.notes}</p>}
+                            <div key={`${fb.exercise_id}-${fb.week_number}`} className="px-2 py-1.5 flex items-start gap-2 text-xs">
+                              <span className="font-medium text-primary/80 mt-0.5 min-w-[2.5rem]">S{fb.week_number}</span>
+                              <p className="flex-1 whitespace-pre-wrap break-words text-foreground/90">
+                                {fb.notes || <span className="italic text-muted-foreground">—</span>}
+                              </p>
+                              {fb.rating > 0 && (
+                                <span className="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
+                                  ⚡{fb.rating}/10
+                                </span>
+                              )}
                             </div>
                           ))}
                         </div>
