@@ -96,10 +96,13 @@ const WorkoutDayDetail = () => {
 
   const dayNumber = parseInt(dayId || "1");
 
-  const calculateCurrentWeek = (startDate: string): number => {
+  const calculateCurrentWeek = (startDate: string, endDate: string): number => {
     const start = new Date(startDate);
+    const end = new Date(endDate);
     const today = new Date();
-    const diffDays = Math.floor((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    // Se la scheda è scaduta, sblocca tutte le settimane (corrente = totale)
+    const reference = today > end ? end : today;
+    const diffDays = Math.floor((reference.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
     return Math.max(1, Math.floor(diffDays / 7) + 1);
   };
 
@@ -119,16 +122,31 @@ const WorkoutDayDetail = () => {
     const userId = profile?.user_id;
     const today = new Date().toISOString().split('T')[0];
 
-    // Fetch active workout plan - check status field too
-    const { data: plans } = await supabase
+    // Le schede sono SEMPRE accessibili, anche dopo la scadenza.
+    // 1) prova con scheda attiva nel range
+    let { data: plans } = await supabase
       .from("workout_plans")
       .select("id, name, start_date, end_date")
       .eq("client_id", userId)
-      .eq("is_active", true)
+      .eq("plan_type", "workout_plan")
+      .is("deleted_at" as any, null)
       .lte("start_date", today)
       .gte("end_date", today)
       .order("created_at", { ascending: false })
       .limit(1);
+
+    // 2) fallback: la scheda più recente (anche scaduta)
+    if (!plans || plans.length === 0) {
+      const { data: recent } = await supabase
+        .from("workout_plans")
+        .select("id, name, start_date, end_date")
+        .eq("client_id", userId)
+        .eq("plan_type", "workout_plan")
+        .is("deleted_at" as any, null)
+        .order("end_date", { ascending: false })
+        .limit(1);
+      plans = recent;
+    }
 
     if (!plans || plans.length === 0) {
       setLoading(false);
@@ -139,7 +157,7 @@ const WorkoutDayDetail = () => {
     setPlan(activePlan);
     
     const weeks = calculateTotalWeeks(activePlan.start_date, activePlan.end_date);
-    const current = Math.min(calculateCurrentWeek(activePlan.start_date), weeks);
+    const current = Math.min(calculateCurrentWeek(activePlan.start_date, activePlan.end_date), weeks);
     setTotalWeeks(weeks);
     setCurrentWeek(current);
 
