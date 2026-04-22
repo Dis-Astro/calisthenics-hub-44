@@ -391,8 +391,9 @@ const WorkoutPlanEditor = () => {
       const { error: planError } = await supabase.from("workout_plans").update({
         name: formData.name, description: formData.description || null,
         coach_notes: formData.coach_notes || null, end_date: formData.end_date || undefined,
+        test_reminder_days: formData.test_reminder_days,
         updated_at: new Date().toISOString(),
-      }).eq("id", planId!);
+      } as any).eq("id", planId!);
 
       if (planError) {
         toast({ title: "Errore", description: "Impossibile aggiornare", variant: "destructive" });
@@ -422,6 +423,18 @@ const WorkoutPlanEditor = () => {
         );
       }
 
+      // Sync test reminder appointment
+      if (userId && profile?.user_id && formData.end_date) {
+        await syncTestReminderAppointment({
+          planId: planId!,
+          coachId: profile.user_id,
+          clientId: userId,
+          endDate: formData.end_date,
+          reminderDays: formData.test_reminder_days,
+          planType,
+        });
+      }
+
       toast({ title: isTest ? "Test aggiornato!" : "Scheda aggiornata!" });
     } else {
       // Create new
@@ -435,6 +448,7 @@ const WorkoutPlanEditor = () => {
         description: formData.description || null, coach_notes: formData.coach_notes || null,
         start_date: format(startDate, "yyyy-MM-dd"), end_date: format(endDate, "yyyy-MM-dd"),
         is_active: true, plan_type: planType,
+        test_reminder_days: formData.test_reminder_days,
       } as any).select().single();
 
       if (planError) {
@@ -455,6 +469,17 @@ const WorkoutPlanEditor = () => {
       if (exercisesError) {
         toast({ title: "Attenzione", description: "Creata ma alcuni esercizi non salvati", variant: "destructive" });
       } else {
+        // Sync test reminder appointment per scheda nuova
+        if (profile?.user_id && userId) {
+          await syncTestReminderAppointment({
+            planId: plan.id,
+            coachId: profile.user_id,
+            clientId: userId,
+            endDate: format(endDate, "yyyy-MM-dd"),
+            reminderDays: formData.test_reminder_days,
+            planType,
+          });
+        }
         toast({ title: isTest ? "Test creato!" : "Scheda creata!" });
       }
     }
