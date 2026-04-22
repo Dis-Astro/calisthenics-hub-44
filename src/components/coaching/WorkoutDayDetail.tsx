@@ -360,42 +360,78 @@ const WorkoutDayDetail = () => {
                     </div>
                   )}
 
-                  <CardContent className="p-4 space-y-4">
-                    {exercise.weekCompletions.map((week) => {
-                      const isCurrentWeek = week.week_number === currentWeek;
-                      const isFutureWeek = week.week_number > currentWeek;
+                  <CardContent className="p-4 space-y-3">
+                    {/* Storico settimane precedenti — vista compatta in ordine scheda */}
+                    {(() => {
+                      const pastWeeks = exercise.weekCompletions
+                        .filter((w) => w.week_number < currentWeek && (w.client_notes || w.difficulty_rating > 0))
+                        .sort((a, b) => a.week_number - b.week_number);
+
+                      if (pastWeeks.length === 0) return null;
 
                       return (
-                        <div key={week.week_number} className={`p-4 rounded-lg border transition-all ${week.saved ? 'bg-primary/5 border-primary/30' : isCurrentWeek ? 'bg-accent/10 border-accent/50 ring-2 ring-accent/30' : isFutureWeek ? 'bg-muted/20 border-border/50 opacity-60' : 'bg-muted/30 border-border'}`}>
-                          <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-2">
-                              <span className="font-display text-lg">Settimana {week.week_number}</span>
-                              {isCurrentWeek && !week.saved && <Badge variant="secondary" className="text-xs">Corrente</Badge>}
-                              {isFutureWeek && <Badge variant="outline" className="text-xs">Non ancora disponibile</Badge>}
-                            </div>
-                            {week.saved && <CheckCircle2 className="w-5 h-5 text-primary" />}
+                        <div className="rounded-lg border border-border/60 bg-muted/20 divide-y divide-border/40">
+                          <div className="px-3 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                            Settimane precedenti
                           </div>
-
-                          {canRateWeek(week.week_number) ? (
-                            <>
-                              <div className="mb-3">
-                                <label className="text-sm text-muted-foreground block mb-2">Come è andato l'esercizio questa settimana? (1-10)</label>
-                                <LightningRating value={week.difficulty_rating} onChange={(val) => updateWeekCompletion(exercise.id, week.week_number, 'difficulty_rating', val)} />
-                              </div>
-                              <div className="mb-3">
-                                <Textarea placeholder="Note sulla settimana (opzionale)..." value={week.client_notes} onChange={(e) => updateWeekCompletion(exercise.id, week.week_number, 'client_notes', e.target.value)} className="min-h-[60px] resize-none" />
-                              </div>
-                              <Button size="sm" onClick={() => saveWeekCompletion(exercise.id, week.week_number)} disabled={saving === `${exercise.id}-${week.week_number}`} className="w-full gap-2">
-                                {saving === `${exercise.id}-${week.week_number}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                                {week.saved ? "Aggiorna" : "Salva Valutazione"}
-                              </Button>
-                            </>
-                          ) : (
-                            <p className="text-sm text-muted-foreground italic">Questa settimana non è ancora iniziata</p>
-                          )}
+                          {pastWeeks.map((week) => (
+                            <div key={week.week_number} className="px-3 py-2 flex items-start gap-3">
+                              <span className="text-xs font-display tracking-wider text-primary/80 mt-0.5 min-w-[3rem]">
+                                Sett. {week.week_number}
+                              </span>
+                              <p className="text-sm text-foreground/90 flex-1 whitespace-pre-wrap break-words">
+                                {week.client_notes || <span className="italic text-muted-foreground">— nessuna nota —</span>}
+                              </p>
+                              {week.difficulty_rating > 0 && (
+                                <Badge variant="outline" className="gap-1 flex-shrink-0 mt-0.5">
+                                  <span>⚡</span>
+                                  <span className="font-medium">{week.difficulty_rating}/10</span>
+                                </Badge>
+                              )}
+                            </div>
+                          ))}
                         </div>
                       );
-                    })}
+                    })()}
+
+                    {/* Settimana corrente + future (editor / placeholder) */}
+                    {exercise.weekCompletions
+                      .filter((w) => w.week_number >= currentWeek)
+                      .map((week) => {
+                        const isCurrentWeek = week.week_number === currentWeek;
+                        const isFutureWeek = week.week_number > currentWeek;
+
+                        return (
+                          <div key={week.week_number} className={`p-4 rounded-lg border transition-all ${week.saved ? 'bg-primary/5 border-primary/30' : isCurrentWeek ? 'bg-accent/10 border-accent/50 ring-2 ring-accent/30' : 'bg-muted/20 border-border/50 opacity-60'}`}>
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center gap-2">
+                                <span className="font-display text-lg">Settimana {week.week_number}</span>
+                                {isCurrentWeek && !week.saved && <Badge variant="secondary" className="text-xs">Corrente</Badge>}
+                                {isFutureWeek && <Badge variant="outline" className="text-xs">Non ancora disponibile</Badge>}
+                              </div>
+                              {week.saved && <CheckCircle2 className="w-5 h-5 text-primary" />}
+                            </div>
+
+                            {canRateWeek(week.week_number) ? (
+                              <>
+                                <div className="mb-3">
+                                  <label className="text-sm text-muted-foreground block mb-2">Come è andato l'esercizio questa settimana? (1-10)</label>
+                                  <LightningRating value={week.difficulty_rating} onChange={(val) => updateWeekCompletion(exercise.id, week.week_number, 'difficulty_rating', val)} />
+                                </div>
+                                <div className="mb-3">
+                                  <Textarea placeholder="Note sulla settimana (opzionale)..." value={week.client_notes} onChange={(e) => updateWeekCompletion(exercise.id, week.week_number, 'client_notes', e.target.value)} className="min-h-[60px] resize-none" />
+                                </div>
+                                <Button size="sm" onClick={() => saveWeekCompletion(exercise.id, week.week_number)} disabled={saving === `${exercise.id}-${week.week_number}`} className="w-full gap-2">
+                                  {saving === `${exercise.id}-${week.week_number}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                                  {week.saved ? "Aggiorna" : "Salva Valutazione"}
+                                </Button>
+                              </>
+                            ) : (
+                              <p className="text-sm text-muted-foreground italic">Questa settimana non è ancora iniziata</p>
+                            )}
+                          </div>
+                        );
+                      })}
                   </CardContent>
                 </CollapsibleContent>
               </Card>
