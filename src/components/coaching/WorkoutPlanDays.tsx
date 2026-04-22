@@ -16,6 +16,7 @@ interface WorkoutPlan {
   end_date: string;
   coach_notes: string | null;
   status?: string;
+  plan_type?: string;
 }
 
 interface DayExercise {
@@ -136,8 +137,17 @@ const WorkoutPlanDays = () => {
         <div className="flex items-center gap-2 text-primary mb-2 flex-wrap">
           <Dumbbell className="w-5 h-5" />
           <span className="text-sm font-medium tracking-wider uppercase">
-            {isExpired ? "Ultima Scheda" : "Scheda Attiva"}
+            {(activePlan as any).plan_type === "test"
+              ? "Test in corso"
+              : isExpired
+              ? "Ultima Scheda"
+              : "Scheda Attiva"}
           </span>
+          {(activePlan as any).plan_type === "test" && (
+            <Badge variant="outline" className="ml-2 border-orange-500/40 text-orange-600 dark:text-orange-400">
+              🧪 TEST
+            </Badge>
+          )}
           {status === "in_pausa" && (
             <Badge variant="secondary" className="gap-1 bg-yellow-500/20 text-yellow-700 border-yellow-500/30 ml-2">
               <Pause className="w-3 h-3" /> In Pausa
