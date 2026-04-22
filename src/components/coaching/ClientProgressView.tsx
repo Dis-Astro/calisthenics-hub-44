@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   TrendingUp,
   Dumbbell,
@@ -14,11 +15,20 @@ import {
 import {
   format,
   subDays,
+  subMonths,
+  subYears,
   parseISO,
+  startOfDay,
   startOfWeek,
-  endOfWeek,
+  startOfMonth,
+  endOfDay,
+  isWithinInterval,
   eachDayOfInterval,
+  eachWeekOfInterval,
+  eachMonthOfInterval,
   isSameDay,
+  isSameWeek,
+  isSameMonth,
 } from "date-fns";
 import { it } from "date-fns/locale";
 import {
@@ -39,8 +49,8 @@ interface WorkoutCompletion {
   workout_plan_exercise_id: string;
 }
 
-interface WeeklyData {
-  day: string;
+interface PeriodPoint {
+  label: string;
   completions: number;
   avgDifficulty: number;
 }
@@ -49,20 +59,51 @@ interface ClientProgressViewProps {
   clientId: string;
 }
 
+type PeriodKey = "7d" | "30d" | "3m" | "1y";
+
+interface PeriodConfig {
+  label: string;
+  short: string;
+  start: () => Date;
+  bucket: "day" | "week" | "month";
+}
+
+const PERIODS: Record<PeriodKey, PeriodConfig> = {
+  "7d": {
+    label: "Ultima settimana",
+    short: "7g",
+    start: () => subDays(new Date(), 6),
+    bucket: "day",
+  },
+  "30d": {
+    label: "Ultimo mese",
+    short: "30g",
+    start: () => subDays(new Date(), 29),
+    bucket: "day",
+  },
+  "3m": {
+    label: "Ultimo trimestre",
+    short: "3 mesi",
+    start: () => subMonths(new Date(), 3),
+    bucket: "week",
+  },
+  "1y": {
+    label: "Ultimo anno",
+    short: "1 anno",
+    start: () => subYears(new Date(), 1),
+    bucket: "month",
+  },
+};
+
 /**
  * Vista andamento riutilizzabile per cliente, coach e admin.
- * Mostra: stats rapide, attività settimanale, difficoltà percepita, attività recente.
+ * Mostra: stats rapide, attività e difficoltà percepita su periodo selezionabile,
+ * attività recente.
  */
 const ClientProgressView = ({ clientId }: ClientProgressViewProps) => {
   const [loading, setLoading] = useState(true);
+  const [period, setPeriod] = useState<PeriodKey>("30d");
   const [completions, setCompletions] = useState<WorkoutCompletion[]>([]);
-  const [weeklyData, setWeeklyData] = useState<WeeklyData[]>([]);
-  const [stats, setStats] = useState({
-    totalCompletions: 0,
-    thisWeek: 0,
-    avgDifficulty: 0,
-    streak: 0,
-  });
 
   useEffect(() => {
     if (clientId) fetchProgress();
@@ -70,81 +111,164 @@ const ClientProgressView = ({ clientId }: ClientProgressViewProps) => {
 
   const fetchProgress = async () => {
     setLoading(true);
-    const thirtyDaysAgo = subDays(new Date(), 30).toISOString();
+    // Carica un anno intero così possiamo cambiare periodo lato client senza rifetch
+    const oneYearAgo = subYears(new Date(), 1).toISOString();
 
     const { data: completionsData } = await supabase
       .from("workout_completions")
       .select("*")
       .eq("client_id", clientId)
-      .gte("completed_at", thirtyDaysAgo)
+      .gte("completed_at", oneYearAgo)
       .order("completed_at", { ascending: false });
 
     setCompletions(completionsData || []);
+    setLoading(false);
+  };
 
-    const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
-    const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
-    const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
+  const config = PERIODS[period];
 
-    const weeklyDataCalc: WeeklyData[] = weekDays.map((day) => {
-      const dayCompletions = (completionsData || []).filter((c) =>
-        isSameDay(parseISO(c.completed_at), day)
+  // Filtra le completion sul periodo selezionato
+  const filtered = useMemo(() => {
+    const start = startOfDay(config.start());
+    const end = endOfDay(new Date());
+    return completions.filter((c) => {
+      const d = parseISO(c.completed_at);
+      return isWithinInterval(d, { start, end });
+    });
+  }, [completions, period]);
+
+  // Genera serie temporale a bucket dinamici
+  const series: PeriodPoint[] = useMemo(() => {
+    const start = startOfDay(config.start());
+    const end = endOfDay(new Date());
+
+    if (config.bucket === "day") {
+      const days = eachDayOfInterval({ start, end });
+      return days.map((day) => {
+        const dayCompletions = filtered.filter((c) =>
+          isSameDay(parseISO(c.completed_at), day)
+        );
+        const difficulties = dayCompletions
+          .map((c) => c.difficulty_rating)
+          .filter(Boolean) as number[];
+        return {
+          label:
+            period === "7d"
+              ? format(day, "EEE", { locale: it })
+              : format(day, "d MMM", { locale: it }),
+          completions: dayCompletions.length,
+          avgDifficulty:
+            difficulties.length > 0
+              ? difficulties.reduce((a, b) => a + b, 0) / difficulties.length
+              : 0,
+        };
+      });
+    }
+
+    if (config.bucket === "week") {
+      const weeks = eachWeekOfInterval({ start, end }, { weekStartsOn: 1 });
+      return weeks.map((weekStart) => {
+        const weekCompletions = filtered.filter((c) =>
+          isSameWeek(parseISO(c.completed_at), weekStart, { weekStartsOn: 1 })
+        );
+        const difficulties = weekCompletions
+          .map((c) => c.difficulty_rating)
+          .filter(Boolean) as number[];
+        return {
+          label: `${format(weekStart, "d MMM", { locale: it })}`,
+          completions: weekCompletions.length,
+          avgDifficulty:
+            difficulties.length > 0
+              ? difficulties.reduce((a, b) => a + b, 0) / difficulties.length
+              : 0,
+        };
+      });
+    }
+
+    // bucket = month
+    const months = eachMonthOfInterval({ start, end });
+    return months.map((monthStart) => {
+      const monthCompletions = filtered.filter((c) =>
+        isSameMonth(parseISO(c.completed_at), monthStart)
       );
-      const difficulties = dayCompletions
+      const difficulties = monthCompletions
         .map((c) => c.difficulty_rating)
         .filter(Boolean) as number[];
-
       return {
-        day: format(day, "EEE", { locale: it }),
-        completions: dayCompletions.length,
+        label: format(monthStart, "MMM yy", { locale: it }),
+        completions: monthCompletions.length,
         avgDifficulty:
           difficulties.length > 0
             ? difficulties.reduce((a, b) => a + b, 0) / difficulties.length
             : 0,
       };
     });
+  }, [filtered, period]);
 
-    setWeeklyData(weeklyDataCalc);
-
-    const thisWeekCompletions = (completionsData || []).filter((c) => {
-      const date = parseISO(c.completed_at);
-      return date >= weekStart && date <= weekEnd;
-    });
-
-    const allDifficulties = (completionsData || [])
+  // Statistiche del periodo selezionato
+  const stats = useMemo(() => {
+    const allDifficulties = filtered
       .map((c) => c.difficulty_rating)
       .filter(Boolean) as number[];
 
+    // streak: giorni consecutivi a partire da oggi con almeno una completion
     let streak = 0;
     const today = new Date();
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 365; i++) {
       const checkDay = subDays(today, i);
-      const hasCompletion = (completionsData || []).some((c) =>
+      const hasCompletion = completions.some((c) =>
         isSameDay(parseISO(c.completed_at), checkDay)
       );
       if (hasCompletion) streak++;
       else if (i > 0) break;
     }
 
-    setStats({
-      totalCompletions: (completionsData || []).length,
-      thisWeek: thisWeekCompletions.length,
+    // questa settimana (per stat secondaria)
+    const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+    const thisWeek = completions.filter(
+      (c) => parseISO(c.completed_at) >= weekStart
+    ).length;
+
+    return {
+      totalCompletions: filtered.length,
+      thisWeek,
       avgDifficulty:
         allDifficulties.length > 0
           ? Math.round(
-              (allDifficulties.reduce((a, b) => a + b, 0) / allDifficulties.length) * 10
+              (allDifficulties.reduce((a, b) => a + b, 0) /
+                allDifficulties.length) *
+                10
             ) / 10
           : 0,
       streak,
-    });
-
-    setLoading(false);
-  };
+    };
+  }, [filtered, completions]);
 
   const statCards = [
-    { label: "Esercizi Valutati", value: stats.totalCompletions, icon: Dumbbell, color: "text-primary" },
-    { label: "Questa Settimana", value: stats.thisWeek, icon: Calendar, color: "text-blue-500" },
-    { label: "Difficoltà Media", value: `${stats.avgDifficulty}/10`, icon: Activity, color: "text-orange-500" },
-    { label: "Streak (giorni)", value: stats.streak, icon: Zap, color: "text-yellow-500" },
+    {
+      label: `Esercizi (${config.short})`,
+      value: stats.totalCompletions,
+      icon: Dumbbell,
+      color: "text-primary",
+    },
+    {
+      label: "Questa Settimana",
+      value: stats.thisWeek,
+      icon: Calendar,
+      color: "text-blue-500",
+    },
+    {
+      label: "Difficoltà Media",
+      value: `${stats.avgDifficulty}/10`,
+      icon: Activity,
+      color: "text-orange-500",
+    },
+    {
+      label: "Streak (giorni)",
+      value: stats.streak,
+      icon: Zap,
+      color: "text-yellow-500",
+    },
   ];
 
   if (loading) {
@@ -157,6 +281,25 @@ const ClientProgressView = ({ clientId }: ClientProgressViewProps) => {
 
   return (
     <div className="space-y-6">
+      {/* Selettore periodo */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h3 className="font-display text-lg tracking-wider">Andamento</h3>
+          <p className="text-xs text-muted-foreground">{config.label}</p>
+        </div>
+        <Tabs
+          value={period}
+          onValueChange={(v) => setPeriod(v as PeriodKey)}
+        >
+          <TabsList>
+            <TabsTrigger value="7d">7 gg</TabsTrigger>
+            <TabsTrigger value="30d">30 gg</TabsTrigger>
+            <TabsTrigger value="3m">Trimestre</TabsTrigger>
+            <TabsTrigger value="1y">Anno</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {statCards.map((stat) => (
@@ -180,21 +323,29 @@ const ClientProgressView = ({ clientId }: ClientProgressViewProps) => {
           <CardHeader>
             <CardTitle className="font-display tracking-wider flex items-center gap-2">
               <Target className="w-5 h-5 text-primary" />
-              Attività Settimanale
+              Attività
             </CardTitle>
-            <CardDescription>Esercizi valutati per giorno</CardDescription>
+            <CardDescription>
+              Esercizi valutati — {config.label.toLowerCase()}
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            {weeklyData.every((d) => d.completions === 0) ? (
+            {series.every((d) => d.completions === 0) ? (
               <div className="text-center py-8 text-muted-foreground">
                 <Calendar className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p>Nessuna attività questa settimana</p>
+                <p>Nessuna attività in questo periodo</p>
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={weeklyData}>
-                  <XAxis dataKey="day" axisLine={false} tickLine={false} />
-                  <YAxis axisLine={false} tickLine={false} />
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={series}>
+                  <XAxis
+                    dataKey="label"
+                    axisLine={false}
+                    tickLine={false}
+                    interval="preserveStartEnd"
+                    minTickGap={20}
+                  />
+                  <YAxis axisLine={false} tickLine={false} allowDecimals={false} />
                   <Tooltip
                     contentStyle={{
                       backgroundColor: "hsl(var(--card))",
@@ -220,18 +371,26 @@ const ClientProgressView = ({ clientId }: ClientProgressViewProps) => {
               <TrendingUp className="w-5 h-5 text-primary" />
               Difficoltà Percepita
             </CardTitle>
-            <CardDescription>Andamento medio giornaliero</CardDescription>
+            <CardDescription>
+              Andamento medio — {config.label.toLowerCase()}
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            {weeklyData.every((d) => d.avgDifficulty === 0) ? (
+            {series.every((d) => d.avgDifficulty === 0) ? (
               <div className="text-center py-8 text-muted-foreground">
                 <Activity className="w-12 h-12 mx-auto mb-4 opacity-50" />
                 <p>Nessun dato sulla difficoltà</p>
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={200}>
-                <LineChart data={weeklyData}>
-                  <XAxis dataKey="day" axisLine={false} tickLine={false} />
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={series}>
+                  <XAxis
+                    dataKey="label"
+                    axisLine={false}
+                    tickLine={false}
+                    interval="preserveStartEnd"
+                    minTickGap={20}
+                  />
                   <YAxis domain={[0, 10]} axisLine={false} tickLine={false} />
                   <Tooltip
                     contentStyle={{
@@ -247,6 +406,7 @@ const ClientProgressView = ({ clientId }: ClientProgressViewProps) => {
                     strokeWidth={2}
                     dot={{ fill: "hsl(var(--primary))" }}
                     name="Difficoltà"
+                    connectNulls
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -259,17 +419,17 @@ const ClientProgressView = ({ clientId }: ClientProgressViewProps) => {
       <Card>
         <CardHeader>
           <CardTitle className="font-display tracking-wider">Attività Recente</CardTitle>
-          <CardDescription>Ultimi 30 giorni</CardDescription>
+          <CardDescription>{config.label}</CardDescription>
         </CardHeader>
         <CardContent>
-          {completions.length === 0 ? (
+          {filtered.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Dumbbell className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p>Nessuna attività registrata</p>
             </div>
           ) : (
             <div className="space-y-2 max-h-60 overflow-y-auto">
-              {completions.slice(0, 20).map((completion) => (
+              {filtered.slice(0, 30).map((completion) => (
                 <div
                   key={completion.id}
                   className="flex items-center justify-between p-2 rounded-lg bg-muted/30"

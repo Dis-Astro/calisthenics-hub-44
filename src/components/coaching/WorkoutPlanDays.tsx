@@ -16,6 +16,7 @@ interface WorkoutPlan {
   end_date: string;
   coach_notes: string | null;
   status?: string;
+  plan_type?: string;
 }
 
 interface DayExercise {
@@ -42,12 +43,11 @@ const WorkoutPlanDays = () => {
     // (anche se scaduta o conclusa). Priorità: prima quella attiva nel range, poi qualunque ultima.
     const today = new Date().toISOString().split("T")[0];
 
-    // 1) prova scheda attiva nel range
+    // 1) prova scheda attiva nel range (include sia "workout_plan" sia "test")
     let { data: plans } = await supabase
       .from("workout_plans")
       .select("*")
       .eq("client_id", userId)
-      .eq("plan_type", "workout_plan")
       .is("deleted_at" as any, null)
       .lte("start_date", today)
       .gte("end_date", today)
@@ -60,7 +60,6 @@ const WorkoutPlanDays = () => {
         .from("workout_plans")
         .select("*")
         .eq("client_id", userId)
-        .eq("plan_type", "workout_plan")
         .is("deleted_at" as any, null)
         .order("end_date", { ascending: false })
         .limit(1);
@@ -138,8 +137,17 @@ const WorkoutPlanDays = () => {
         <div className="flex items-center gap-2 text-primary mb-2 flex-wrap">
           <Dumbbell className="w-5 h-5" />
           <span className="text-sm font-medium tracking-wider uppercase">
-            {isExpired ? "Ultima Scheda" : "Scheda Attiva"}
+            {(activePlan as any).plan_type === "test"
+              ? "Test in corso"
+              : isExpired
+              ? "Ultima Scheda"
+              : "Scheda Attiva"}
           </span>
+          {(activePlan as any).plan_type === "test" && (
+            <Badge variant="outline" className="ml-2 border-orange-500/40 text-orange-600 dark:text-orange-400">
+              🧪 TEST
+            </Badge>
+          )}
           {status === "in_pausa" && (
             <Badge variant="secondary" className="gap-1 bg-yellow-500/20 text-yellow-700 border-yellow-500/30 ml-2">
               <Pause className="w-3 h-3" /> In Pausa
