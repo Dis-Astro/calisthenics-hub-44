@@ -910,8 +910,10 @@ export type Database = {
           name: string
           paused_at: string | null
           plan_type: string
+          reminder_appointment_id: string | null
           start_date: string
           status: Database["public"]["Enums"]["workout_plan_status"]
+          test_reminder_days: number
           total_paused_days: number
           updated_at: string
         }
@@ -928,8 +930,10 @@ export type Database = {
           name: string
           paused_at?: string | null
           plan_type?: string
+          reminder_appointment_id?: string | null
           start_date?: string
           status?: Database["public"]["Enums"]["workout_plan_status"]
+          test_reminder_days?: number
           total_paused_days?: number
           updated_at?: string
         }
@@ -946,8 +950,10 @@ export type Database = {
           name?: string
           paused_at?: string | null
           plan_type?: string
+          reminder_appointment_id?: string | null
           start_date?: string
           status?: Database["public"]["Enums"]["workout_plan_status"]
+          test_reminder_days?: number
           total_paused_days?: number
           updated_at?: string
         }

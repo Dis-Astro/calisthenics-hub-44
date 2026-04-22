@@ -29,13 +29,15 @@ import {
 } from "@/components/ui/alert-dialog";
 import ExerciseNameInput from "@/components/admin/ExerciseNameInput";
 import LightningRating from "@/components/coaching/LightningRating";
+import { Slider } from "@/components/ui/slider";
 import { 
   Loader2, Plus, Trash2, ArrowLeft, Dumbbell, Save,
-  ChevronDown, ChevronUp, FileText, ClipboardList, Pause, Play, CheckCircle
+  ChevronDown, ChevronUp, FileText, ClipboardList, Pause, Play, CheckCircle, Bell
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { syncTestReminderAppointment } from "@/lib/testReminder";
 
 const COLOR_MAP: Record<string, string> = {
   arancione: "#f97316", azzurro: "#38bdf8", verde: "#22c55e",
@@ -117,6 +119,7 @@ const WorkoutPlanEditor = () => {
     coach_notes: "",
     status: "attiva",
     end_date: "",
+    test_reminder_days: 7,
   });
   const [days, setDays] = useState<DayBlock[]>([{ day_number: 1, exercises: [{ exercise_name_free: "", order_index: 0, isNew: true }] }]);
 
@@ -168,6 +171,7 @@ const WorkoutPlanEditor = () => {
         name: p.name, description: p.description || "", coach_notes: p.coach_notes || "",
         status: p.status || (p.is_active ? "attiva" : "conclusa"), end_date: p.end_date || "",
         duration_weeks: "4",
+        test_reminder_days: p.test_reminder_days ?? 7,
       });
     }
 
@@ -387,8 +391,9 @@ const WorkoutPlanEditor = () => {
       const { error: planError } = await supabase.from("workout_plans").update({
         name: formData.name, description: formData.description || null,
         coach_notes: formData.coach_notes || null, end_date: formData.end_date || undefined,
+        test_reminder_days: formData.test_reminder_days,
         updated_at: new Date().toISOString(),
-      }).eq("id", planId!);
+      } as any).eq("id", planId!);
 
       if (planError) {
         toast({ title: "Errore", description: "Impossibile aggiornare", variant: "destructive" });
@@ -418,6 +423,18 @@ const WorkoutPlanEditor = () => {
         );
       }
 
+      // Sync test reminder appointment
+      if (userId && profile?.user_id && formData.end_date) {
+        await syncTestReminderAppointment({
+          planId: planId!,
+          coachId: profile.user_id,
+          clientId: userId,
+          endDate: formData.end_date,
+          reminderDays: formData.test_reminder_days,
+          planType,
+        });
+      }
+
       toast({ title: isTest ? "Test aggiornato!" : "Scheda aggiornata!" });
     } else {
       // Create new
@@ -431,6 +448,7 @@ const WorkoutPlanEditor = () => {
         description: formData.description || null, coach_notes: formData.coach_notes || null,
         start_date: format(startDate, "yyyy-MM-dd"), end_date: format(endDate, "yyyy-MM-dd"),
         is_active: true, plan_type: planType,
+        test_reminder_days: formData.test_reminder_days,
       } as any).select().single();
 
       if (planError) {
@@ -451,6 +469,17 @@ const WorkoutPlanEditor = () => {
       if (exercisesError) {
         toast({ title: "Attenzione", description: "Creata ma alcuni esercizi non salvati", variant: "destructive" });
       } else {
+        // Sync test reminder appointment per scheda nuova
+        if (profile?.user_id && userId) {
+          await syncTestReminderAppointment({
+            planId: plan.id,
+            coachId: profile.user_id,
+            clientId: userId,
+            endDate: format(endDate, "yyyy-MM-dd"),
+            reminderDays: formData.test_reminder_days,
+            planType,
+          });
+        }
         toast({ title: isTest ? "Test creato!" : "Scheda creata!" });
       }
     }
@@ -713,6 +742,33 @@ const WorkoutPlanEditor = () => {
         <Textarea value={formData.coach_notes} onChange={e => setFormData({ ...formData, coach_notes: e.target.value })}
           placeholder={isTest ? "Note tecniche interne..." : "Note che il cliente vedrà..."} rows={2} />
       </div>
+
+      {/* Promemoria "Prepara Test" sul calendario */}
+      {!isTest && (
+        <div className="space-y-2 p-3 bg-primary/5 border border-primary/20 rounded-lg">
+          <div className="flex items-center justify-between">
+            <Label className="flex items-center gap-2">
+              <Bell className="w-4 h-4 text-primary" />
+              Promemoria "Prepara test" sul calendario
+            </Label>
+            <span className="text-sm font-display tracking-wider">
+              {formData.test_reminder_days === 0 ? "Off" : `${formData.test_reminder_days} gg`}
+            </span>
+          </div>
+          <Slider
+            min={0}
+            max={14}
+            step={1}
+            value={[formData.test_reminder_days]}
+            onValueChange={([v]) => setFormData({ ...formData, test_reminder_days: v })}
+          />
+          <p className="text-xs text-muted-foreground">
+            {formData.test_reminder_days === 0
+              ? "Nessun promemoria automatico verrà creato sul calendario."
+              : `Verrà creato un appuntamento "Prepara test" sul tuo calendario ${formData.test_reminder_days} giorni prima della scadenza.`}
+          </p>
+        </div>
+      )}
 
       {/* Days + Exercises */}
       <div className="space-y-4">

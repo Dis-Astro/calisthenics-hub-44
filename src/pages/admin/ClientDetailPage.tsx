@@ -55,6 +55,9 @@ import WorkoutPlanViewDialog from "@/components/admin/WorkoutPlanViewDialog";
 import WorkoutPlanCard from "@/components/admin/WorkoutPlanCard";
 import CoachAssignmentManager from "@/components/admin/CoachAssignmentManager";
 import PasswordResetDialog from "@/components/admin/PasswordResetDialog";
+import ClientProgressView from "@/components/coaching/ClientProgressView";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TrendingUp } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 import { format, differenceInDays, isPast, addMonths } from "date-fns";
 import { it } from "date-fns/locale";
@@ -585,28 +588,39 @@ const ClientDetailPage = () => {
               </div>
             </CardHeader>
             <CardContent>
-              {workoutPlans.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  <Dumbbell className="w-12 h-12 mx-auto mb-4 opacity-30" />
-                  <p>Nessuna scheda assegnata</p>
-                  <Button variant="outline" className="mt-4 gap-2" onClick={() => navigate(`/admin/utenti/${userId}/scheda/nuova`)}>
-                    <Plus className="w-4 h-4" />
-                    Crea la prima scheda
-                  </Button>
-                </div>
-              ) : (
-                <div className="grid gap-4">
-                  {workoutPlans.map(plan => (
-                    <WorkoutPlanCard
-                      key={plan.id}
-                      plan={plan}
-                      onEdit={(planId) => navigate(`/admin/utenti/${userId}/scheda/${planId}/modifica`)}
-                      onView={(planId) => setViewPlanId(planId)}
-                      onDelete={fetchClientData}
-                    />
-                  ))}
-                </div>
-              )}
+              <Tabs defaultValue="schede">
+                <TabsList className="mb-4">
+                  <TabsTrigger value="schede" className="gap-2"><Dumbbell className="w-4 h-4" />Schede</TabsTrigger>
+                  <TabsTrigger value="andamento" className="gap-2"><TrendingUp className="w-4 h-4" />Andamento</TabsTrigger>
+                </TabsList>
+                <TabsContent value="schede">
+                  {workoutPlans.length === 0 ? (
+                    <div className="text-center py-12 text-muted-foreground">
+                      <Dumbbell className="w-12 h-12 mx-auto mb-4 opacity-30" />
+                      <p>Nessuna scheda assegnata</p>
+                      <Button variant="outline" className="mt-4 gap-2" onClick={() => navigate(`/admin/utenti/${userId}/scheda/nuova`)}>
+                        <Plus className="w-4 h-4" />
+                        Crea la prima scheda
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="grid gap-4">
+                      {workoutPlans.map(plan => (
+                        <WorkoutPlanCard
+                          key={plan.id}
+                          plan={plan}
+                          onEdit={(planId) => navigate(`/admin/utenti/${userId}/scheda/${planId}/modifica`)}
+                          onView={(planId) => setViewPlanId(planId)}
+                          onDelete={fetchClientData}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </TabsContent>
+                <TabsContent value="andamento">
+                  <ClientProgressView clientId={profile.user_id} />
+                </TabsContent>
+              </Tabs>
             </CardContent>
           </Card>
 
