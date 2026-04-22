@@ -3,26 +3,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Dumbbell, CheckCircle2, Clock, ChevronRight, Pause } from "lucide-react";
+import { Loader2, Dumbbell, CheckCircle2, Clock, ChevronRight, Pause, Calendar } from "lucide-react";
 import { Link } from "react-router-dom";
-
-const COLOR_MAP: Record<string, string> = {
-  arancione: "#f97316", azzurro: "#38bdf8", verde: "#22c55e",
-  giallo: "#eab308", rosso: "#ef4444", blu: "#3b82f6", viola: "#a855f7",
-};
-
-function renderColoredText(value: string) {
-  const lines = value.split(/(\n)/);
-  return lines.map((line, lineIdx) => {
-    if (line === "\n") return <br key={`br-${lineIdx}`} />;
-    const tokens = line.split(/(\s+)/);
-    return tokens.map((token, i) => {
-      const color = COLOR_MAP[token.toLowerCase().replace(/[^a-zàèéìòù]/gi, "")];
-      if (color) return <span key={`${lineIdx}-${i}`} style={{ color, fontWeight: 700 }}>{token}</span>;
-      return <span key={`${lineIdx}-${i}`}>{token}</span>;
-    });
-  });
-}
+import { format, isPast } from "date-fns";
+import { it } from "date-fns/locale";
 
 interface WorkoutPlan {
   id: string;
@@ -34,13 +18,10 @@ interface WorkoutPlan {
   status?: string;
 }
 
-interface ExerciseInfo { id: string; name: string; }
-
 interface DayExercise {
   day_of_week: number;
   exercise_count: number;
   completed_count: number;
-  exercises: ExerciseInfo[];
 }
 
 const WorkoutPlanDays = () => {
@@ -56,30 +37,34 @@ const WorkoutPlanDays = () => {
   const fetchWorkoutPlan = async () => {
     setLoading(true);
     const userId = profile?.user_id;
-    const today = new Date().toISOString().split('T')[0];
 
-    // First try to find an active plan within date range
+    // Le schede restano SEMPRE accessibili: prendi la più recente non eliminata
+    // (anche se scaduta o conclusa). Priorità: prima quella attiva nel range, poi qualunque ultima.
+    const today = new Date().toISOString().split("T")[0];
+
+    // 1) prova scheda attiva nel range
     let { data: plans } = await supabase
       .from("workout_plans")
       .select("*")
       .eq("client_id", userId)
-      .eq("is_active", true)
+      .eq("plan_type", "workout_plan")
+      .is("deleted_at" as any, null)
       .lte("start_date", today)
       .gte("end_date", today)
       .order("created_at", { ascending: false })
       .limit(1);
 
-    // If no active plan in range, show the most recent plan (even expired)
+    // 2) fallback: la più recente in assoluto (anche scaduta)
     if (!plans || plans.length === 0) {
-      const { data: recentPlans } = await supabase
+      const { data: recent } = await supabase
         .from("workout_plans")
         .select("*")
         .eq("client_id", userId)
         .eq("plan_type", "workout_plan")
-        .is("deleted_at", null)
+        .is("deleted_at" as any, null)
         .order("end_date", { ascending: false })
         .limit(1);
-      plans = recentPlans;
+      plans = recent;
     }
 
     if (plans && plans.length > 0) {
@@ -87,71 +72,83 @@ const WorkoutPlanDays = () => {
 
       const { data: exercises } = await supabase
         .from("workout_plan_exercises")
-        .select("id, day_of_week, order_index, exercise_name")
+        .select("id, day_of_week, order_index")
         .eq("workout_plan_id", plans[0].id)
         .order("order_index");
 
       if (exercises) {
-        const exerciseIds = exercises.map(e => e.id);
+        const exerciseIds = exercises.map((e) => e.id);
         const { data: completions } = await supabase
           .from("workout_completions")
-          .select("workout_plan_exercise_id, set_number")
+          .select("workout_plan_exercise_id")
           .eq("client_id", userId!)
           .in("workout_plan_exercise_id", exerciseIds);
 
-        const completedSetsPerExercise = new Map<string, number>();
-        completions?.forEach(c => {
-          completedSetsPerExercise.set(c.workout_plan_exercise_id, (completedSetsPerExercise.get(c.workout_plan_exercise_id) || 0) + 1);
-        });
+        const completedSet = new Set(
+          (completions || []).map((c) => c.workout_plan_exercise_id)
+        );
 
-        const dayMap = new Map<number, { exercises: ExerciseInfo[], totalExercises: number, completedExercises: number }>();
-        
-        exercises.forEach(ex => {
+        const dayMap = new Map<number, { total: number; done: number }>();
+        exercises.forEach((ex) => {
           const day = ex.day_of_week ?? 1;
-          if (!dayMap.has(day)) dayMap.set(day, { exercises: [], totalExercises: 0, completedExercises: 0 });
-          const dayData = dayMap.get(day)!;
-          dayData.exercises.push({ id: ex.id, name: ex.exercise_name || "Esercizio" });
-          dayData.totalExercises += 1;
-          if ((completedSetsPerExercise.get(ex.id) || 0) > 0) dayData.completedExercises += 1;
+          if (!dayMap.has(day)) dayMap.set(day, { total: 0, done: 0 });
+          const d = dayMap.get(day)!;
+          d.total += 1;
+          if (completedSet.has(ex.id)) d.done += 1;
         });
 
-        setDayExercises(Array.from(dayMap.entries())
-          .map(([day, data]) => ({
-            day_of_week: day,
-            exercise_count: data.totalExercises,
-            completed_count: data.completedExercises,
-            exercises: data.exercises
-          }))
-          .sort((a, b) => a.day_of_week - b.day_of_week));
+        setDayExercises(
+          Array.from(dayMap.entries())
+            .map(([day, data]) => ({
+              day_of_week: day,
+              exercise_count: data.total,
+              completed_count: data.done,
+            }))
+            .sort((a, b) => a.day_of_week - b.day_of_week)
+        );
       }
     }
 
     setLoading(false);
   };
 
-  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
+  if (loading)
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
 
   if (!activePlan) {
     return (
       <div className="text-center py-20">
         <Dumbbell className="w-16 h-16 mx-auto mb-4 text-muted-foreground/50" />
-        <h2 className="font-display text-2xl mb-2">Nessuna Scheda Attiva</h2>
+        <h2 className="font-display text-2xl mb-2">Nessuna Scheda</h2>
         <p className="text-muted-foreground">Attendi la tua scheda personalizzata dal coach</p>
       </div>
     );
   }
 
   const status = (activePlan as any).status || "attiva";
+  const isExpired = isPast(new Date(activePlan.end_date));
 
   return (
     <div className="space-y-6">
       <div className="bg-gradient-to-br from-card via-card to-primary/5 rounded-lg p-6 border border-border">
-        <div className="flex items-center gap-2 text-primary mb-2">
+        <div className="flex items-center gap-2 text-primary mb-2 flex-wrap">
           <Dumbbell className="w-5 h-5" />
-          <span className="text-sm font-medium tracking-wider uppercase">Scheda Attiva</span>
+          <span className="text-sm font-medium tracking-wider uppercase">
+            {isExpired ? "Ultima Scheda" : "Scheda Attiva"}
+          </span>
           {status === "in_pausa" && (
             <Badge variant="secondary" className="gap-1 bg-yellow-500/20 text-yellow-700 border-yellow-500/30 ml-2">
               <Pause className="w-3 h-3" /> In Pausa
+            </Badge>
+          )}
+          {isExpired && (
+            <Badge variant="outline" className="gap-1 ml-2 text-muted-foreground border-muted-foreground/30">
+              <Calendar className="w-3 h-3" />
+              Scaduta il {format(new Date(activePlan.end_date), "dd MMM yyyy", { locale: it })}
             </Badge>
           )}
         </div>
@@ -162,6 +159,11 @@ const WorkoutPlanDays = () => {
             <p className="text-sm font-medium mb-1">Note del Coach:</p>
             <p className="text-sm text-muted-foreground">{activePlan.coach_notes}</p>
           </div>
+        )}
+        {isExpired && (
+          <p className="mt-3 text-xs text-muted-foreground italic">
+            La scheda è scaduta ma resta consultabile. Puoi continuare a vedere gli esercizi e i tuoi commenti.
+          </p>
         )}
       </div>
 
@@ -180,29 +182,20 @@ const WorkoutPlanDays = () => {
 
           return (
             <Link key={day.day_of_week} to={`/coaching/scheda/${day.day_of_week}`}>
-              <Card className={`relative overflow-hidden transition-all duration-200 cursor-pointer hover:scale-[1.02] hover:shadow-lg hover:shadow-primary/10 ${isComplete ? 'border-primary/50 bg-primary/5' : 'border-border'}`}>
+              <Card className={`relative overflow-hidden transition-all duration-200 cursor-pointer hover:scale-[1.02] hover:shadow-lg hover:shadow-primary/10 ${isComplete ? "border-primary/50 bg-primary/5" : "border-border"}`}>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between mb-4">
                     <span className="font-display text-4xl">{day.day_of_week}</span>
                     {isComplete ? <CheckCircle2 className="w-6 h-6 text-primary" /> : <ChevronRight className="w-5 h-5 text-muted-foreground" />}
                   </div>
-                  <p className="text-sm text-muted-foreground mb-3">Giorno {day.day_of_week}</p>
-                  
-                  <div className="text-xs text-muted-foreground mb-3 leading-relaxed">
-                    {day.exercises.map((ex, idx) => (
-                      <span key={ex.id}>
-                        {idx + 1}-{renderColoredText(ex.name)}
-                        {idx < day.exercises.length - 1 && ", "}
-                      </span>
-                    ))}
-                  </div>
+                  <p className="text-sm font-display tracking-wider text-muted-foreground mb-3">DAY {day.day_of_week}</p>
 
                   <div className="mt-auto">
                     <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                       <div className="h-full bg-primary transition-all duration-300" style={{ width: `${progress}%` }} />
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {day.completed_count}/{day.exercise_count} esercizi valutati
+                      {day.completed_count}/{day.exercise_count} esercizi
                     </p>
                   </div>
                 </CardContent>

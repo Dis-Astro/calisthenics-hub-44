@@ -3,9 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dumbbell, Edit, Eye, Pause, Play, CheckCircle, Trash2, FileText } from "lucide-react";
+import { Dumbbell, Edit, Eye, Pause, Play, CheckCircle, Trash2 } from "lucide-react";
 import CoachTestNotesDialog from "@/components/admin/CoachTestNotesDialog";
-import { format } from "date-fns";
+import { format, isPast } from "date-fns";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,25 +18,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-
-const COLOR_MAP: Record<string, string> = {
-  arancione: "#f97316",
-  azzurro:   "#38bdf8",
-  verde:     "#22c55e",
-  giallo:    "#eab308",
-  rosso:     "#ef4444",
-  blu:       "#3b82f6",
-  viola:     "#a855f7",
-};
-
-function renderColoredText(value: string) {
-  const tokens = value.split(/(\s+)/);
-  return tokens.map((token, i) => {
-    const color = COLOR_MAP[token.toLowerCase().replace(/[^a-zàèéìòù]/gi, "")];
-    if (color) return <span key={i} style={{ color, fontWeight: 700 }}>{token}</span>;
-    return <span key={i}>{token}</span>;
-  });
-}
+import { deleteTestReminderAppointment } from "@/lib/testReminder";
 
 interface WorkoutPlanExercise {
   id: string;
@@ -86,6 +68,8 @@ const WorkoutPlanCard = ({ plan, onEdit, onView, onDelete }: WorkoutPlanCardProp
 
   const handleDelete = async () => {
     setDeleting(true);
+    // Elimina prima l'eventuale appuntamento "Prepara test" collegato
+    await deleteTestReminderAppointment(plan.id);
     const { error } = await supabase
       .from("workout_plans")
       .update({ deleted_at: new Date().toISOString(), is_active: false } as any)
@@ -107,15 +91,20 @@ const WorkoutPlanCard = ({ plan, onEdit, onView, onDelete }: WorkoutPlanCardProp
     return acc;
   }, {} as Record<number, WorkoutPlanExercise[]>);
 
-  const uniqueDays = Object.keys(exercisesByDay).length;
-  const totalExercises = exercises.length;
+  const dayNumbers = Object.keys(exercisesByDay).map(Number).sort((a, b) => a - b);
 
   const status = (plan as any).status || (plan.is_active ? "attiva" : "conclusa");
   const isTest = plan.plan_type === "test";
+  const isExpired = isPast(new Date(plan.end_date));
 
   const statusBadge = () => {
     switch (status) {
-      case "attiva": return <Badge variant="default" className="gap-1"><Play className="w-3 h-3" />Attiva</Badge>;
+      case "attiva":
+        return isExpired ? (
+          <Badge variant="outline" className="gap-1 border-muted-foreground/30 text-muted-foreground"><CheckCircle className="w-3 h-3" />Scaduta</Badge>
+        ) : (
+          <Badge variant="default" className="gap-1"><Play className="w-3 h-3" />Attiva</Badge>
+        );
       case "in_pausa": return <Badge variant="secondary" className="gap-1 bg-yellow-500/20 text-yellow-700 border-yellow-500/30"><Pause className="w-3 h-3" />In Pausa</Badge>;
       case "conclusa": return <Badge variant="outline" className="gap-1"><CheckCircle className="w-3 h-3" />Conclusa</Badge>;
       default: return null;
@@ -123,18 +112,15 @@ const WorkoutPlanCard = ({ plan, onEdit, onView, onDelete }: WorkoutPlanCardProp
   };
 
   return (
-    <Card className={status === "attiva" ? "border-primary" : status === "in_pausa" ? "border-yellow-500/50" : ""}>
+    <Card className={status === "attiva" && !isExpired ? "border-primary" : status === "in_pausa" ? "border-yellow-500/50" : ""}>
       <CardContent className="p-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex-1">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h4 className="font-medium">{plan.name}</h4>
               {statusBadge()}
               {isTest && <Badge variant="secondary" className="text-xs">Test</Badge>}
             </div>
-            {plan.description && (
-              <p className="text-sm text-muted-foreground mt-1">{plan.description}</p>
-            )}
             <p className="text-xs text-muted-foreground mt-1">
               {format(new Date(plan.start_date), "dd/MM/yyyy")} - {format(new Date(plan.end_date), "dd/MM/yyyy")}
             </p>
@@ -159,7 +145,7 @@ const WorkoutPlanCard = ({ plan, onEdit, onView, onDelete }: WorkoutPlanCardProp
                 <AlertDialogHeader>
                   <AlertDialogTitle>Eliminare questa scheda?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Sei sicuro di voler eliminare questa scheda? L'operazione è irreversibile.
+                    Sei sicuro di voler eliminare questa scheda? L'operazione è irreversibile e rimuoverà anche l'eventuale promemoria sul calendario.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -173,29 +159,30 @@ const WorkoutPlanCard = ({ plan, onEdit, onView, onDelete }: WorkoutPlanCardProp
           </div>
         </div>
 
+        {/* Anteprima compatta: SOLO i Giorni (DAY 1, DAY 2, …) */}
         <div className="mt-3 p-3 bg-muted/30 rounded-lg border border-border/50">
           <div className="flex items-start gap-2">
             <Dumbbell className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <span className="text-sm font-medium text-foreground">Esercizi: </span>
               {loading ? (
                 <span className="text-sm text-muted-foreground">Caricamento...</span>
-              ) : exercises.length === 0 ? (
-                <span className="text-sm text-muted-foreground italic">Nessun esercizio</span>
+              ) : dayNumbers.length === 0 ? (
+                <span className="text-sm text-muted-foreground italic">Nessun giorno configurato</span>
               ) : (
-                <span className="text-sm text-muted-foreground">
-                  {exercises.map((ex, idx) => (
-                    <span key={ex.id}>
-                      {idx + 1}-{ex.exercise_name ? renderColoredText(ex.exercise_name) : "Esercizio"}
-                      {idx < exercises.length - 1 && ", "}
-                    </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {dayNumbers.map((d) => (
+                    <Badge
+                      key={d}
+                      variant="secondary"
+                      className="font-display tracking-wider cursor-pointer hover:bg-primary/20 transition-colors"
+                      onClick={() => onView(plan.id)}
+                    >
+                      DAY {d}
+                    </Badge>
                   ))}
-                </span>
+                </div>
               )}
             </div>
-          </div>
-          <div className="mt-2 text-xs text-muted-foreground">
-            Totale: <strong>{totalExercises}</strong> esercizi in <strong>{uniqueDays}</strong> giorni
           </div>
         </div>
       </CardContent>
