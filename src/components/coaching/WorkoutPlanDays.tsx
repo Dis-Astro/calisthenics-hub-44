@@ -42,12 +42,11 @@ const WorkoutPlanDays = () => {
     // (anche se scaduta o conclusa). Priorità: prima quella attiva nel range, poi qualunque ultima.
     const today = new Date().toISOString().split("T")[0];
 
-    // 1) prova scheda attiva nel range
+    // 1) prova scheda attiva nel range (include sia "workout_plan" sia "test")
     let { data: plans } = await supabase
       .from("workout_plans")
       .select("*")
       .eq("client_id", userId)
-      .eq("plan_type", "workout_plan")
       .is("deleted_at" as any, null)
       .lte("start_date", today)
       .gte("end_date", today)
@@ -60,7 +59,6 @@ const WorkoutPlanDays = () => {
         .from("workout_plans")
         .select("*")
         .eq("client_id", userId)
-        .eq("plan_type", "workout_plan")
         .is("deleted_at" as any, null)
         .order("end_date", { ascending: false })
         .limit(1);

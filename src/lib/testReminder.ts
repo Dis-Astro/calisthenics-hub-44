@@ -66,9 +66,11 @@ export async function syncTestReminderAppointment(params: {
     ? `${clientProfile.first_name} ${clientProfile.last_name}`
     : "Cliente";
 
+  // IMPORTANTE: niente client_id → l'appuntamento resta privato del coach
+  // (le RLS appointments rendono visibili al cliente solo gli appuntamenti dove client_id = auth.uid()).
   const appointmentData = {
     coach_id: coachId,
-    client_id: clientId,
+    client_id: null as any,
     title: `🧪 Prepara test — ${clientName}`,
     description: `Scheda "${planRow?.name || ""}" in scadenza il ${format(parseISO(endDate), "dd/MM/yyyy")}. Prepara il test di valutazione.`,
     start_time: startTime.toISOString(),
