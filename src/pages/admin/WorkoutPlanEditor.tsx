@@ -743,6 +743,33 @@ const WorkoutPlanEditor = () => {
           placeholder={isTest ? "Note tecniche interne..." : "Note che il cliente vedrà..."} rows={2} />
       </div>
 
+      {/* Promemoria "Prepara Test" sul calendario */}
+      {!isTest && (
+        <div className="space-y-2 p-3 bg-primary/5 border border-primary/20 rounded-lg">
+          <div className="flex items-center justify-between">
+            <Label className="flex items-center gap-2">
+              <Bell className="w-4 h-4 text-primary" />
+              Promemoria "Prepara test" sul calendario
+            </Label>
+            <span className="text-sm font-display tracking-wider">
+              {formData.test_reminder_days === 0 ? "Off" : `${formData.test_reminder_days} gg`}
+            </span>
+          </div>
+          <Slider
+            min={0}
+            max={14}
+            step={1}
+            value={[formData.test_reminder_days]}
+            onValueChange={([v]) => setFormData({ ...formData, test_reminder_days: v })}
+          />
+          <p className="text-xs text-muted-foreground">
+            {formData.test_reminder_days === 0
+              ? "Nessun promemoria automatico verrà creato sul calendario."
+              : `Verrà creato un appuntamento "Prepara test" sul tuo calendario ${formData.test_reminder_days} giorni prima della scadenza.`}
+          </p>
+        </div>
+      )}
+
       {/* Days + Exercises */}
       <div className="space-y-4">
         <div>

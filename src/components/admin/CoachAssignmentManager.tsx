@@ -41,7 +41,8 @@ const CoachAssignmentManager = ({ clientId, clientRole, onUpdate }: CoachAssignm
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [selectedCoach, setSelectedCoach] = useState("");
 
-  const isCoachingClient = clientRole === "cliente_coaching";
+  // Permetti l'assegnazione coach per qualsiasi ruolo (anche se l'utente è stato promosso)
+  const isCoachingClient = true;
 
   useEffect(() => {
     fetchData();
