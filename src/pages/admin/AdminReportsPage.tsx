@@ -441,58 +441,65 @@ const AdminReportsPage = () => {
                                 </div>
                               </CollapsibleTrigger>
                               <CollapsibleContent>
-                                <div className="px-4 pb-4 space-y-3">
-                                  {exercise.weeks.map(week => (
-                                    <div key={week.completion_id} className="p-3 rounded-lg bg-primary/5 border border-primary/20">
-                                      <div className="flex items-center justify-between mb-2">
-                                        <span className="font-display text-sm">Settimana {week.week_number}</span>
-                                        <div className="flex items-center gap-2">
-                                          <span className="text-xs text-muted-foreground">
-                                            {format(parseISO(week.completed_at), "dd MMM yyyy", { locale: it })}
-                                          </span>
-                                          {editingWeek !== week.completion_id && (
-                                            <Button
-                                              variant="ghost"
-                                              size="icon"
-                                              className="h-6 w-6"
-                                              onClick={() => startEditWeek(week.completion_id, week.client_notes)}
-                                              title="Modifica commento"
-                                            >
-                                              <Edit className="w-3 h-3" />
-                                            </Button>
-                                          )}
-                                        </div>
-                                      </div>
-                                      {week.difficulty_rating > 0 && (
-                                        <div className="mb-2">
-                                          <LightningRating value={week.difficulty_rating} readonly size="sm" />
-                                        </div>
-                                      )}
-                                      {editingWeek === week.completion_id ? (
-                                        <div className="space-y-2">
-                                          <Textarea
-                                            value={editNotes}
-                                            onChange={(e) => setEditNotes(e.target.value)}
-                                            className="text-sm min-h-[60px]"
-                                            placeholder="Scrivi un commento..."
-                                          />
-                                          <div className="flex gap-2 justify-end">
-                                            <Button variant="ghost" size="sm" onClick={cancelEdit} disabled={savingEdit}>
-                                              <X className="w-3 h-3 mr-1" />Annulla
-                                            </Button>
-                                            <Button size="sm" onClick={() => saveEdit(week.completion_id)} disabled={savingEdit}>
-                                              {savingEdit ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Save className="w-3 h-3 mr-1" />}
-                                              Salva
-                                            </Button>
+                                <div className="px-4 pb-3 divide-y divide-border/50">
+                                  {exercise.weeks.map(week => {
+                                    const isEditing = editingWeek === week.completion_id;
+                                    return (
+                                      <div key={week.completion_id} className="py-2">
+                                        {isEditing ? (
+                                          <div className="space-y-2">
+                                            <div className="flex items-center justify-between">
+                                              <span className="font-display text-sm text-primary">Sett. {week.week_number}</span>
+                                              {week.difficulty_rating > 0 && (
+                                                <LightningRating value={week.difficulty_rating} readonly size="sm" />
+                                              )}
+                                            </div>
+                                            <Textarea
+                                              value={editNotes}
+                                              onChange={(e) => setEditNotes(e.target.value)}
+                                              className="text-sm min-h-[60px]"
+                                              placeholder="Scrivi un commento..."
+                                            />
+                                            <div className="flex gap-2 justify-end">
+                                              <Button variant="ghost" size="sm" onClick={cancelEdit} disabled={savingEdit}>
+                                                <X className="w-3 h-3 mr-1" />Annulla
+                                              </Button>
+                                              <Button size="sm" onClick={() => saveEdit(week.completion_id)} disabled={savingEdit}>
+                                                {savingEdit ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Save className="w-3 h-3 mr-1" />}
+                                                Salva
+                                              </Button>
+                                            </div>
                                           </div>
-                                        </div>
-                                      ) : week.client_notes ? (
-                                        <p className="text-sm bg-background rounded-lg p-2 border border-border">
-                                          {week.client_notes}
-                                        </p>
-                                      ) : null}
-                                    </div>
-                                  ))}
+                                        ) : (
+                                          <div className="flex items-start gap-3 text-sm group">
+                                            <span className="font-display text-primary tabular-nums whitespace-nowrap pt-0.5">
+                                              Sett. {week.week_number}
+                                            </span>
+                                            <p className="flex-1 text-foreground/90 break-words">
+                                              {week.client_notes || <span className="text-muted-foreground italic">Nessun commento</span>}
+                                            </p>
+                                            <div className="flex items-center gap-2 flex-shrink-0">
+                                              {week.difficulty_rating > 0 && (
+                                                <div className="flex items-center gap-1 text-primary font-medium tabular-nums">
+                                                  <Zap className="w-3.5 h-3.5 fill-primary" />
+                                                  <span className="text-xs">{week.difficulty_rating}/10</span>
+                                                </div>
+                                              )}
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                onClick={() => startEditWeek(week.completion_id, week.client_notes)}
+                                                title="Modifica commento"
+                                              >
+                                                <Edit className="w-3 h-3" />
+                                              </Button>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               </CollapsibleContent>
                             </Collapsible>
