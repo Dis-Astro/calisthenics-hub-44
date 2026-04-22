@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import AdminLayout from "@/components/admin/AdminLayout";
+import { backfillTestReminders } from "@/lib/testReminder";
 
 interface Stats {
   totalClients: number;
@@ -25,7 +26,19 @@ const AdminDashboard = () => {
   const [stats, setStats] = useState<Stats>({ totalClients: 0, expiredSubscriptions: 0, expiringSubscriptions: 0, todayAppointments: 0, activeCourses: 0, expiringPlans: 0 });
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { fetchStats(); }, []);
+  useEffect(() => {
+    fetchStats();
+    // Backfill reminder appointments per schede esistenti — una sola volta per sessione
+    const KEY = "test_reminders_backfilled_v1";
+    if (!sessionStorage.getItem(KEY)) {
+      backfillTestReminders()
+        .then(({ created }) => {
+          if (created > 0) console.info(`[Reminder] Generati ${created} avvisi 'Prepara test'.`);
+          sessionStorage.setItem(KEY, "1");
+        })
+        .catch((err) => console.error("[Reminder] backfill failed", err));
+    }
+  }, []);
 
   const fetchStats = async () => {
     setLoading(true);
