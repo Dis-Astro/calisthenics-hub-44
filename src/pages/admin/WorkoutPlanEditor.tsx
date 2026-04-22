@@ -29,13 +29,15 @@ import {
 } from "@/components/ui/alert-dialog";
 import ExerciseNameInput from "@/components/admin/ExerciseNameInput";
 import LightningRating from "@/components/coaching/LightningRating";
+import { Slider } from "@/components/ui/slider";
 import { 
   Loader2, Plus, Trash2, ArrowLeft, Dumbbell, Save,
-  ChevronDown, ChevronUp, FileText, ClipboardList, Pause, Play, CheckCircle
+  ChevronDown, ChevronUp, FileText, ClipboardList, Pause, Play, CheckCircle, Bell
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { syncTestReminderAppointment } from "@/lib/testReminder";
 
 const COLOR_MAP: Record<string, string> = {
   arancione: "#f97316", azzurro: "#38bdf8", verde: "#22c55e",
@@ -117,6 +119,7 @@ const WorkoutPlanEditor = () => {
     coach_notes: "",
     status: "attiva",
     end_date: "",
+    test_reminder_days: 7,
   });
   const [days, setDays] = useState<DayBlock[]>([{ day_number: 1, exercises: [{ exercise_name_free: "", order_index: 0, isNew: true }] }]);
 
@@ -168,6 +171,7 @@ const WorkoutPlanEditor = () => {
         name: p.name, description: p.description || "", coach_notes: p.coach_notes || "",
         status: p.status || (p.is_active ? "attiva" : "conclusa"), end_date: p.end_date || "",
         duration_weeks: "4",
+        test_reminder_days: p.test_reminder_days ?? 7,
       });
     }
 
