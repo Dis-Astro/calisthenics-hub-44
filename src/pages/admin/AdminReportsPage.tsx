@@ -225,7 +225,6 @@ const AdminReportsPage = () => {
       .select("*")
       .eq("client_id", clientId)
       .in("workout_plan_exercise_id", exerciseIds)
-      .or("client_notes.not.is.null,difficulty_rating.gt.0")
       .order("set_number");
 
     const completionsByExercise = new Map<string, WeekFeedback[]>();
