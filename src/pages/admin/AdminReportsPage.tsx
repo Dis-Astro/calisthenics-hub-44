@@ -145,8 +145,7 @@ const AdminReportsPage = () => {
     const { data: completions } = await supabase
       .from("workout_completions")
       .select("id, client_id, workout_plan_exercise_id, completed_at, client_notes, difficulty_rating, set_number")
-      .in("workout_plan_exercise_id", exerciseIds)
-      .or("client_notes.not.is.null,difficulty_rating.gt.0");
+      .in("workout_plan_exercise_id", exerciseIds);
 
     const { data: profiles } = await supabase
       .from("profiles")
