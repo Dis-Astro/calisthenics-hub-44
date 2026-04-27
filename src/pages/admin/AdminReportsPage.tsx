@@ -86,6 +86,51 @@ interface WeekFeedback {
   completed_at: string;
 }
 
+const PAGE_SIZE = 1000;
+const IN_CHUNK_SIZE = 150;
+
+const hasFeedback = (completion: { client_notes: string | null; difficulty_rating: number | null }) =>
+  Boolean(completion.client_notes?.trim()) || (completion.difficulty_rating || 0) > 0;
+
+async function fetchAllFeedbackCompletions() {
+  const rows: any[] = [];
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await supabase
+      .from("workout_completions")
+      .select("id, client_id, workout_plan_exercise_id, completed_at, client_notes, difficulty_rating, set_number")
+      .order("completed_at", { ascending: false })
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (error) throw error;
+    const batch = data || [];
+    rows.push(...batch.filter(hasFeedback));
+    if (batch.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+
+  return rows;
+}
+
+async function fetchInChunks(table: "workout_plan_exercises" | "workout_plans" | "profiles", select: string, column: string, ids: string[]) {
+  const uniqueIds = [...new Set(ids)].filter(Boolean);
+  const rows: any[] = [];
+
+  for (let i = 0; i < uniqueIds.length; i += IN_CHUNK_SIZE) {
+    const chunk = uniqueIds.slice(i, i + IN_CHUNK_SIZE);
+    const { data, error } = await supabase
+      .from(table)
+      .select(select)
+      .in(column, chunk);
+
+    if (error) throw error;
+    rows.push(...(data || []));
+  }
+
+  return rows;
+}
+
 const AdminReportsPage = () => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
