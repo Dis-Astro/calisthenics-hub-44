@@ -86,6 +86,50 @@ interface WeekFeedback {
   completed_at: string;
 }
 
+const PAGE_SIZE = 1000;
+const IN_CHUNK_SIZE = 150;
+
+const hasFeedback = (completion: { client_notes: string | null; difficulty_rating: number | null }) =>
+  Boolean(completion.client_notes?.trim()) || (completion.difficulty_rating || 0) > 0;
+
+async function fetchAllFeedbackCompletions() {
+  const rows: any[] = [];
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await supabase
+      .from("workout_completions")
+      .select("id, client_id, workout_plan_exercise_id, completed_at, client_notes, difficulty_rating, set_number")
+      .order("completed_at", { ascending: false })
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (error) throw error;
+    const batch = data || [];
+    rows.push(...batch.filter(hasFeedback));
+    if (batch.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+
+  return rows;
+}
+
+async function fetchInChunks(table: "workout_plan_exercises" | "workout_plans" | "profiles", select: string, column: string, ids: string[]) {
+  const uniqueIds = [...new Set(ids)].filter(Boolean);
+  const rows: any[] = [];
+
+  for (let i = 0; i < uniqueIds.length; i += IN_CHUNK_SIZE) {
+    const chunk = uniqueIds.slice(i, i + IN_CHUNK_SIZE);
+    const { data, error } = await (supabase.from(table) as any)
+      .select(select)
+      .in(column, chunk);
+
+    if (error) throw error;
+    rows.push(...(data || []));
+  }
+
+  return rows;
+}
+
 const AdminReportsPage = () => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
@@ -114,43 +158,28 @@ const AdminReportsPage = () => {
 
   const fetchClients = async () => {
     setLoading(true);
+    try {
+      const completions = await fetchAllFeedbackCompletions();
 
-    const { data: plans } = await supabase
-      .from("workout_plans")
-      .select("id, name, client_id, coach_id")
-      .is("deleted_at" as any, null);
+      if (completions.length === 0) {
+        setClients([]);
+        return;
+      }
 
-    if (!plans || plans.length === 0) {
-      setClients([]);
-      setLoading(false);
-      return;
-    }
-
-    const planIds = plans.map(p => p.id);
-    const clientIds = [...new Set(plans.map(p => p.client_id))];
-
-    const { data: exercises } = await supabase
-      .from("workout_plan_exercises")
-      .select("id, workout_plan_id")
-      .in("workout_plan_id", planIds);
-
-    if (!exercises || exercises.length === 0) {
-      setClients([]);
-      setLoading(false);
-      return;
-    }
-
-    const exerciseIds = exercises.map(e => e.id);
-
-    const { data: completions } = await supabase
-      .from("workout_completions")
-      .select("id, client_id, workout_plan_exercise_id, completed_at, client_notes, difficulty_rating, set_number")
-      .in("workout_plan_exercise_id", exerciseIds);
-
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("user_id, first_name, last_name")
-      .in("user_id", clientIds);
+      const exercises = await fetchInChunks(
+        "workout_plan_exercises",
+        "id, workout_plan_id",
+        "id",
+        completions.map(c => c.workout_plan_exercise_id)
+      );
+      const plans = (await fetchInChunks(
+        "workout_plans",
+        "id, name, client_id, coach_id, deleted_at",
+        "id",
+        exercises.map(e => e.workout_plan_id)
+      )).filter(p => !p.deleted_at);
+      const clientIds = [...new Set(plans.map(p => p.client_id))];
+      const profiles = await fetchInChunks("profiles", "user_id, first_name, last_name", "user_id", clientIds);
 
     const userMap = new Map(profiles?.map(p => [p.user_id, `${p.first_name} ${p.last_name}`]) || []);
     const exercisePlanMap = new Map(exercises.map(e => [e.id, e.workout_plan_id]));
@@ -190,6 +219,11 @@ const AdminReportsPage = () => {
     });
 
     setClients(Array.from(clientMap.values()).sort((a, b) => a.name.localeCompare(b.name)));
+    } catch (error) {
+      console.error("Errore caricamento feedback clienti", error);
+      toast({ title: "Errore", description: "Impossibile caricare i feedback clienti", variant: "destructive" });
+      setClients([]);
+    }
     setLoading(false);
   };
 
