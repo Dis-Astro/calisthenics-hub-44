@@ -119,7 +119,7 @@ async function fetchInChunks(table: "workout_plan_exercises" | "workout_plans" |
 
   for (let i = 0; i < uniqueIds.length; i += IN_CHUNK_SIZE) {
     const chunk = uniqueIds.slice(i, i + IN_CHUNK_SIZE);
-    const { data, error } = await supabase
+    const { data, error } = await (supabase.from(table) as any)
       .from(table)
       .select(select)
       .in(column, chunk);
