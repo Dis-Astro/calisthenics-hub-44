@@ -41,6 +41,7 @@ import CoachReportsPage from "./pages/coach/CoachReportsPage";
 import PalestraDashboard from "./pages/cliente/PalestraDashboard";
 import CoachingDashboard from "./pages/cliente/CoachingDashboard";
 import WorkoutPlanPage from "./pages/cliente/WorkoutPlanPage";
+import WorkoutArchivePage from "./pages/cliente/WorkoutArchivePage";
 
 import ProgressPage from "./pages/cliente/ProgressPage";
 import AppointmentsPage from "./pages/cliente/AppointmentsPage";
