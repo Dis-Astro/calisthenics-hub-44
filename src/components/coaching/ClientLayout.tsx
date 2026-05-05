@@ -32,6 +32,7 @@ const ClientLayout = ({ children, title }: ClientLayoutProps) => {
   const navigationItems = [
     { icon: Target, label: "Dashboard", href: "/coaching" },
     { icon: Dumbbell, label: "La Mia Scheda", href: "/coaching/scheda" },
+    { icon: Archive, label: "Archivio Schede", href: "/coaching/archivio" },
     { icon: TrendingUp, label: "I Miei Progressi", href: "/coaching/progressi" },
     { icon: Calendar, label: "Appuntamenti", href: "/coaching/appuntamenti" },
     
