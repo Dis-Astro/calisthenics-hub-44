@@ -3,8 +3,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Dumbbell, CheckCircle2, Clock, ChevronRight, Pause, Calendar } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Loader2, Dumbbell, CheckCircle2, Clock, ChevronRight, Pause, Calendar, Archive } from "lucide-react";
+import { Link, useSearchParams } from "react-router-dom";
 import { format, isPast } from "date-fns";
 import { it } from "date-fns/locale";
 
