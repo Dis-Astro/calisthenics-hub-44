@@ -85,6 +85,8 @@ interface WorkoutPlan {
 
 const WorkoutDayDetail = () => {
   const { dayId } = useParams<{ dayId: string }>();
+  const [searchParams] = useSearchParams();
+  const planIdParam = searchParams.get("planId");
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
