@@ -3,8 +3,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Dumbbell, CheckCircle2, Clock, ChevronRight, Pause, Calendar } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Loader2, Dumbbell, CheckCircle2, Clock, ChevronRight, Pause, Calendar, Archive } from "lucide-react";
+import { Link, useSearchParams } from "react-router-dom";
 import { format, isPast } from "date-fns";
 import { it } from "date-fns/locale";
 
@@ -27,43 +27,63 @@ interface DayExercise {
 
 const WorkoutPlanDays = () => {
   const { profile } = useAuth();
+  const [searchParams] = useSearchParams();
+  const planIdParam = searchParams.get("planId");
   const [loading, setLoading] = useState(true);
   const [activePlan, setActivePlan] = useState<WorkoutPlan | null>(null);
   const [dayExercises, setDayExercises] = useState<DayExercise[]>([]);
+  const [isArchiveView, setIsArchiveView] = useState(false);
 
   useEffect(() => {
     if (profile?.user_id) fetchWorkoutPlan();
-  }, [profile?.user_id]);
+  }, [profile?.user_id, planIdParam]);
 
   const fetchWorkoutPlan = async () => {
     setLoading(true);
     const userId = profile?.user_id;
-
-    // Le schede restano SEMPRE accessibili: prendi la più recente non eliminata
-    // (anche se scaduta o conclusa). Priorità: prima quella attiva nel range, poi qualunque ultima.
     const today = new Date().toISOString().split("T")[0];
 
-    // 1) prova scheda attiva nel range (include sia "workout_plan" sia "test")
-    let { data: plans } = await supabase
-      .from("workout_plans")
-      .select("*")
-      .eq("client_id", userId)
-      .is("deleted_at" as any, null)
-      .lte("start_date", today)
-      .gte("end_date", today)
-      .order("created_at", { ascending: false })
-      .limit(1);
+    let plans: any[] | null = null;
 
-    // 2) fallback: la più recente in assoluto (anche scaduta)
-    if (!plans || plans.length === 0) {
-      const { data: recent } = await supabase
+    if (planIdParam) {
+      // Vista archivio: carica scheda specifica
+      const { data } = await supabase
+        .from("workout_plans")
+        .select("*")
+        .eq("id", planIdParam)
+        .eq("client_id", userId)
+        .is("deleted_at" as any, null)
+        .limit(1);
+      plans = data;
+      setIsArchiveView(true);
+    } else {
+      setIsArchiveView(false);
+      // 1) Scheda ATTIVA nel range corrente (esclude test/schede preparate in anticipo, sospese, in pausa, bozze)
+      const { data: active } = await supabase
         .from("workout_plans")
         .select("*")
         .eq("client_id", userId)
+        .eq("status", "attiva" as any)
         .is("deleted_at" as any, null)
-        .order("end_date", { ascending: false })
+        .lte("start_date", today)
+        .gte("end_date", today)
+        .order("created_at", { ascending: false })
         .limit(1);
-      plans = recent;
+      plans = active;
+
+      // 2) Fallback: l'ultima scheda attiva (anche scaduta) — mai sospese/bozze/in_pausa
+      if (!plans || plans.length === 0) {
+        const { data: recent } = await supabase
+          .from("workout_plans")
+          .select("*")
+          .eq("client_id", userId)
+          .eq("status", "attiva" as any)
+          .is("deleted_at" as any, null)
+          .lte("start_date", today)
+          .order("end_date", { ascending: false })
+          .limit(1);
+        plans = recent;
+      }
     }
 
     if (plans && plans.length > 0) {
@@ -106,6 +126,9 @@ const WorkoutPlanDays = () => {
             .sort((a, b) => a.day_of_week - b.day_of_week)
         );
       }
+    } else {
+      setActivePlan(null);
+      setDayExercises([]);
     }
 
     setLoading(false);
@@ -133,6 +156,30 @@ const WorkoutPlanDays = () => {
 
   return (
     <div className="space-y-6">
+      {!isArchiveView && (
+        <div className="flex justify-end">
+          <Link
+            to="/coaching/archivio"
+            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors"
+          >
+            <Archive className="w-4 h-4" />
+            Archivio Schede
+          </Link>
+        </div>
+      )}
+      {isArchiveView && (
+        <div className="flex items-center justify-between">
+          <Link
+            to="/coaching/archivio"
+            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors"
+          >
+            ← Torna all'archivio
+          </Link>
+          <Badge variant="outline" className="border-muted-foreground/30 text-muted-foreground">
+            <Archive className="w-3 h-3 mr-1" /> Vista archivio
+          </Badge>
+        </div>
+      )}
       <div className="bg-gradient-to-br from-card via-card to-primary/5 rounded-lg p-6 border border-border">
         <div className="flex items-center gap-2 text-primary mb-2 flex-wrap">
           <Dumbbell className="w-5 h-5" />
@@ -189,7 +236,7 @@ const WorkoutPlanDays = () => {
           const progress = day.exercise_count > 0 ? Math.round((day.completed_count / day.exercise_count) * 100) : 0;
 
           return (
-            <Link key={day.day_of_week} to={`/coaching/scheda/${day.day_of_week}`}>
+            <Link key={day.day_of_week} to={`/coaching/scheda/${day.day_of_week}${planIdParam ? `?planId=${planIdParam}` : ""}`}>
               <Card className={`relative overflow-hidden transition-all duration-200 cursor-pointer hover:scale-[1.02] hover:shadow-lg hover:shadow-primary/10 ${isComplete ? "border-primary/50 bg-primary/5" : "border-border"}`}>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between mb-4">
