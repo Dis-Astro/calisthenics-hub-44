@@ -236,7 +236,7 @@ const WorkoutPlanDays = () => {
           const progress = day.exercise_count > 0 ? Math.round((day.completed_count / day.exercise_count) * 100) : 0;
 
           return (
-            <Link key={day.day_of_week} to={`/coaching/scheda/${day.day_of_week}`}>
+            <Link key={day.day_of_week} to={`/coaching/scheda/${day.day_of_week}${planIdParam ? `?planId=${planIdParam}` : ""}`}>
               <Card className={`relative overflow-hidden transition-all duration-200 cursor-pointer hover:scale-[1.02] hover:shadow-lg hover:shadow-primary/10 ${isComplete ? "border-primary/50 bg-primary/5" : "border-border"}`}>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between mb-4">
