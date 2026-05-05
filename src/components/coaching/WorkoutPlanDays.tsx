@@ -156,6 +156,30 @@ const WorkoutPlanDays = () => {
 
   return (
     <div className="space-y-6">
+      {!isArchiveView && (
+        <div className="flex justify-end">
+          <Link
+            to="/coaching/archivio"
+            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors"
+          >
+            <Archive className="w-4 h-4" />
+            Archivio Schede
+          </Link>
+        </div>
+      )}
+      {isArchiveView && (
+        <div className="flex items-center justify-between">
+          <Link
+            to="/coaching/archivio"
+            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors"
+          >
+            ← Torna all'archivio
+          </Link>
+          <Badge variant="outline" className="border-muted-foreground/30 text-muted-foreground">
+            <Archive className="w-3 h-3 mr-1" /> Vista archivio
+          </Badge>
+        </div>
+      )}
       <div className="bg-gradient-to-br from-card via-card to-primary/5 rounded-lg p-6 border border-border">
         <div className="flex items-center gap-2 text-primary mb-2 flex-wrap">
           <Dumbbell className="w-5 h-5" />
