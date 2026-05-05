@@ -117,35 +117,51 @@ const WorkoutDayDetail = () => {
 
   useEffect(() => {
     if (profile?.user_id) fetchDayExercises();
-  }, [profile?.user_id, dayId]);
+  }, [profile?.user_id, dayId, planIdParam]);
 
   const fetchDayExercises = async () => {
     setLoading(true);
     const userId = profile?.user_id;
     const today = new Date().toISOString().split('T')[0];
 
-    // Le schede sono SEMPRE accessibili, anche dopo la scadenza.
-    // 1) prova con scheda attiva nel range (include sia "workout_plan" sia "test")
-    let { data: plans } = await supabase
-      .from("workout_plans")
-      .select("id, name, start_date, end_date")
-      .eq("client_id", userId)
-      .is("deleted_at" as any, null)
-      .lte("start_date", today)
-      .gte("end_date", today)
-      .order("created_at", { ascending: false })
-      .limit(1);
+    let plans: any[] | null = null;
 
-    // 2) fallback: la scheda più recente (anche scaduta)
-    if (!plans || plans.length === 0) {
-      const { data: recent } = await supabase
+    if (planIdParam) {
+      const { data } = await supabase
+        .from("workout_plans")
+        .select("id, name, start_date, end_date")
+        .eq("id", planIdParam)
+        .eq("client_id", userId)
+        .is("deleted_at" as any, null)
+        .limit(1);
+      plans = data;
+    } else {
+      // Solo schede ATTIVE nel range corrente
+      const { data: active } = await supabase
         .from("workout_plans")
         .select("id, name, start_date, end_date")
         .eq("client_id", userId)
+        .eq("status", "attiva" as any)
         .is("deleted_at" as any, null)
-        .order("end_date", { ascending: false })
+        .lte("start_date", today)
+        .gte("end_date", today)
+        .order("created_at", { ascending: false })
         .limit(1);
-      plans = recent;
+      plans = active;
+
+      // Fallback: ultima scheda attiva (anche scaduta)
+      if (!plans || plans.length === 0) {
+        const { data: recent } = await supabase
+          .from("workout_plans")
+          .select("id, name, start_date, end_date")
+          .eq("client_id", userId)
+          .eq("status", "attiva" as any)
+          .is("deleted_at" as any, null)
+          .lte("start_date", today)
+          .order("end_date", { ascending: false })
+          .limit(1);
+        plans = recent;
+      }
     }
 
     if (!plans || plans.length === 0) {
