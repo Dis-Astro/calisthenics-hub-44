@@ -27,43 +27,63 @@ interface DayExercise {
 
 const WorkoutPlanDays = () => {
   const { profile } = useAuth();
+  const [searchParams] = useSearchParams();
+  const planIdParam = searchParams.get("planId");
   const [loading, setLoading] = useState(true);
   const [activePlan, setActivePlan] = useState<WorkoutPlan | null>(null);
   const [dayExercises, setDayExercises] = useState<DayExercise[]>([]);
+  const [isArchiveView, setIsArchiveView] = useState(false);
 
   useEffect(() => {
     if (profile?.user_id) fetchWorkoutPlan();
-  }, [profile?.user_id]);
+  }, [profile?.user_id, planIdParam]);
 
   const fetchWorkoutPlan = async () => {
     setLoading(true);
     const userId = profile?.user_id;
-
-    // Le schede restano SEMPRE accessibili: prendi la più recente non eliminata
-    // (anche se scaduta o conclusa). Priorità: prima quella attiva nel range, poi qualunque ultima.
     const today = new Date().toISOString().split("T")[0];
 
-    // 1) prova scheda attiva nel range (include sia "workout_plan" sia "test")
-    let { data: plans } = await supabase
-      .from("workout_plans")
-      .select("*")
-      .eq("client_id", userId)
-      .is("deleted_at" as any, null)
-      .lte("start_date", today)
-      .gte("end_date", today)
-      .order("created_at", { ascending: false })
-      .limit(1);
+    let plans: any[] | null = null;
 
-    // 2) fallback: la più recente in assoluto (anche scaduta)
-    if (!plans || plans.length === 0) {
-      const { data: recent } = await supabase
+    if (planIdParam) {
+      // Vista archivio: carica scheda specifica
+      const { data } = await supabase
+        .from("workout_plans")
+        .select("*")
+        .eq("id", planIdParam)
+        .eq("client_id", userId)
+        .is("deleted_at" as any, null)
+        .limit(1);
+      plans = data;
+      setIsArchiveView(true);
+    } else {
+      setIsArchiveView(false);
+      // 1) Scheda ATTIVA nel range corrente (esclude test/schede preparate in anticipo, sospese, in pausa, bozze)
+      const { data: active } = await supabase
         .from("workout_plans")
         .select("*")
         .eq("client_id", userId)
+        .eq("status", "attiva" as any)
         .is("deleted_at" as any, null)
-        .order("end_date", { ascending: false })
+        .lte("start_date", today)
+        .gte("end_date", today)
+        .order("created_at", { ascending: false })
         .limit(1);
-      plans = recent;
+      plans = active;
+
+      // 2) Fallback: l'ultima scheda attiva (anche scaduta) — mai sospese/bozze/in_pausa
+      if (!plans || plans.length === 0) {
+        const { data: recent } = await supabase
+          .from("workout_plans")
+          .select("*")
+          .eq("client_id", userId)
+          .eq("status", "attiva" as any)
+          .is("deleted_at" as any, null)
+          .lte("start_date", today)
+          .order("end_date", { ascending: false })
+          .limit(1);
+        plans = recent;
+      }
     }
 
     if (plans && plans.length > 0) {
@@ -106,6 +126,9 @@ const WorkoutPlanDays = () => {
             .sort((a, b) => a.day_of_week - b.day_of_week)
         );
       }
+    } else {
+      setActivePlan(null);
+      setDayExercises([]);
     }
 
     setLoading(false);
