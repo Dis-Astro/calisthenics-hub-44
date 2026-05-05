@@ -15,7 +15,8 @@ import {
   Target,
   ChevronRight,
   Star,
-  User
+  User,
+  Archive
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 
