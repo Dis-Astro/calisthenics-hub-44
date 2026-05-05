@@ -202,6 +202,11 @@ const App = () => (
                 <WorkoutPlanPage />
               </ProtectedRoute>
             } />
+            <Route path="/coaching/archivio" element={
+              <ProtectedRoute allowedRoles={['cliente_coaching']}>
+                <WorkoutArchivePage />
+              </ProtectedRoute>
+            } />
             <Route path="/coaching/progressi" element={
               <ProtectedRoute allowedRoles={['cliente_coaching']}>
                 <ProgressPage />
