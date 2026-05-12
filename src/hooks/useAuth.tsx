@@ -29,6 +29,7 @@ interface AuthContextType {
   isAdmin: boolean;
   isCoach: boolean;
   isStaff: boolean;
+  isSegretaria: boolean;
   isClientePalestra: boolean;
   isClienteCoaching: boolean;
   isClienteCorso: boolean;
