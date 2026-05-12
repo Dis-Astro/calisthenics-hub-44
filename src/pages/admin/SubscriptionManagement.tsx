@@ -568,7 +568,7 @@ const SubscriptionManagement = () => {
   const filteredSubscriptions = subscriptions.filter(sub => {
     const clientName = sub.profiles 
       ? `${sub.profiles.first_name} ${sub.profiles.last_name}`.toLowerCase()
-      : "";
+      : "utente eliminato";
     if (!clientName.includes(searchTerm.toLowerCase())) return false;
     
     if (statusFilter === "scaduti") {
@@ -764,7 +764,7 @@ const SubscriptionManagement = () => {
                         const roleVariant = sub.profiles?.role === 'cliente_coaching' ? 'default' : sub.profiles?.role === 'cliente_corso' ? 'secondary' : 'outline';
                         return (
                           <TableRow key={sub.id}>
-                            <TableCell className="font-medium">{sub.profiles?.first_name} {sub.profiles?.last_name}</TableCell>
+                            <TableCell className="font-medium">{sub.profiles ? `${sub.profiles.first_name} ${sub.profiles.last_name}` : <span className="text-muted-foreground italic">Utente eliminato ({sub.user_id.slice(0, 8)})</span>}</TableCell>
                             <TableCell><Badge variant={roleVariant as any}>{roleLabel}</Badge></TableCell>
                             <TableCell>{sub.membership_plans?.name}</TableCell>
                             <TableCell>{format(new Date(sub.start_date), "dd MMM yyyy", { locale: it })}</TableCell>
@@ -987,7 +987,7 @@ const SubscriptionManagement = () => {
                         return (
                           <TableRow key={payment.id}>
                             <TableCell>{format(new Date(payment.payment_date), "dd MMM yyyy", { locale: it })}</TableCell>
-                            <TableCell className="font-medium">{payment.profiles?.first_name} {payment.profiles?.last_name}</TableCell>
+                            <TableCell className="font-medium">{payment.profiles ? `${payment.profiles.first_name} ${payment.profiles.last_name}` : <span className="text-muted-foreground italic">Utente eliminato</span>}</TableCell>
                             <TableCell className="font-medium">€{payment.amount.toFixed(2)}</TableCell>
                             <TableCell className="capitalize">{payment.method}</TableCell>
                             <TableCell>
