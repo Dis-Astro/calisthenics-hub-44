@@ -764,7 +764,7 @@ const SubscriptionManagement = () => {
                         const roleVariant = sub.profiles?.role === 'cliente_coaching' ? 'default' : sub.profiles?.role === 'cliente_corso' ? 'secondary' : 'outline';
                         return (
                           <TableRow key={sub.id}>
-                            <TableCell className="font-medium">{sub.profiles?.first_name} {sub.profiles?.last_name}</TableCell>
+                            <TableCell className="font-medium">{sub.profiles ? `${sub.profiles.first_name} ${sub.profiles.last_name}` : <span className="text-muted-foreground italic">Utente eliminato ({sub.user_id.slice(0, 8)})</span>}</TableCell>
                             <TableCell><Badge variant={roleVariant as any}>{roleLabel}</Badge></TableCell>
                             <TableCell>{sub.membership_plans?.name}</TableCell>
                             <TableCell>{format(new Date(sub.start_date), "dd MMM yyyy", { locale: it })}</TableCell>
