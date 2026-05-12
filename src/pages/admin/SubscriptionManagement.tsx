@@ -987,7 +987,7 @@ const SubscriptionManagement = () => {
                         return (
                           <TableRow key={payment.id}>
                             <TableCell>{format(new Date(payment.payment_date), "dd MMM yyyy", { locale: it })}</TableCell>
-                            <TableCell className="font-medium">{payment.profiles?.first_name} {payment.profiles?.last_name}</TableCell>
+                            <TableCell className="font-medium">{payment.profiles ? `${payment.profiles.first_name} ${payment.profiles.last_name}` : <span className="text-muted-foreground italic">Utente eliminato</span>}</TableCell>
                             <TableCell className="font-medium">€{payment.amount.toFixed(2)}</TableCell>
                             <TableCell className="capitalize">{payment.method}</TableCell>
                             <TableCell>
