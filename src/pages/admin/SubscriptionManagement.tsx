@@ -148,6 +148,7 @@ const SubscriptionManagement = () => {
   const [lessonPackages, setLessonPackages] = useState<LessonPackage[]>([]);
   const [renewingId, setRenewingId] = useState<string | null>(null);
   const [deletingPackageId, setDeletingPackageId] = useState<string | null>(null);
+  const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
 
   // Plan management states
   const [isPlanDialogOpen, setIsPlanDialogOpen] = useState(false);
@@ -403,6 +404,19 @@ const SubscriptionManagement = () => {
       fetchData();
     }
     setDeletingPackageId(null);
+  };
+
+  // Delete payment
+  const deletePayment = async () => {
+    if (!deletingPaymentId) return;
+    const { error } = await supabase.from("payments").delete().eq("id", deletingPaymentId);
+    if (error) {
+      toast({ title: "Errore", description: "Impossibile eliminare il pagamento", variant: "destructive" });
+    } else {
+      toast({ title: "Pagamento eliminato" });
+      fetchData();
+    }
+    setDeletingPaymentId(null);
   };
 
   // Record package payment (standalone, not linked to subscription)
@@ -964,22 +978,52 @@ const SubscriptionManagement = () => {
                       <TableRow>
                         <TableHead>Data</TableHead><TableHead>Cliente</TableHead>
                         <TableHead>Importo</TableHead><TableHead>Metodo</TableHead><TableHead>Stato</TableHead>
+                        <TableHead className="text-right">Azioni</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {payments.map((payment) => (
-                        <TableRow key={payment.id}>
-                          <TableCell>{format(new Date(payment.payment_date), "dd MMM yyyy", { locale: it })}</TableCell>
-                          <TableCell className="font-medium">{payment.profiles?.first_name} {payment.profiles?.last_name}</TableCell>
-                          <TableCell className="font-medium">€{payment.amount.toFixed(2)}</TableCell>
-                          <TableCell className="capitalize">{payment.method}</TableCell>
-                          <TableCell>
-                            <Badge variant={payment.status === "completato" ? "default" : "secondary"}>
-                              {paymentStatusLabels[payment.status]}
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {payments.map((payment) => {
+                        const linkedSub = subscriptions.find(s => s.id === payment.subscription_id);
+                        return (
+                          <TableRow key={payment.id}>
+                            <TableCell>{format(new Date(payment.payment_date), "dd MMM yyyy", { locale: it })}</TableCell>
+                            <TableCell className="font-medium">{payment.profiles?.first_name} {payment.profiles?.last_name}</TableCell>
+                            <TableCell className="font-medium">€{payment.amount.toFixed(2)}</TableCell>
+                            <TableCell className="capitalize">{payment.method}</TableCell>
+                            <TableCell>
+                              <Badge variant={payment.status === "completato" ? "default" : "secondary"}>
+                                {paymentStatusLabels[payment.status]}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-1">
+                                {linkedSub && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-8 px-2 gap-1"
+                                    title="Rinnova abbonamento collegato"
+                                    onClick={() => handleRenewSubscription(linkedSub)}
+                                    disabled={renewingId === linkedSub.id}
+                                  >
+                                    {renewingId === linkedSub.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                                    Rinnova
+                                  </Button>
+                                )}
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-8 px-2 text-destructive hover:text-destructive"
+                                  title="Elimina pagamento"
+                                  onClick={() => setDeletingPaymentId(payment.id)}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
@@ -1138,6 +1182,23 @@ const SubscriptionManagement = () => {
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction onClick={deletePackage} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      {/* Delete Payment Confirmation */}
+      <AlertDialog open={!!deletingPaymentId} onOpenChange={() => setDeletingPaymentId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare il pagamento?</AlertDialogTitle>
+            <AlertDialogDescription>
+              L'operazione è irreversibile. Da usare in caso di errore di registrazione.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={deletePayment} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Elimina
             </AlertDialogAction>
           </AlertDialogFooter>
