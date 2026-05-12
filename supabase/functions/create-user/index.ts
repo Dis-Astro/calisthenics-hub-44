@@ -11,7 +11,7 @@ interface CreateUserRequest {
   password: string
   first_name: string
   last_name: string
-  role: 'admin' | 'coach' | 'cliente_palestra' | 'cliente_coaching' | 'cliente_corso'
+  role: 'admin' | 'coach' | 'cliente_palestra' | 'cliente_coaching' | 'cliente_corso' | 'segretaria'
   phone?: string
   date_of_birth?: string
   address?: string
