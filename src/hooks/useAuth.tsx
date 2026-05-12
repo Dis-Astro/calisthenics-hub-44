@@ -133,6 +133,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         isAdmin,
         isCoach,
         isStaff,
+        isSegretaria,
         isClientePalestra,
         isClienteCoaching,
         isClienteCorso,
