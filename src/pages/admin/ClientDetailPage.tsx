@@ -342,7 +342,7 @@ const ClientDetailPage = () => {
                 <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />Iscritto {format(new Date(profile.created_at), "dd MMM yyyy", { locale: it })}</span>
               </div>
               <div className="mt-3">
-                <PasswordResetDialog userId={profile.user_id} userName={`${profile.first_name} ${profile.last_name}`} />
+                <PasswordResetDialog userId={profile.user_id} userName={`${profile.first_name} ${profile.last_name}`} userEmail={(profile as any).email} />
               </div>
             </div>
             {/* Stats rapide */}
