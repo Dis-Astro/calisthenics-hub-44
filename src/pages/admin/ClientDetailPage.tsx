@@ -563,14 +563,44 @@ const ClientDetailPage = () => {
               ) : (
                 <div className="space-y-2">
                   {payments.map(pay => (
-                    <div key={pay.id} className="flex items-center justify-between p-2 rounded bg-muted/30 text-sm">
-                      <div>
+                    <div key={pay.id} className="flex items-center justify-between gap-2 p-2 rounded bg-muted/30 text-sm">
+                      <div className="min-w-0 flex-1">
                         <p className="font-medium">€{pay.amount}</p>
-                        <p className="text-xs text-muted-foreground">{format(new Date(pay.payment_date), "dd/MM/yyyy")} · {pay.method}</p>
+                        <p className="text-xs text-muted-foreground truncate">{format(new Date(pay.payment_date), "dd/MM/yyyy")} · {pay.method}</p>
                       </div>
                       <Badge variant={pay.status === "completato" ? "default" : "secondary"} className="text-xs">
                         {pay.status}
                       </Badge>
+                      <div className="flex gap-1">
+                        {pay.subscription_id && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="w-6 h-6 text-primary"
+                            title="Rinnova abbonamento collegato"
+                            onClick={() => handleRenewFromPayment(pay)}
+                          >
+                            <RefreshCw className="w-3 h-3" />
+                          </Button>
+                        )}
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="w-6 h-6 text-destructive" title="Elimina pagamento">
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Eliminare il pagamento?</AlertDialogTitle>
+                              <AlertDialogDescription>L'operazione è irreversibile. Da usare in caso di errore di registrazione.</AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Annulla</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDeletePayment(pay.id)} className="bg-destructive text-destructive-foreground">Elimina</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
                     </div>
                   ))}
                 </div>
