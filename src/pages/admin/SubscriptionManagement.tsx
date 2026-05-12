@@ -568,7 +568,7 @@ const SubscriptionManagement = () => {
   const filteredSubscriptions = subscriptions.filter(sub => {
     const clientName = sub.profiles 
       ? `${sub.profiles.first_name} ${sub.profiles.last_name}`.toLowerCase()
-      : "";
+      : "utente eliminato";
     if (!clientName.includes(searchTerm.toLowerCase())) return false;
     
     if (statusFilter === "scaduti") {
