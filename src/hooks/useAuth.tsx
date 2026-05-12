@@ -116,6 +116,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const isAdmin = profile?.role === 'admin';
   const isCoach = profile?.role === 'coach';
   const isStaff = isAdmin || isCoach;
+  const isSegretaria = profile?.role === 'segretaria';
   const isClientePalestra = profile?.role === 'cliente_palestra';
   const isClienteCoaching = profile?.role === 'cliente_coaching';
   const isClienteCorso = profile?.role === 'cliente_corso';
