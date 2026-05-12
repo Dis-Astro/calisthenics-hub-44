@@ -148,6 +148,7 @@ const SubscriptionManagement = () => {
   const [lessonPackages, setLessonPackages] = useState<LessonPackage[]>([]);
   const [renewingId, setRenewingId] = useState<string | null>(null);
   const [deletingPackageId, setDeletingPackageId] = useState<string | null>(null);
+  const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
 
   // Plan management states
   const [isPlanDialogOpen, setIsPlanDialogOpen] = useState(false);
