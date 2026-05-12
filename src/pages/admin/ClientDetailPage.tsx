@@ -451,6 +451,16 @@ const ClientDetailPage = () => {
                           <Button
                             variant="ghost"
                             size="icon"
+                            className="w-6 h-6 text-primary hover:text-primary"
+                            title="Rinnova"
+                            onClick={() => handleRenewSubscription(sub)}
+                            disabled={renewingSubId === sub.id}
+                          >
+                            {renewingSubId === sub.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             className="w-6 h-6 text-muted-foreground hover:text-foreground"
                             title="Modifica scadenza"
                             onClick={() => {
