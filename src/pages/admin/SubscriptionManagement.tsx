@@ -406,6 +406,19 @@ const SubscriptionManagement = () => {
     setDeletingPackageId(null);
   };
 
+  // Delete payment
+  const deletePayment = async () => {
+    if (!deletingPaymentId) return;
+    const { error } = await supabase.from("payments").delete().eq("id", deletingPaymentId);
+    if (error) {
+      toast({ title: "Errore", description: "Impossibile eliminare il pagamento", variant: "destructive" });
+    } else {
+      toast({ title: "Pagamento eliminato" });
+      fetchData();
+    }
+    setDeletingPaymentId(null);
+  };
+
   // Record package payment (standalone, not linked to subscription)
   const recordPackagePayment = async () => {
     if (!newPackagePayment.package_id || !newPackagePayment.amount) {
