@@ -133,7 +133,8 @@ const roleLabels: Record<UserRole, string> = {
   coach: "Coach",
   cliente_palestra: "Cliente Palestra",
   cliente_coaching: "Cliente Coaching",
-  cliente_corso: "Cliente Corso"
+  cliente_corso: "Cliente Corso",
+  segretaria: "Segretaria"
 };
 
 const ClientDetailPage = () => {
