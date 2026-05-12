@@ -144,6 +144,18 @@ const App = () => (
                 <ExpensesManagement />
               </ProtectedRoute>
             } />
+
+            {/* Segretaria routes */}
+            <Route path="/segretaria" element={
+              <ProtectedRoute allowedRoles={['segretaria', 'admin']}>
+                <SegretariaDashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/segretaria/*" element={
+              <ProtectedRoute allowedRoles={['segretaria', 'admin']}>
+                <SegretariaDashboard />
+              </ProtectedRoute>
+            } />
             
             {/* Coach routes */}
             <Route path="/coach" element={
