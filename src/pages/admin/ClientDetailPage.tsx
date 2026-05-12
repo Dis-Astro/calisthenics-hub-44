@@ -106,6 +106,7 @@ interface Payment {
   method: string;
   status: string;
   notes: string | null;
+  subscription_id: string | null;
 }
 
 interface WorkoutPlan {
