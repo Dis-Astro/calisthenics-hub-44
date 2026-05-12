@@ -400,6 +400,7 @@ const UserManagement = () => {
                     <SelectItem value="cliente_palestra">Cliente Palestra</SelectItem>
                     <SelectItem value="cliente_coaching">Cliente Coaching</SelectItem>
                     <SelectItem value="cliente_corso">Cliente Corso</SelectItem>
+                    <SelectItem value="segretaria">Segretaria</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
