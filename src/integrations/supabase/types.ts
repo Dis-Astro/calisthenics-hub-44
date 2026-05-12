@@ -964,6 +964,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_manage_billing: { Args: { user_uuid: string }; Returns: boolean }
       can_view_client_data: {
         Args: { client_uuid: string; viewer_uuid: string }
         Returns: boolean
@@ -978,6 +979,7 @@ export type Database = {
       }
       is_admin: { Args: { user_uuid: string }; Returns: boolean }
       is_coach: { Args: { user_uuid: string }; Returns: boolean }
+      is_segretaria: { Args: { user_uuid: string }; Returns: boolean }
       is_staff: { Args: { user_uuid: string }; Returns: boolean }
     }
     Enums: {
@@ -991,6 +993,7 @@ export type Database = {
         | "cliente_palestra"
         | "cliente_coaching"
         | "cliente_corso"
+        | "segretaria"
       workout_plan_status: "attiva" | "in_pausa" | "conclusa"
     }
     CompositeTypes: {
@@ -1129,6 +1132,7 @@ export const Constants = {
         "cliente_palestra",
         "cliente_coaching",
         "cliente_corso",
+        "segretaria",
       ],
       workout_plan_status: ["attiva", "in_pausa", "conclusa"],
     },
