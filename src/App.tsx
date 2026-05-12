@@ -30,6 +30,9 @@ import AdminReportsPage from "./pages/admin/AdminReportsPage";
 import StructurePerformancePage from "./pages/admin/StructurePerformancePage";
 import ExpensesManagement from "./pages/admin/ExpensesManagement";
 
+// Segretaria pages
+import SegretariaDashboard from "./pages/segretaria/SegretariaDashboard";
+
 // Coach pages
 import CoachDashboard from "./pages/coach/CoachDashboard";
 import CoachClientsPage from "./pages/coach/CoachClientsPage";
