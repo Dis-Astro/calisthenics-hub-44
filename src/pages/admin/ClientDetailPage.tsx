@@ -295,6 +295,46 @@ const ClientDetailPage = () => {
     setSavingEndDate(false);
   };
 
+  const [renewingSubId, setRenewingSubId] = useState<string | null>(null);
+  const handleRenewSubscription = async (sub: Subscription) => {
+    if (!sub.membership_plans) {
+      toast({ title: "Errore", description: "Piano non trovato", variant: "destructive" });
+      return;
+    }
+    setRenewingSubId(sub.id);
+    const newEnd = addMonths(new Date(sub.end_date), sub.membership_plans.duration_months);
+    const { error } = await supabase
+      .from("subscriptions")
+      .update({ end_date: format(newEnd, "yyyy-MM-dd"), status: "attivo" as SubscriptionStatus })
+      .eq("id", sub.id);
+    if (error) {
+      toast({ title: "Errore", description: "Impossibile rinnovare", variant: "destructive" });
+    } else {
+      toast({ title: "Rinnovato!", description: `Nuova scadenza: ${format(newEnd, "dd/MM/yyyy")}` });
+      fetchClientData();
+    }
+    setRenewingSubId(null);
+  };
+
+  const handleDeletePayment = async (payId: string) => {
+    const { error } = await supabase.from("payments").delete().eq("id", payId);
+    if (error) {
+      toast({ title: "Errore", description: "Impossibile eliminare il pagamento", variant: "destructive" });
+    } else {
+      toast({ title: "Pagamento eliminato" });
+      fetchClientData();
+    }
+  };
+
+  const handleRenewFromPayment = async (pay: Payment) => {
+    const sub = subscriptions.find(s => s.id === (pay as any).subscription_id);
+    if (!sub) {
+      toast({ title: "Errore", description: "Abbonamento collegato non trovato", variant: "destructive" });
+      return;
+    }
+    await handleRenewSubscription(sub);
+  };
+
   const getSubscriptionStatus = (sub: Subscription) => {
     const daysLeft = differenceInDays(new Date(sub.end_date), new Date());
     if (isPast(new Date(sub.end_date))) return { label: "Scaduto", variant: "destructive" as const, icon: AlertTriangle };
