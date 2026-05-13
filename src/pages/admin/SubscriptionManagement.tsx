@@ -270,6 +270,7 @@ const SubscriptionManagement = () => {
     setClients(clientsRes.data || []);
     setLessonPackages((packagesRes.data || []) as unknown as LessonPackage[]);
     setLoading(false);
+  };
 
   // Plan management functions
   const openCreatePlanDialog = () => {
