@@ -573,17 +573,37 @@ const ClientDetailPage = () => {
                         {pay.status}
                       </Badge>
                       <div className="flex gap-1">
-                        {pay.subscription_id && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="w-6 h-6 text-primary"
-                            title="Rinnova abbonamento collegato"
-                            onClick={() => handleRenewFromPayment(pay)}
-                          >
-                            <RefreshCw className="w-3 h-3" />
-                          </Button>
-                        )}
+                        {pay.subscription_id && (() => {
+                          const sub = subscriptions.find(s => s.id === pay.subscription_id);
+                          const months = sub?.membership_plans?.duration_months;
+                          const newEnd = sub ? format(addMonths(new Date(sub.end_date), sub.membership_plans?.duration_months || 0), "dd/MM/yyyy") : "";
+                          return (
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="w-6 h-6 text-primary"
+                                  title="Rinnova abbonamento collegato"
+                                >
+                                  <RefreshCw className="w-3 h-3" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Rinnovare l'abbonamento?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Questa azione <strong>non modifica il pagamento</strong>: estende la scadenza dell'abbonamento collegato di {months} mese{months === 1 ? "" : "i"}{newEnd && ` (nuova scadenza: ${newEnd})`}.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Annulla</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => handleRenewFromPayment(pay)}>Rinnova</AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          );
+                        })()}
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button variant="ghost" size="icon" className="w-6 h-6 text-destructive" title="Elimina pagamento">
