@@ -329,12 +329,45 @@ const ClientDetailPage = () => {
   };
 
   const handleRenewFromPayment = async (pay: Payment) => {
-    const sub = subscriptions.find(s => s.id === (pay as any).subscription_id);
-    if (!sub) {
+    const sub = subscriptions.find(s => s.id === pay.subscription_id);
+    if (!sub || !sub.membership_plans) {
       toast({ title: "Errore", description: "Abbonamento collegato non trovato", variant: "destructive" });
       return;
     }
-    await handleRenewSubscription(sub);
+    setRenewingSubId(sub.id);
+    const newEnd = addMonths(new Date(sub.end_date), sub.membership_plans.duration_months);
+    const price = sub.membership_plans.price;
+
+    // 1. Extend subscription end date
+    const { error: subErr } = await supabase
+      .from("subscriptions")
+      .update({ end_date: format(newEnd, "yyyy-MM-dd"), status: "attivo" as SubscriptionStatus })
+      .eq("id", sub.id);
+
+    if (subErr) {
+      toast({ title: "Errore", description: "Impossibile rinnovare", variant: "destructive" });
+      setRenewingSubId(null);
+      return;
+    }
+
+    // 2. Auto-register a new payment using the source payment's method
+    const { error: payErr } = await supabase.from("payments").insert({
+      subscription_id: sub.id,
+      user_id: sub.user_id,
+      amount: price,
+      method: pay.method,
+      payment_date: format(new Date(), "yyyy-MM-dd"),
+      status: "completato",
+      notes: `Rinnovo automatico (${format(newEnd, "dd/MM/yyyy")})`,
+    });
+
+    if (payErr) {
+      toast({ title: "Rinnovato senza incasso", description: "Abbonamento esteso ma incasso non registrato: " + payErr.message, variant: "destructive" });
+    } else {
+      toast({ title: "Rinnovato e incassato!", description: `+€${price.toFixed(2)} · scadenza ${format(newEnd, "dd/MM/yyyy")}` });
+    }
+    fetchClientData();
+    setRenewingSubId(null);
   };
 
   const getSubscriptionStatus = (sub: Subscription) => {
@@ -591,9 +624,9 @@ const ClientDetailPage = () => {
                               </AlertDialogTrigger>
                               <AlertDialogContent>
                                 <AlertDialogHeader>
-                                  <AlertDialogTitle>Rinnovare l'abbonamento?</AlertDialogTitle>
+                                  <AlertDialogTitle>Rinnovare e registrare incasso?</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    Questa azione <strong>non modifica il pagamento</strong>: estende la scadenza dell'abbonamento collegato di {months} mese{months === 1 ? "" : "i"}{newEnd && ` (nuova scadenza: ${newEnd})`}.
+                                    Estende la scadenza di {months} mese{months === 1 ? "" : "i"}{newEnd && ` (nuova: ${newEnd})`} <strong>e registra automaticamente un nuovo incasso di €{sub?.membership_plans?.price?.toFixed(2)}</strong> con metodo "{pay.method}".
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>

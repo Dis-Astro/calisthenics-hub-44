@@ -38,6 +38,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import AdminLayout from "@/components/admin/AdminLayout";
 import type { Database } from "@/integrations/supabase/types";
@@ -366,7 +367,45 @@ const SubscriptionManagement = () => {
     setRenewingId(null);
   };
 
-  // Create lesson package
+  // Renew + auto-record payment (used from payments tab)
+  const handleRenewAndRecord = async (sub: Subscription, sourcePayment: Payment) => {
+    if (!sub.membership_plans) {
+      toast({ title: "Errore", description: "Piano non trovato", variant: "destructive" });
+      return;
+    }
+    setRenewingId(sub.id);
+    const newEnd = addMonths(new Date(sub.end_date), sub.membership_plans.duration_months);
+    const price = sub.membership_plans.price;
+
+    const { error: subErr } = await supabase
+      .from("subscriptions")
+      .update({ end_date: format(newEnd, "yyyy-MM-dd"), status: "attivo" as SubscriptionStatus })
+      .eq("id", sub.id);
+
+    if (subErr) {
+      toast({ title: "Errore", description: "Impossibile rinnovare", variant: "destructive" });
+      setRenewingId(null);
+      return;
+    }
+
+    const { error: payErr } = await supabase.from("payments").insert({
+      subscription_id: sub.id,
+      user_id: sub.user_id,
+      amount: price,
+      method: sourcePayment.method,
+      payment_date: format(new Date(), "yyyy-MM-dd"),
+      status: "completato" as PaymentStatus,
+      notes: `Rinnovo automatico (${format(newEnd, "dd/MM/yyyy")})`,
+    });
+
+    if (payErr) {
+      toast({ title: "Rinnovato senza incasso", description: payErr.message, variant: "destructive" });
+    } else {
+      toast({ title: "Rinnovato e incassato!", description: `+€${price.toFixed(2)} · scadenza ${format(newEnd, "dd MMM yyyy", { locale: it })}` });
+    }
+    fetchData();
+    setRenewingId(null);
+  };
   const createPackage = async () => {
     if (!newPackage.user_id || !newPackage.total_lessons || !newPackage.price) {
       toast({ title: "Errore", description: "Compila tutti i campi obbligatori", variant: "destructive" });
@@ -997,18 +1036,33 @@ const SubscriptionManagement = () => {
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-1">
-                                {linkedSub && (
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-8 px-2 gap-1"
-                                    title="Rinnova abbonamento collegato"
-                                    onClick={() => handleRenewSubscription(linkedSub)}
-                                    disabled={renewingId === linkedSub.id}
-                                  >
-                                    {renewingId === linkedSub.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-                                    Rinnova
-                                  </Button>
+                                {linkedSub && linkedSub.membership_plans && (
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-8 px-2 gap-1"
+                                        title="Rinnova + registra incasso"
+                                        disabled={renewingId === linkedSub.id}
+                                      >
+                                        {renewingId === linkedSub.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                                        Rinnova
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Rinnovare e registrare incasso?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          Estende la scadenza di {linkedSub.membership_plans.duration_months} mese{linkedSub.membership_plans.duration_months === 1 ? "" : "i"} (nuova: {format(addMonths(new Date(linkedSub.end_date), linkedSub.membership_plans.duration_months), "dd/MM/yyyy")}) <strong>e registra un nuovo incasso di €{linkedSub.membership_plans.price.toFixed(2)}</strong> con metodo "{payment.method}".
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Annulla</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => handleRenewAndRecord(linkedSub, payment)}>Rinnova + Incassa</AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
                                 )}
                                 <Button
                                   size="sm"
