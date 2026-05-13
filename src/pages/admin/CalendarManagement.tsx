@@ -251,14 +251,17 @@ const CalendarManagement = () => {
     if (coursesRes.data) setCourses(coursesRes.data);
     if (workoutRes.data) setWorkoutDeadlines(workoutRes.data);
     if (subsRes.data) {
-      setSubscriptionDeadlines(subsRes.data.map((s: any) => ({
-        id: s.id,
-        user_id: s.user_id,
-        end_date: s.end_date,
-        status: s.status,
-        plan_name: s.membership_plans?.name || 'Piano',
-        plan_id: s.plan_id
-      })));
+      const clientIds = new Set((clientsRes.data || []).map((c: any) => c.user_id));
+      setSubscriptionDeadlines(subsRes.data
+        .filter((s: any) => clientIds.has(s.user_id))
+        .map((s: any) => ({
+          id: s.id,
+          user_id: s.user_id,
+          end_date: s.end_date,
+          status: s.status,
+          plan_name: s.membership_plans?.name || 'Piano',
+          plan_id: s.plan_id
+        })));
     }
     if (packagesRes.data) setLessonPackages(packagesRes.data as unknown as LessonPackage[]);
 
