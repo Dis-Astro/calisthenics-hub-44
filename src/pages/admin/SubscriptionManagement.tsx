@@ -1035,18 +1035,33 @@ const SubscriptionManagement = () => {
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-1">
-                                {linkedSub && (
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-8 px-2 gap-1"
-                                    title="Rinnova abbonamento collegato"
-                                    onClick={() => handleRenewSubscription(linkedSub)}
-                                    disabled={renewingId === linkedSub.id}
-                                  >
-                                    {renewingId === linkedSub.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-                                    Rinnova
-                                  </Button>
+                                {linkedSub && linkedSub.membership_plans && (
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-8 px-2 gap-1"
+                                        title="Rinnova + registra incasso"
+                                        disabled={renewingId === linkedSub.id}
+                                      >
+                                        {renewingId === linkedSub.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                                        Rinnova
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Rinnovare e registrare incasso?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          Estende la scadenza di {linkedSub.membership_plans.duration_months} mese{linkedSub.membership_plans.duration_months === 1 ? "" : "i"} (nuova: {format(addMonths(new Date(linkedSub.end_date), linkedSub.membership_plans.duration_months), "dd/MM/yyyy")}) <strong>e registra un nuovo incasso di €{linkedSub.membership_plans.price.toFixed(2)}</strong> con metodo "{payment.method}".
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Annulla</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => handleRenewAndRecord(linkedSub, payment)}>Rinnova + Incassa</AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
                                 )}
                                 <Button
                                   size="sm"
