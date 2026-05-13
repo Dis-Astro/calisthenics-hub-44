@@ -38,6 +38,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import AdminLayout from "@/components/admin/AdminLayout";
 import type { Database } from "@/integrations/supabase/types";
