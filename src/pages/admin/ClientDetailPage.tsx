@@ -624,9 +624,9 @@ const ClientDetailPage = () => {
                               </AlertDialogTrigger>
                               <AlertDialogContent>
                                 <AlertDialogHeader>
-                                  <AlertDialogTitle>Rinnovare l'abbonamento?</AlertDialogTitle>
+                                  <AlertDialogTitle>Rinnovare e registrare incasso?</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    Questa azione <strong>non modifica il pagamento</strong>: estende la scadenza dell'abbonamento collegato di {months} mese{months === 1 ? "" : "i"}{newEnd && ` (nuova scadenza: ${newEnd})`}.
+                                    Estende la scadenza di {months} mese{months === 1 ? "" : "i"}{newEnd && ` (nuova: ${newEnd})`} <strong>e registra automaticamente un nuovo incasso di €{sub?.membership_plans?.price?.toFixed(2)}</strong> con metodo "{pay.method}".
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
