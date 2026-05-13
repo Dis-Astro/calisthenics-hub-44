@@ -247,17 +247,21 @@ const SubscriptionManagement = () => {
     // Create profiles map for manual join
     const profilesMap = new Map((clientsRes.data || []).map(p => [p.user_id, p]));
     
-    // Add profiles to subscriptions manually
-    const subscriptionsWithProfiles = (subsRes.data || []).map(sub => ({
-      ...sub,
-      profiles: profilesMap.get(sub.user_id)
-    }));
-
-    // Add profiles to payments manually
-    const paymentsWithProfiles = (paymentsRes.data || []).map(pay => ({
-      ...pay,
-      profiles: profilesMap.get(pay.user_id)
-    }));
+    // Add profiles to subscriptions manually and filter out deleted users
+    const subscriptionsWithProfiles = (subsRes.data || [])
+      .map(sub => ({
+        ...sub,
+        profiles: profilesMap.get(sub.user_id)
+      }))
+      .filter(sub => sub.profiles);
+    
+    // Add profiles to payments manually and filter out deleted users
+    const paymentsWithProfiles = (paymentsRes.data || [])
+      .map(pay => ({
+        ...pay,
+        profiles: profilesMap.get(pay.user_id)
+      }))
+      .filter(pay => pay.profiles);
 
     setSubscriptions(subscriptionsWithProfiles as unknown as Subscription[]);
     setPlans(plansRes.data || []);
