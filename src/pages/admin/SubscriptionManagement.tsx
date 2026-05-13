@@ -366,7 +366,45 @@ const SubscriptionManagement = () => {
     setRenewingId(null);
   };
 
-  // Create lesson package
+  // Renew + auto-record payment (used from payments tab)
+  const handleRenewAndRecord = async (sub: Subscription, sourcePayment: Payment) => {
+    if (!sub.membership_plans) {
+      toast({ title: "Errore", description: "Piano non trovato", variant: "destructive" });
+      return;
+    }
+    setRenewingId(sub.id);
+    const newEnd = addMonths(new Date(sub.end_date), sub.membership_plans.duration_months);
+    const price = sub.membership_plans.price;
+
+    const { error: subErr } = await supabase
+      .from("subscriptions")
+      .update({ end_date: format(newEnd, "yyyy-MM-dd"), status: "attivo" as SubscriptionStatus })
+      .eq("id", sub.id);
+
+    if (subErr) {
+      toast({ title: "Errore", description: "Impossibile rinnovare", variant: "destructive" });
+      setRenewingId(null);
+      return;
+    }
+
+    const { error: payErr } = await supabase.from("payments").insert({
+      subscription_id: sub.id,
+      user_id: sub.user_id,
+      amount: price,
+      method: sourcePayment.method,
+      payment_date: format(new Date(), "yyyy-MM-dd"),
+      status: "completato" as PaymentStatus,
+      notes: `Rinnovo automatico (${format(newEnd, "dd/MM/yyyy")})`,
+    });
+
+    if (payErr) {
+      toast({ title: "Rinnovato senza incasso", description: payErr.message, variant: "destructive" });
+    } else {
+      toast({ title: "Rinnovato e incassato!", description: `+€${price.toFixed(2)} · scadenza ${format(newEnd, "dd MMM yyyy", { locale: it })}` });
+    }
+    fetchData();
+    setRenewingId(null);
+  };
   const createPackage = async () => {
     if (!newPackage.user_id || !newPackage.total_lessons || !newPackage.price) {
       toast({ title: "Errore", description: "Compila tutti i campi obbligatori", variant: "destructive" });
