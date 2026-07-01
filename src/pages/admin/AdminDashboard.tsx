@@ -28,12 +28,13 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     fetchStats();
-    // Backfill reminder appointments per schede esistenti — una sola volta per sessione
-    const KEY = "test_reminders_backfilled_v1";
+    // Backfill reminder appointments per schede/test esistenti — una sola volta per sessione
+    const KEY = "test_reminders_backfilled_v2";
     if (!sessionStorage.getItem(KEY)) {
       backfillTestReminders()
-        .then(({ created }) => {
-          if (created > 0) console.info(`[Reminder] Generati ${created} avvisi 'Prepara test'.`);
+        .then(({ created, updated }) => {
+          const changed = created + updated;
+          if (changed > 0) console.info(`[Reminder] Aggiornati ${changed} promemoria calendario.`);
           sessionStorage.setItem(KEY, "1");
         })
         .catch((err) => console.error("[Reminder] backfill failed", err));
@@ -111,6 +112,7 @@ const AdminDashboard = () => {
               { icon: Calendar, label: "Gestisci Calendario", href: "/admin/calendario" },
               { icon: CreditCard, label: "Gestisci Abbonamenti", href: "/admin/abbonamenti" },
               { icon: BookOpen, label: "Gestisci Corsi", href: "/admin/corsi" },
+              { icon: Dumbbell, label: "Gestisci Esercizi", href: "/admin/esercizi" },
             ].map(item => (
               <Link key={item.href} to={item.href}>
                 <Button className="w-full justify-between" variant="secondary">

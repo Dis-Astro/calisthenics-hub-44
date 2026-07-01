@@ -98,8 +98,7 @@ interface TestPlan {
 const WorkoutPlanEditor = () => {
   const { userId, planId } = useParams<{ userId: string; planId?: string }>();
   const [searchParams] = useSearchParams();
-  const planType = searchParams.get("type") || "workout_plan";
-  const isTest = planType === "test";
+  const requestedPlanType = searchParams.get("type") === "test" ? "test" : "workout_plan";
 
   const navigate = useNavigate();
   const { profile } = useAuth();
@@ -107,6 +106,9 @@ const WorkoutPlanEditor = () => {
   const isMobile = useIsMobile();
 
   const isEditing = !!planId;
+  const [planType, setPlanType] = useState(requestedPlanType);
+  const isTest = planType === "test";
+  const reminderTitle = isTest ? "Prepara scheda" : "Prepara test";
 
   // Editor state
   const [loading, setLoading] = useState(true);
@@ -136,6 +138,16 @@ const WorkoutPlanEditor = () => {
   useEffect(() => {
     if (userId && profile?.user_id) loadAll();
   }, [userId, planId, profile?.user_id]);
+
+  useEffect(() => {
+    if (!isEditing) {
+      setPlanType(requestedPlanType);
+      setFormData(prev => ({
+        ...prev,
+        duration_weeks: requestedPlanType === "test" && prev.duration_weeks === "4" ? "1" : prev.duration_weeks,
+      }));
+    }
+  }, [requestedPlanType, isEditing]);
 
   const loadAll = async () => {
     setLoading(true);
@@ -167,6 +179,7 @@ const WorkoutPlanEditor = () => {
 
     if (planRes.data) {
       const p = planRes.data as any;
+      setPlanType(p.plan_type === "test" ? "test" : "workout_plan");
       setFormData({
         name: p.name, description: p.description || "", coach_notes: p.coach_notes || "",
         status: p.status || (p.is_active ? "attiva" : "conclusa"), end_date: p.end_date || "",
@@ -492,7 +505,11 @@ const WorkoutPlanEditor = () => {
   const toggleFeedbackExercise = (id: string) => {
     setOpenFeedbackExercises(prev => {
       const s = new Set(prev);
-      s.has(id) ? s.delete(id) : s.add(id);
+      if (s.has(id)) {
+        s.delete(id);
+      } else {
+        s.add(id);
+      }
       return s;
     });
   };
@@ -747,32 +764,30 @@ const WorkoutPlanEditor = () => {
           placeholder={isTest ? "Note tecniche interne..." : "Note che il cliente vedrà..."} rows={2} />
       </div>
 
-      {/* Promemoria "Prepara Test" sul calendario */}
-      {!isTest && (
-        <div className="space-y-2 p-3 bg-primary/5 border border-primary/20 rounded-lg">
-          <div className="flex items-center justify-between">
-            <Label className="flex items-center gap-2">
-              <Bell className="w-4 h-4 text-primary" />
-              Promemoria "Prepara test" sul calendario
-            </Label>
-            <span className="text-sm font-display tracking-wider">
-              {formData.test_reminder_days === 0 ? "Off" : `${formData.test_reminder_days} gg`}
-            </span>
-          </div>
-          <Slider
-            min={0}
-            max={14}
-            step={1}
-            value={[formData.test_reminder_days]}
-            onValueChange={([v]) => setFormData({ ...formData, test_reminder_days: v })}
-          />
-          <p className="text-xs text-muted-foreground">
-            {formData.test_reminder_days === 0
-              ? "Nessun promemoria automatico verrà creato sul calendario."
-              : `Verrà creato un appuntamento "Prepara test" sul tuo calendario ${formData.test_reminder_days} giorni prima della scadenza.`}
-          </p>
+      {/* Promemoria calendario */}
+      <div className="space-y-2 p-3 bg-primary/5 border border-primary/20 rounded-lg">
+        <div className="flex items-center justify-between">
+          <Label className="flex items-center gap-2">
+            <Bell className="w-4 h-4 text-primary" />
+            Promemoria "{reminderTitle}" sul calendario
+          </Label>
+          <span className="text-sm font-display tracking-wider">
+            {formData.test_reminder_days === 0 ? "Off" : `${formData.test_reminder_days} gg`}
+          </span>
         </div>
-      )}
+        <Slider
+          min={0}
+          max={14}
+          step={1}
+          value={[formData.test_reminder_days]}
+          onValueChange={([v]) => setFormData({ ...formData, test_reminder_days: v })}
+        />
+        <p className="text-xs text-muted-foreground">
+          {formData.test_reminder_days === 0
+            ? "Nessun promemoria automatico verrà creato sul calendario."
+            : `Verrà creato un appuntamento "${reminderTitle}" sul tuo calendario ${formData.test_reminder_days} giorni prima della scadenza.`}
+        </p>
+      </div>
 
       {/* Days + Exercises */}
       <div className="space-y-4">

@@ -1,0 +1,13 @@
+/contatti /index.html 200
+/login /index.html 200
+/dashboard /index.html 200
+/admin /index.html 200
+/admin/* /index.html 200
+/segretaria /index.html 200
+/segretaria/* /index.html 200
+/coach /index.html 200
+/coach/* /index.html 200
+/palestra /index.html 200
+/palestra/* /index.html 200
+/coaching /index.html 200
+/coaching/* /index.html 200

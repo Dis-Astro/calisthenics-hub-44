@@ -13,6 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Users, Plus, Loader2, Edit, Trash2, UserPlus, X } from "lucide-react";
+import ClientLink from "@/components/admin/ClientLink";
 
 interface Course {
   id: string;
@@ -418,7 +419,9 @@ const CourseManagement = () => {
               {participants.map(p => (
                 <div key={p.id} className="flex items-center justify-between p-3 rounded-lg border border-border bg-card">
                   <div>
-                    <p className="font-medium text-sm">{getClientName(p.user_id)}</p>
+                    <p className="font-medium text-sm">
+                      <ClientLink userId={p.user_id}>{getClientName(p.user_id)}</ClientLink>
+                    </p>
                     <p className="text-xs text-muted-foreground">
                       Iscritto dal {new Date(p.joined_at).toLocaleDateString("it-IT")}
                     </p>

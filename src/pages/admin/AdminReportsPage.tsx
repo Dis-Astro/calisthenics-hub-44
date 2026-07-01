@@ -23,6 +23,7 @@ import {
   X
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
+import ClientLink from "@/components/admin/ClientLink";
 import LightningRating from "@/components/coaching/LightningRating";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
@@ -91,6 +92,22 @@ const IN_CHUNK_SIZE = 150;
 
 const hasFeedback = (completion: { client_notes: string | null; difficulty_rating: number | null }) =>
   Boolean(completion.client_notes?.trim()) || (completion.difficulty_rating || 0) > 0;
+
+const toDateOnly = (value: string) => {
+  const date = new Date(`${value}T00:00:00`);
+  date.setHours(0, 0, 0, 0);
+  return date;
+};
+
+const getPlanTotalWeeks = (startDate: string, endDate: string) => {
+  const start = toDateOnly(startDate);
+  const end = toDateOnly(endDate);
+  const diffDays = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+  return Math.max(1, Math.ceil(diffDays / 7));
+};
+
+const isValidPlanWeek = (weekNumber: number | null, plan: { start_date: string; end_date: string }) =>
+  Boolean(weekNumber && weekNumber >= 1 && weekNumber <= getPlanTotalWeeks(plan.start_date, plan.end_date));
 
 async function fetchAllFeedbackCompletions() {
   const rows: any[] = [];
@@ -174,7 +191,7 @@ const AdminReportsPage = () => {
       );
       const plans = (await fetchInChunks(
         "workout_plans",
-        "id, name, client_id, coach_id, deleted_at",
+        "id, name, client_id, coach_id, start_date, end_date, deleted_at",
         "id",
         exercises.map(e => e.workout_plan_id)
       )).filter(p => !p.deleted_at);
@@ -183,6 +200,7 @@ const AdminReportsPage = () => {
 
     const userMap = new Map(profiles?.map(p => [p.user_id, `${p.first_name} ${p.last_name}`]) || []);
     const exercisePlanMap = new Map(exercises.map(e => [e.id, e.workout_plan_id]));
+    const planMap = new Map(plans.map(p => [p.id, p]));
 
     const clientMap = new Map<string, ClientSummary>();
     const clientPlanSets = new Map<string, Set<string>>();
@@ -191,8 +209,9 @@ const AdminReportsPage = () => {
       if (!c.client_notes && (!c.difficulty_rating || c.difficulty_rating <= 0)) return;
       const planId = exercisePlanMap.get(c.workout_plan_exercise_id);
       if (!planId) return;
-      const plan = plans.find(p => p.id === planId);
+      const plan = planMap.get(planId);
       if (!plan) return;
+      if (!isValidPlanWeek(c.set_number, plan)) return;
 
       if (!clientMap.has(c.client_id)) {
         clientMap.set(c.client_id, {
@@ -284,7 +303,8 @@ const AdminReportsPage = () => {
         planExercises.forEach(ex => {
           const day = ex.day_of_week || 1;
           if (!dayMap.has(day)) dayMap.set(day, []);
-          const weeks = completionsByExercise.get(ex.id) || [];
+          const weeks = (completionsByExercise.get(ex.id) || [])
+            .filter(week => isValidPlanWeek(week.week_number, plan));
           if (weeks.length > 0) {
             dayMap.get(day)!.push({
               id: ex.id,
@@ -402,7 +422,9 @@ const AdminReportsPage = () => {
                     <User className="w-5 h-5 text-primary" />
                   </div>
                   <div>
-                    <p className="font-medium">{client.name}</p>
+                    <p className="font-medium">
+                      <ClientLink userId={client.id}>{client.name}</ClientLink>
+                    </p>
                     <p className="text-xs text-muted-foreground">
                       {client.feedbackCount} feedback in {client.planCount} schede • ultimo: {format(parseISO(client.lastDate), "dd MMM yyyy", { locale: it })}
                     </p>
@@ -422,7 +444,9 @@ const AdminReportsPage = () => {
             <ArrowLeft className="w-4 h-4" />
             Torna all'elenco clienti
           </button>
-          <h2 className="text-lg font-display tracking-wider">{selectedClientName}</h2>
+          <h2 className="text-lg font-display tracking-wider">
+            <ClientLink userId={selectedClientId}>{selectedClientName}</ClientLink>
+          </h2>
 
           {loadingPlans ? (
             <div className="flex items-center justify-center py-12">
