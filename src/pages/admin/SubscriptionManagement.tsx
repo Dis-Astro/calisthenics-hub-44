@@ -25,7 +25,6 @@ import {
   Users,
   RefreshCw,
   Package,
-  Minus,
   Trash2,
   Edit
 } from "lucide-react";
@@ -41,8 +40,9 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import AdminLayout from "@/components/admin/AdminLayout";
+import ClientLink from "@/components/admin/ClientLink";
 import type { Database } from "@/integrations/supabase/types";
-import { format, addMonths, differenceInDays, isPast, isFuture } from "date-fns";
+import { format, addMonths, differenceInDays, endOfMonth, isPast, startOfMonth } from "date-fns";
 import { it } from "date-fns/locale";
 import { useSearchParams } from "react-router-dom";
 type SubscriptionStatus = Database["public"]["Enums"]["subscription_status"];
@@ -135,8 +135,9 @@ const SubscriptionManagement = () => {
   const { profile } = useAuth();
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState("subscriptions");
+  const [activeTab, setActiveTab] = useState("monthly");
   const [statusFilter, setStatusFilter] = useState<string>(searchParams.get("filter") || "tutti");
+  const [billingMonth, setBillingMonth] = useState(format(new Date(), "yyyy-MM"));
   
   // Data states
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -226,7 +227,7 @@ const SubscriptionManagement = () => {
         .from("payments")
         .select("*")
         .order("payment_date", { ascending: false })
-        .limit(50),
+        .limit(1000),
       supabase
         .from("profiles")
         .select("*")
@@ -623,6 +624,26 @@ const SubscriptionManagement = () => {
     return true;
   });
 
+  const selectedBillingMonth = billingMonth || format(new Date(), "yyyy-MM");
+  const selectedMonthStart = startOfMonth(new Date(`${selectedBillingMonth}-01T00:00:00`));
+  const selectedMonthEnd = endOfMonth(selectedMonthStart);
+  const selectedMonthLabel = format(selectedMonthStart, "MMMM yyyy", { locale: it });
+
+  const isInSelectedMonth = (dateValue: string) => {
+    const date = new Date(`${dateValue.slice(0, 10)}T00:00:00`);
+    return date >= selectedMonthStart && date <= selectedMonthEnd;
+  };
+
+  const filteredPayments = payments.filter(payment => isInSelectedMonth(payment.payment_date));
+  const monthlyCompletedPayments = filteredPayments.filter(payment => payment.status === "completato");
+  const monthlyRevenue = monthlyCompletedPayments.reduce((total, payment) => total + payment.amount, 0);
+  const monthlyDueSubscriptions = subscriptions
+    .filter(sub => isInSelectedMonth(sub.end_date))
+    .sort((a, b) => new Date(a.end_date).getTime() - new Date(b.end_date).getTime());
+  const monthlyUnpaidDueSubscriptions = monthlyDueSubscriptions.filter(sub =>
+    !monthlyCompletedPayments.some(payment => payment.subscription_id === sub.id)
+  );
+
   const expiringCount = subscriptions.filter(s => {
     const daysLeft = differenceInDays(new Date(s.end_date), new Date());
     return daysLeft <= 7 && daysLeft >= 0;
@@ -675,6 +696,7 @@ const SubscriptionManagement = () => {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="min-w-0">
         <div className="flex flex-col gap-4 mb-6 justify-between min-w-0">
           <TabsList className="grid h-auto w-full grid-cols-2 gap-1 md:inline-flex md:h-10 md:w-auto">
+            <TabsTrigger value="monthly">Mensile</TabsTrigger>
             <TabsTrigger value="subscriptions">Abbonamenti</TabsTrigger>
             <TabsTrigger value="packages">Pacchetti Lezioni</TabsTrigger>
             <TabsTrigger value="payments">Pagamenti</TabsTrigger>
@@ -695,6 +717,13 @@ const SubscriptionManagement = () => {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input placeholder="Cerca cliente..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
             </div>
+            <Input
+              type="month"
+              value={billingMonth}
+              onChange={(e) => setBillingMonth(e.target.value)}
+              className="w-full md:w-[170px]"
+              aria-label="Mese contabile"
+            />
             <Dialog open={isSubscriptionDialogOpen} onOpenChange={setIsSubscriptionDialogOpen}>
               <DialogTrigger asChild>
                 <Button className="gap-2 w-full md:w-auto"><Plus className="w-4 h-4" />Nuovo Abbonamento</Button>
@@ -780,6 +809,198 @@ const SubscriptionManagement = () => {
           </div>
         </div>
 
+        <TabsContent value="monthly">
+          <div className="space-y-4">
+            <Card>
+              <CardContent className="p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Mese operativo</p>
+                  <p className="text-xl font-display tracking-wider">{selectedMonthLabel}</p>
+                </div>
+                <div className="flex w-full flex-col gap-2 md:w-auto">
+                  <Label htmlFor="billing-month-panel" className="text-xs text-muted-foreground">Seleziona mese</Label>
+                  <Input
+                    id="billing-month-panel"
+                    type="month"
+                    value={billingMonth}
+                    onChange={(e) => setBillingMonth(e.target.value)}
+                    className="w-full md:w-[180px]"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <Card>
+                <CardContent className="p-4 flex items-center gap-4">
+                  <Euro className="w-9 h-9 text-primary" />
+                  <div>
+                    <p className="text-2xl font-display">€{monthlyRevenue.toFixed(2)}</p>
+                    <p className="text-sm text-muted-foreground">Incassato {selectedMonthLabel}</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4 flex items-center gap-4">
+                  <CreditCard className="w-9 h-9 text-primary" />
+                  <div>
+                    <p className="text-2xl font-display">{monthlyCompletedPayments.length}</p>
+                    <p className="text-sm text-muted-foreground">Pagamenti completati</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4 flex items-center gap-4">
+                  <Calendar className="w-9 h-9 text-muted-foreground" />
+                  <div>
+                    <p className="text-2xl font-display">{monthlyDueSubscriptions.length}</p>
+                    <p className="text-sm text-muted-foreground">Scadenze nel mese</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4 flex items-center gap-4">
+                  <AlertTriangle className="w-9 h-9 text-destructive" />
+                  <div>
+                    <p className="text-2xl font-display">{monthlyUnpaidDueSubscriptions.length}</p>
+                    <p className="text-sm text-muted-foreground">Da verificare</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="font-display tracking-wider">Scadenze del mese</CardTitle>
+                  <CardDescription>{monthlyDueSubscriptions.length} abbonamenti in scadenza</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {loading ? (
+                    <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+                  ) : monthlyDueSubscriptions.length === 0 ? (
+                    <div className="text-center py-10 text-muted-foreground"><Calendar className="w-10 h-10 mx-auto mb-3 opacity-50" /><p>Nessuna scadenza nel mese selezionato</p></div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Cliente</TableHead>
+                          <TableHead>Piano</TableHead>
+                          <TableHead>Scadenza</TableHead>
+                          <TableHead>Stato</TableHead>
+                          <TableHead className="text-right">Azioni</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {monthlyDueSubscriptions.map((sub) => {
+                          const expStatus = getExpirationStatus(sub.end_date);
+                          const hasCompletedPayment = monthlyCompletedPayments.some(payment => payment.subscription_id === sub.id);
+                          return (
+                            <TableRow key={sub.id}>
+                              <TableCell>
+                                {sub.profiles ? (
+                                  <ClientLink userId={sub.user_id}>{sub.profiles.first_name} {sub.profiles.last_name}</ClientLink>
+                                ) : (
+                                  <span className="text-muted-foreground italic">Utente eliminato</span>
+                                )}
+                              </TableCell>
+                              <TableCell>{sub.membership_plans?.name || "Piano"}</TableCell>
+                              <TableCell>{format(new Date(sub.end_date), "dd MMM yyyy", { locale: it })}</TableCell>
+                              <TableCell>
+                                <div className="flex flex-wrap gap-1">
+                                  <Badge variant={expStatus.variant} className="gap-1">
+                                    <expStatus.icon className="w-3 h-3" />{expStatus.label}
+                                  </Badge>
+                                  {hasCompletedPayment && <Badge variant="outline">Pagato</Badge>}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex justify-end gap-1">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 gap-1"
+                                    onClick={() => handleRenewSubscription(sub)}
+                                    disabled={renewingId === sub.id}
+                                  >
+                                    {renewingId === sub.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                                    Rinnova
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    className="h-8 gap-1"
+                                    onClick={() => {
+                                      setNewPayment({
+                                        subscription_id: sub.id,
+                                        amount: sub.membership_plans?.price?.toString() || "",
+                                        method: "contanti",
+                                        notes: "",
+                                      });
+                                      setIsPaymentDialogOpen(true);
+                                    }}
+                                  >
+                                    <Euro className="w-3 h-3" />
+                                    Paga
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="font-display tracking-wider">Incassi del mese</CardTitle>
+                  <CardDescription>{filteredPayments.length} pagamenti registrati</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {loading ? (
+                    <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+                  ) : filteredPayments.length === 0 ? (
+                    <div className="text-center py-10 text-muted-foreground"><Euro className="w-10 h-10 mx-auto mb-3 opacity-50" /><p>Nessun pagamento nel mese selezionato</p></div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Data</TableHead>
+                          <TableHead>Cliente</TableHead>
+                          <TableHead>Importo</TableHead>
+                          <TableHead>Stato</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredPayments.map((payment) => (
+                          <TableRow key={payment.id}>
+                            <TableCell>{format(new Date(payment.payment_date), "dd MMM yyyy", { locale: it })}</TableCell>
+                            <TableCell>
+                              {payment.profiles ? (
+                                <ClientLink userId={payment.user_id}>{payment.profiles.first_name} {payment.profiles.last_name}</ClientLink>
+                              ) : (
+                                <span className="text-muted-foreground italic">Utente eliminato</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="font-medium">€{payment.amount.toFixed(2)}</TableCell>
+                            <TableCell>
+                              <Badge variant={payment.status === "completato" ? "default" : "secondary"}>
+                                {paymentStatusLabels[payment.status]}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </TabsContent>
+
         <TabsContent value="subscriptions">
           <Card>
             <CardHeader>
@@ -807,7 +1028,13 @@ const SubscriptionManagement = () => {
                         const roleVariant = sub.profiles?.role === 'cliente_coaching' ? 'default' : sub.profiles?.role === 'cliente_corso' ? 'secondary' : 'outline';
                         return (
                           <TableRow key={sub.id}>
-                            <TableCell className="font-medium">{sub.profiles ? `${sub.profiles.first_name} ${sub.profiles.last_name}` : <span className="text-muted-foreground italic">Utente eliminato ({sub.user_id.slice(0, 8)})</span>}</TableCell>
+                            <TableCell>
+                              {sub.profiles ? (
+                                <ClientLink userId={sub.user_id}>{sub.profiles.first_name} {sub.profiles.last_name}</ClientLink>
+                              ) : (
+                                <span className="text-muted-foreground italic">Utente eliminato ({sub.user_id.slice(0, 8)})</span>
+                              )}
+                            </TableCell>
                             <TableCell><Badge variant={roleVariant as any}>{roleLabel}</Badge></TableCell>
                             <TableCell>{sub.membership_plans?.name}</TableCell>
                             <TableCell>{format(new Date(sub.start_date), "dd MMM yyyy", { locale: it })}</TableCell>
@@ -976,7 +1203,11 @@ const SubscriptionManagement = () => {
                         const usedLessons = pkg.total_lessons - pkg.remaining_lessons;
                         return (
                           <TableRow key={pkg.id}>
-                            <TableCell className="font-medium">{client ? `${client.first_name} ${client.last_name}` : "—"}</TableCell>
+                            <TableCell>
+                              {client ? (
+                                <ClientLink userId={client.user_id}>{client.first_name} {client.last_name}</ClientLink>
+                              ) : "—"}
+                            </TableCell>
                             <TableCell>{pkg.total_lessons}</TableCell>
                             <TableCell>
                               <Badge variant={pkg.remaining_lessons === 0 ? "destructive" : pkg.remaining_lessons <= 2 ? "secondary" : "default"}>
@@ -1005,15 +1236,27 @@ const SubscriptionManagement = () => {
 
         <TabsContent value="payments">
           <Card>
-            <CardHeader>
-              <CardTitle className="font-display tracking-wider">Storico Pagamenti</CardTitle>
-              <CardDescription>Ultimi {payments.length} pagamenti registrati</CardDescription>
+            <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <CardTitle className="font-display tracking-wider">Storico Pagamenti</CardTitle>
+                <CardDescription>{filteredPayments.length} pagamenti in {selectedMonthLabel}</CardDescription>
+              </div>
+              <div className="flex w-full flex-col gap-2 md:w-auto">
+                <Label htmlFor="payments-month" className="text-xs text-muted-foreground">Mese pagamenti</Label>
+                <Input
+                  id="payments-month"
+                  type="month"
+                  value={billingMonth}
+                  onChange={(e) => setBillingMonth(e.target.value)}
+                  className="w-full md:w-[180px]"
+                />
+              </div>
             </CardHeader>
             <CardContent>
               {loading ? (
                 <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
-              ) : payments.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground"><Euro className="w-12 h-12 mx-auto mb-4 opacity-50" /><p>Nessun pagamento registrato</p></div>
+              ) : filteredPayments.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground"><Euro className="w-12 h-12 mx-auto mb-4 opacity-50" /><p>Nessun pagamento nel mese selezionato</p></div>
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
@@ -1025,12 +1268,18 @@ const SubscriptionManagement = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {payments.map((payment) => {
+                      {filteredPayments.map((payment) => {
                         const linkedSub = subscriptions.find(s => s.id === payment.subscription_id);
                         return (
                           <TableRow key={payment.id}>
                             <TableCell>{format(new Date(payment.payment_date), "dd MMM yyyy", { locale: it })}</TableCell>
-                            <TableCell className="font-medium">{payment.profiles ? `${payment.profiles.first_name} ${payment.profiles.last_name}` : <span className="text-muted-foreground italic">Utente eliminato</span>}</TableCell>
+                            <TableCell>
+                              {payment.profiles ? (
+                                <ClientLink userId={payment.user_id}>{payment.profiles.first_name} {payment.profiles.last_name}</ClientLink>
+                              ) : (
+                                <span className="text-muted-foreground italic">Utente eliminato</span>
+                              )}
+                            </TableCell>
                             <TableCell className="font-medium">€{payment.amount.toFixed(2)}</TableCell>
                             <TableCell className="capitalize">{payment.method}</TableCell>
                             <TableCell>

@@ -1,13 +1,36 @@
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, parseISO, addHours } from "date-fns";
 
+export function getReminderAppointmentCopy(params: {
+  planType?: string;
+  clientName: string;
+  planName?: string | null;
+  endDate: string;
+}) {
+  const { planType, clientName, planName, endDate } = params;
+  const isTest = planType === "test";
+  const expiresOn = format(parseISO(endDate), "dd/MM/yyyy");
+
+  return isTest
+    ? {
+        title: `📋 Prepara scheda — ${clientName}`,
+        description: `Test "${planName || ""}" in scadenza il ${expiresOn}. Prepara la prossima scheda di allenamento.`,
+      }
+    : {
+        title: `🧪 Prepara test — ${clientName}`,
+        description: `Scheda "${planName || ""}" in scadenza il ${expiresOn}. Prepara il test di valutazione.`,
+      };
+}
+
 /**
- * Crea/aggiorna/elimina l'appuntamento "Prepara Test" sul calendario del coach
- * collegato a una scheda di allenamento.
+ * Crea/aggiorna/elimina l'appuntamento di promemoria sul calendario del coach
+ * collegato a una scheda o a un test.
  *
- * - Se reminderDays = 0 → elimina l'eventuale appuntamento esistente
- * - Se esiste già un appuntamento (reminder_appointment_id) → lo aggiorna
- * - Altrimenti → ne crea uno nuovo e salva il riferimento sulla scheda
+ * - Scheda in scadenza -> "Prepara test"
+ * - Test in scadenza -> "Prepara scheda"
+ * - Se reminderDays = 0 -> elimina l'eventuale appuntamento esistente
+ * - Se esiste già un appuntamento (reminder_appointment_id) -> lo aggiorna
+ * - Altrimenti -> ne crea uno nuovo e salva il riferimento sulla scheda/test
  */
 export async function syncTestReminderAppointment(params: {
   planId: string;
@@ -18,9 +41,6 @@ export async function syncTestReminderAppointment(params: {
   planType?: string;
 }) {
   const { planId, coachId, clientId, endDate, reminderDays, planType } = params;
-
-  // Ignora i piani di tipo "test" — il reminder vale solo per le schede vere
-  if (planType === "test") return;
 
   // Recupera il riferimento attuale
   const { data: planRow } = await supabase
@@ -65,14 +85,20 @@ export async function syncTestReminderAppointment(params: {
   const clientName = clientProfile
     ? `${clientProfile.first_name} ${clientProfile.last_name}`
     : "Cliente";
+  const appointmentCopy = getReminderAppointmentCopy({
+    planType,
+    clientName,
+    planName: planRow?.name,
+    endDate,
+  });
 
   // IMPORTANTE: niente client_id → l'appuntamento resta privato del coach
   // (le RLS appointments rendono visibili al cliente solo gli appuntamenti dove client_id = auth.uid()).
   const appointmentData = {
     coach_id: coachId,
     client_id: null as any,
-    title: `🧪 Prepara test — ${clientName}`,
-    description: `Scheda "${planRow?.name || ""}" in scadenza il ${format(parseISO(endDate), "dd/MM/yyyy")}. Prepara il test di valutazione.`,
+    title: appointmentCopy.title,
+    description: appointmentCopy.description,
     start_time: startTime.toISOString(),
     end_time: endTime.toISOString(),
     color: "#f97316",
@@ -132,10 +158,10 @@ export async function deleteTestReminderAppointment(planId: string) {
 }
 
 /**
- * Genera retroattivamente i reminder per tutte le schede attive con scadenza futura
+ * Genera retroattivamente i reminder per tutte le schede/test attivi con scadenza futura
  * che non hanno ancora un reminder_appointment_id
  */
-export async function backfillTestReminders(): Promise<{ created: number; skipped: number }> {
+export async function backfillTestReminders(): Promise<{ created: number; updated: number; skipped: number }> {
   const today = format(new Date(), "yyyy-MM-dd");
 
   const { data: plans } = await supabase
@@ -145,25 +171,36 @@ export async function backfillTestReminders(): Promise<{ created: number; skippe
     .gte("end_date", today)
     .is("deleted_at" as any, null);
 
-  if (!plans) return { created: 0, skipped: 0 };
+  if (!plans) return { created: 0, updated: 0, skipped: 0 };
 
   let created = 0;
+  let updated = 0;
   let skipped = 0;
 
   for (const p of plans as any[]) {
-    if (p.plan_type === "test") {
-      skipped++;
-      continue;
-    }
-    if (p.reminder_appointment_id) {
-      skipped++;
-      continue;
-    }
     const reminderDays = p.test_reminder_days ?? 7;
     if (reminderDays <= 0) {
       skipped++;
       continue;
     }
+
+    if (p.reminder_appointment_id) {
+      if (p.plan_type === "test") {
+        await syncTestReminderAppointment({
+          planId: p.id,
+          coachId: p.coach_id,
+          clientId: p.client_id,
+          endDate: p.end_date,
+          reminderDays,
+          planType: p.plan_type,
+        });
+        updated++;
+      } else {
+        skipped++;
+      }
+      continue;
+    }
+
     await syncTestReminderAppointment({
       planId: p.id,
       coachId: p.coach_id,
@@ -175,5 +212,5 @@ export async function backfillTestReminders(): Promise<{ created: number; skippe
     created++;
   }
 
-  return { created, skipped };
+  return { created, updated, skipped };
 }

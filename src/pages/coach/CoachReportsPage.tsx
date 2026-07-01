@@ -43,6 +43,22 @@ function renderColoredText(value: string) {
   });
 }
 
+const toDateOnly = (value: string) => {
+  const date = new Date(`${value}T00:00:00`);
+  date.setHours(0, 0, 0, 0);
+  return date;
+};
+
+const getPlanTotalWeeks = (startDate: string, endDate: string) => {
+  const start = toDateOnly(startDate);
+  const end = toDateOnly(endDate);
+  const diffDays = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+  return Math.max(1, Math.ceil(diffDays / 7));
+};
+
+const isValidPlanWeek = (weekNumber: number | null, plan: { start_date: string; end_date: string }) =>
+  Boolean(weekNumber && weekNumber >= 1 && weekNumber <= getPlanTotalWeeks(plan.start_date, plan.end_date));
+
 interface ClientSummary {
   id: string;
   name: string;
@@ -104,7 +120,7 @@ const CoachReportsPage = () => {
 
     const { data: plans } = await supabase
       .from("workout_plans")
-      .select("id, name, client_id")
+      .select("id, name, client_id, start_date, end_date")
       .eq("coach_id", profile?.user_id)
       .is("deleted_at" as any, null);
 
@@ -132,7 +148,7 @@ const CoachReportsPage = () => {
 
     const { data: completions } = await supabase
       .from("workout_completions")
-      .select("id, client_id, workout_plan_exercise_id, completed_at, client_notes, difficulty_rating")
+      .select("id, client_id, workout_plan_exercise_id, completed_at, client_notes, difficulty_rating, set_number")
       .in("workout_plan_exercise_id", exerciseIds)
       .or("client_notes.not.is.null,difficulty_rating.gt.0");
 
@@ -143,6 +159,7 @@ const CoachReportsPage = () => {
 
     const userMap = new Map(profiles?.map(p => [p.user_id, `${p.first_name} ${p.last_name}`]) || []);
     const exercisePlanMap = new Map(exercises.map(e => [e.id, e.workout_plan_id]));
+    const planMap = new Map(plans.map(p => [p.id, p]));
 
     const clientMap = new Map<string, ClientSummary>();
     const clientPlanSets = new Map<string, Set<string>>();
@@ -151,6 +168,9 @@ const CoachReportsPage = () => {
       if (!c.client_notes && (!c.difficulty_rating || c.difficulty_rating <= 0)) return;
       const planId = exercisePlanMap.get(c.workout_plan_exercise_id);
       if (!planId) return;
+      const plan = planMap.get(planId);
+      if (!plan) return;
+      if (!isValidPlanWeek(c.set_number, plan)) return;
 
       if (!clientMap.has(c.client_id)) {
         clientMap.set(c.client_id, {
@@ -228,7 +248,8 @@ const CoachReportsPage = () => {
         planExercises.forEach(ex => {
           const day = ex.day_of_week || 1;
           if (!dayMap.has(day)) dayMap.set(day, []);
-          const weeks = completionsByExercise.get(ex.id) || [];
+          const weeks = (completionsByExercise.get(ex.id) || [])
+            .filter(week => isValidPlanWeek(week.week_number, plan));
           if (weeks.length > 0) {
             dayMap.get(day)!.push({
               id: ex.id, name: ex.exercise_name || "Esercizio",

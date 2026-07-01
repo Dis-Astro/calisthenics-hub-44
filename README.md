@@ -1,73 +1,70 @@
-# Welcome to your Lovable project
+# Calisthenics Webapp
 
-## Project info
+Webapp gestionale per palestra/calisthenics con aree pubbliche, admin, segreteria, coach e clienti. Il backend attuale resta Supabase; il deploy statico produce `dist` per Cloudflare.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Stack
 
-## How can I edit this code?
+- React 18 + TypeScript
+- Vite 8
+- Tailwind CSS + shadcn/Radix
+- Supabase Auth, Database, Storage ed Edge Functions
+- Cloudflare build da `wrangler.toml`
 
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+## Setup locale
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+npm install
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+Variabili richieste:
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+```sh
+VITE_SUPABASE_URL=
+VITE_SUPABASE_PUBLISHABLE_KEY=
+```
 
-**Use GitHub Codespaces**
+## Comandi
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+```sh
+npm run typecheck
+npm run lint
+npm run test
+npm run build
+npm run check
+```
 
-## What technologies are used for this project?
+## Deploy Cloudflare
 
-This project is built with:
+Impostazioni consigliate per Cloudflare Pages collegato a GitHub:
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+- Framework preset: `Vite`
+- Install command: `npm install --no-audit --no-fund`
+- Build command: `npm run build`
+- Build output directory: `dist`
+- Node version: `22.16.0` (pinzata anche in `.node-version`)
 
-## How can I deploy this project?
+Variabili di ambiente da configurare in Cloudflare Pages, sezione
+`Settings > Environment variables`, per Production e Preview:
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+```sh
+VITE_SUPABASE_URL=
+VITE_SUPABASE_PUBLISHABLE_KEY=
+```
 
-## Can I connect a custom domain to my Lovable project?
+Dopo averle aggiunte o modificate, avviare un nuovo deploy: Vite incorpora le
+variabili `VITE_*` durante la build.
 
-Yes, you can!
+`wrangler.toml` espone `pages_build_output_dir = "./dist"` e le variabili
+pubbliche Supabase disponibili a Pages. Il comando di build va comunque
+impostato nel pannello Cloudflare Pages, in `Settings > Builds and deployments`,
+perche' Cloudflare non lo legge dal `wrangler.toml`.
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+`public/_redirects` contiene le riscritture delle route React verso `index.html`.
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+## Note tecniche
+
+- Le route sono caricate in lazy loading da `src/App.tsx`.
+- Il database non viene modificato da questa pulizia: le migrazioni Supabase restano in `supabase/migrations`.
+- Le Edge Function admin sono in `supabase/functions`.
+- Riferimenti per la futura app mobile: `docs/MOBILE_APP_REFERENCE.md`.

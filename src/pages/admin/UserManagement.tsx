@@ -13,6 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import { Users, UserPlus, Search, Loader2, Trash2, Edit, Eye } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
+import ClientLink from "@/components/admin/ClientLink";
 import type { Database } from "@/integrations/supabase/types";
 
 type UserRole = Database["public"]["Enums"]["user_role"];
@@ -329,7 +330,9 @@ const UserManagement = () => {
                       className="cursor-pointer hover:bg-muted/50"
                       onClick={() => navigate(`/admin/utenti/${user.user_id}`)}
                     >
-                      <TableCell className="font-medium">{user.first_name} {user.last_name}</TableCell>
+                      <TableCell>
+                        <ClientLink userId={user.user_id}>{user.first_name} {user.last_name}</ClientLink>
+                      </TableCell>
                       <TableCell>
                         <Badge variant={roleBadgeVariant[user.role]}>{roleLabels[user.role]}</Badge>
                       </TableCell>

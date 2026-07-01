@@ -7,7 +7,7 @@ import {
   TrendingUp,
   Play,
   FileText,
-  
+  MessageSquare,
   LogOut,
   Menu,
   X,
@@ -36,7 +36,7 @@ const ClientLayout = ({ children, title }: ClientLayoutProps) => {
     { icon: Archive, label: "Archivio Schede", href: "/coaching/archivio" },
     { icon: TrendingUp, label: "I Miei Progressi", href: "/coaching/progressi" },
     { icon: Calendar, label: "Appuntamenti", href: "/coaching/appuntamenti" },
-    
+    { icon: MessageSquare, label: "Segnala Problema", href: "/coaching/segnala" },
     { icon: FileText, label: "Documenti", href: "/coaching/documenti" },
   ];
 

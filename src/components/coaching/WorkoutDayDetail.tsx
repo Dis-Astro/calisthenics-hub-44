@@ -83,6 +83,20 @@ interface WorkoutPlan {
   end_date: string;
 }
 
+const COMMENT_GRACE_DAYS = 7;
+
+const toDateOnly = (value: string | Date) => {
+  const date = value instanceof Date ? new Date(value) : new Date(`${value}T00:00:00`);
+  date.setHours(0, 0, 0, 0);
+  return date;
+};
+
+const addDaysToDate = (date: Date, days: number) => {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
+};
+
 const WorkoutDayDetail = () => {
   const { dayId } = useParams<{ dayId: string }>();
   const [searchParams] = useSearchParams();
@@ -99,21 +113,29 @@ const WorkoutDayDetail = () => {
   const dayNumber = parseInt(dayId || "1");
 
   const calculateCurrentWeek = (startDate: string, endDate: string): number => {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const today = new Date();
-    // Se la scheda è scaduta, sblocca tutte le settimane (corrente = totale)
+    const start = toDateOnly(startDate);
+    const end = toDateOnly(endDate);
+    const today = toDateOnly(new Date());
     const reference = today > end ? end : today;
     const diffDays = Math.floor((reference.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
     return Math.max(1, Math.floor(diffDays / 7) + 1);
   };
 
   const calculateTotalWeeks = (startDate: string, endDate: string): number => {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    const start = toDateOnly(startDate);
+    const end = toDateOnly(endDate);
     const diffDays = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
     return Math.max(1, Math.ceil(diffDays / 7));
   };
+
+  const isCommentWindowOpen = () => {
+    if (!plan) return false;
+    const lockDate = addDaysToDate(toDateOnly(plan.end_date), COMMENT_GRACE_DAYS);
+    return toDateOnly(new Date()) <= lockDate;
+  };
+
+  const canEditWeek = (weekNumber: number): boolean =>
+    isCommentWindowOpen() && weekNumber >= 1 && weekNumber <= Math.min(currentWeek, totalWeeks);
 
   useEffect(() => {
     if (profile?.user_id) fetchDayExercises();
@@ -253,6 +275,11 @@ const WorkoutDayDetail = () => {
     const weekData = exercise?.weekCompletions.find(w => w.week_number === weekNumber);
     if (!exercise || !weekData || !profile?.user_id) return;
 
+    if (!canEditWeek(weekNumber)) {
+      toast.error("Questa settimana non e' piu' compilabile per la scheda selezionata");
+      return;
+    }
+
     setSaving(`${exerciseId}-${weekNumber}`);
 
     try {
@@ -295,11 +322,12 @@ const WorkoutDayDetail = () => {
     return { completed, total, isComplete: completed === total };
   };
 
-  const canRateWeek = (weekNumber: number): boolean => weekNumber <= currentWeek;
-
   if (loading) {
     return <div className="flex items-center justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
   }
+
+  const commentsOpen = isCommentWindowOpen();
+  const lockDate = plan ? addDaysToDate(toDateOnly(plan.end_date), COMMENT_GRACE_DAYS) : null;
 
   return (
     <div className="max-w-2xl mx-auto space-y-4">
@@ -312,6 +340,19 @@ const WorkoutDayDetail = () => {
           <p className="text-sm text-muted-foreground">{plan?.name} • Settimana {currentWeek} di {totalWeeks}</p>
         </div>
       </div>
+
+      {plan && (
+        <div className={`rounded-lg border p-3 text-sm ${commentsOpen ? "border-primary/20 bg-primary/5" : "border-destructive/20 bg-destructive/5 text-destructive"}`}>
+          {commentsOpen ? (
+            <p>
+              Puoi compilare le settimane gia' aperte fino alla chiusura della scheda
+              {lockDate ? ` (${lockDate.toLocaleDateString("it-IT")})` : ""}. Le settimane future restano bloccate.
+            </p>
+          ) : (
+            <p>Scheda archiviata: i commenti sono bloccati e restano visibili solo nello storico.</p>
+          )}
+        </div>
+      )}
 
       <div className="space-y-3">
         {exercises.map((exercise, index) => {
@@ -381,7 +422,7 @@ const WorkoutDayDetail = () => {
                     {(() => {
                       const ratedWeeks = exercise.weekCompletions
                         .filter((w) => w.saved || w.client_notes || w.difficulty_rating > 0)
-                        .filter((w) => !(w.week_number === currentWeek && !w.saved)) // escludi corrente in editing
+                        .filter((w) => !canEditWeek(w.week_number))
                         .sort((a, b) => a.week_number - b.week_number);
 
                       if (ratedWeeks.length === 0) return null;
@@ -412,10 +453,17 @@ const WorkoutDayDetail = () => {
                     })()}
 
                     {/* Editor per la settimana corrente (sempre visibile finché compilabile) + placeholder future */}
+                    {!commentsOpen && (
+                      <div className="p-3 rounded-lg border border-dashed border-destructive/30 bg-destructive/5 text-sm text-destructive">
+                        Commenti chiusi per questa scheda. Se serve riaprire il lavoro, crea o rinnova una scheda dal pannello admin.
+                      </div>
+                    )}
+
                     {exercise.weekCompletions
-                      .filter((w) => w.week_number >= currentWeek)
+                      .filter((w) => canEditWeek(w.week_number) || (commentsOpen && w.week_number > currentWeek))
                       .map((week) => {
                         const isCurrentWeek = week.week_number === currentWeek;
+                        const isPastUnfilled = week.week_number < currentWeek && !week.saved;
                         const isFutureWeek = week.week_number > currentWeek;
 
                         // Settimane future non valutate: placeholder discreto
@@ -436,6 +484,7 @@ const WorkoutDayDetail = () => {
                               <div className="flex items-center gap-2">
                                 <span className="font-display text-lg">Settimana {week.week_number}</span>
                                 {isCurrentWeek && !week.saved && <Badge variant="secondary" className="text-xs">Corrente</Badge>}
+                                {isPastUnfilled && <Badge variant="secondary" className="text-xs">Da compilare</Badge>}
                                 {week.saved && <Badge variant="default" className="text-xs">Modifica</Badge>}
                               </div>
                               {week.saved && <CheckCircle2 className="w-5 h-5 text-primary" />}

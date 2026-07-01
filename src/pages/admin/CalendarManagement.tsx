@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import AdminLayout from "@/components/admin/AdminLayout";
+import ClientLink from "@/components/admin/ClientLink";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -279,28 +280,89 @@ const CalendarManagement = () => {
     const pkg = getClientPackage(clientId);
     if (!pkg) return;
 
-    // Decrement remaining_lessons
-    const { error: updateError } = await supabase
-      .from("lesson_packages")
-      .update({ remaining_lessons: pkg.remaining_lessons - 1 })
-      .eq("id", pkg.id);
+    const { data: existingUsage } = await supabase
+      .from("lesson_usage_log")
+      .select("id")
+      .eq("appointment_id", appointmentId)
+      .maybeSingle();
 
-    if (updateError) {
-      console.error("Error decrementing lesson package:", updateError);
+    if (existingUsage) return;
+
+    const { data: currentPkg, error: packageError } = await supabase
+      .from("lesson_packages")
+      .select("id, remaining_lessons, total_lessons")
+      .eq("id", pkg.id)
+      .single();
+
+    if (packageError || !currentPkg || currentPkg.remaining_lessons <= 0) {
+      toast({ title: "Pacchetto non scalato", description: "Nessuna lezione disponibile per questo cliente", variant: "destructive" });
       return;
     }
 
-    // Log the usage
-    await supabase.from("lesson_usage_log").insert({
-      package_id: pkg.id,
+    const nextRemaining = currentPkg.remaining_lessons - 1;
+    const { error: updateError } = await supabase
+      .from("lesson_packages")
+      .update({ remaining_lessons: nextRemaining })
+      .eq("id", currentPkg.id)
+      .eq("remaining_lessons", currentPkg.remaining_lessons);
+
+    if (updateError) {
+      console.error("Error decrementing lesson package:", updateError);
+      toast({ title: "Pacchetto non scalato", description: "Riprova dopo aver aggiornato il calendario", variant: "destructive" });
+      return;
+    }
+
+    const { error: logError } = await supabase.from("lesson_usage_log").insert({
+      package_id: currentPkg.id,
       appointment_id: appointmentId,
       created_by: profile?.user_id
     });
 
+    if (logError) {
+      await supabase
+        .from("lesson_packages")
+        .update({ remaining_lessons: currentPkg.remaining_lessons })
+        .eq("id", currentPkg.id);
+      toast({ title: "Pacchetto non scalato", description: "Impossibile registrare l'utilizzo della lezione", variant: "destructive" });
+      return;
+    }
+
     toast({
       title: "Lezione scalata",
-      description: `Pacchetto: ${pkg.remaining_lessons - 1}/${pkg.total_lessons} lezioni rimanenti`
+      description: `Pacchetto: ${nextRemaining}/${currentPkg.total_lessons} lezioni rimanenti`
     });
+  };
+
+  const restoreLessonPackageForAppointment = async (appointmentId: string) => {
+    const { data: usage, error: usageError } = await supabase
+      .from("lesson_usage_log")
+      .select("id, package_id")
+      .eq("appointment_id", appointmentId)
+      .maybeSingle();
+
+    if (usageError || !usage) return;
+
+    const { data: pkg, error: packageError } = await supabase
+      .from("lesson_packages")
+      .select("id, remaining_lessons, total_lessons")
+      .eq("id", usage.package_id)
+      .single();
+
+    if (packageError || !pkg) return;
+
+    const restoredRemaining = Math.min(pkg.remaining_lessons + 1, pkg.total_lessons);
+    const { error: updateError } = await supabase
+      .from("lesson_packages")
+      .update({ remaining_lessons: restoredRemaining })
+      .eq("id", pkg.id);
+
+    if (updateError) {
+      toast({ title: "Lezione non ripristinata", description: "Controlla il pacchetto del cliente", variant: "destructive" });
+      return;
+    }
+
+    await supabase.from("lesson_usage_log").delete().eq("id", usage.id);
+    toast({ title: "Lezione ripristinata", description: `Pacchetto: ${restoredRemaining}/${pkg.total_lessons} lezioni rimanenti` });
   };
 
   // --- Click on day to create appointment (pre-fill date) ---
@@ -440,6 +502,7 @@ const CalendarManagement = () => {
     if (error) {
       toast({ title: "Errore", description: "Impossibile eliminare l'appuntamento", variant: "destructive" });
     } else {
+      await restoreLessonPackageForAppointment(deleteAppointmentId);
       toast({ title: "Eliminato", description: "Appuntamento eliminato" });
       fetchData();
     }
@@ -627,6 +690,12 @@ const CalendarManagement = () => {
     if (error) {
       toast({ title: "Errore", description: "Impossibile aggiornare l'appuntamento", variant: "destructive" });
     } else {
+      if ((editingAppointment.client_id || "") !== (editForm.client_id || "")) {
+        await restoreLessonPackageForAppointment(editingAppointment.id);
+        if (editForm.client_id) {
+          await decrementLessonPackage(editForm.client_id, editingAppointment.id);
+        }
+      }
       toast({ title: "Aggiornato", description: "Appuntamento aggiornato" });
       setIsEditDialogOpen(false);
       setEditingAppointment(null);
@@ -999,7 +1068,9 @@ const CalendarManagement = () => {
                               </div>
                               {clientName && (
                                 <div className="text-[10px] opacity-80 truncate mt-0.5 ml-4">
-                                  {clientName}
+                                  <ClientLink userId={apt.client_id} className="font-normal text-white/90 hover:text-white">
+                                    {clientName}
+                                  </ClientLink>
                                 </div>
                               )}
                               <button
@@ -1045,7 +1116,13 @@ const CalendarManagement = () => {
                               onClick={(e) => handleDeadlineClick(deadline, e)}
                             >
                               <Dumbbell className="w-3 h-3 flex-shrink-0" />
-                              <span className="truncate">Scad. {clientName || deadline.name}</span>
+                              <span className="truncate">
+                                Scad. {clientName ? (
+                                  <ClientLink userId={deadline.client_id} className="font-normal text-destructive hover:text-destructive">
+                                    {clientName}
+                                  </ClientLink>
+                                ) : deadline.name}
+                              </span>
                             </div>
                           );
                         })}
@@ -1060,7 +1137,13 @@ const CalendarManagement = () => {
                               onClick={(e) => e.stopPropagation()}
                             >
                               <CreditCard className="w-3 h-3 flex-shrink-0" />
-                              <span className="truncate">Abb. {clientName || sub.plan_name}</span>
+                              <span className="truncate">
+                                Abb. {clientName ? (
+                                  <ClientLink userId={sub.user_id} className="font-normal text-orange-700 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-400">
+                                    {clientName}
+                                  </ClientLink>
+                                ) : sub.plan_name}
+                              </span>
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleRenewSubscription(sub); }}
                                 className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-orange-600/30 rounded p-0.5"
@@ -1178,7 +1261,13 @@ const CalendarManagement = () => {
                             onClick={(e) => handleDeadlineClick(deadline, e)}
                           >
                             <Dumbbell className="w-2 h-2" />
-                            Scad. {clientName || deadline.name}
+                            <span className="truncate">
+                              Scad. {clientName ? (
+                                <ClientLink userId={deadline.client_id} className="font-normal text-destructive hover:text-destructive">
+                                  {clientName}
+                                </ClientLink>
+                              ) : deadline.name}
+                            </span>
                           </div>
                         );
                       })}
@@ -1194,7 +1283,13 @@ const CalendarManagement = () => {
                             onClick={(e) => e.stopPropagation()}
                           >
                             <CreditCard className="w-2 h-2" />
-                            Abb. {clientName || sub.plan_name}
+                            <span className="truncate">
+                              Abb. {clientName ? (
+                                <ClientLink userId={sub.user_id} className="font-normal text-orange-700 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-400">
+                                  {clientName}
+                                </ClientLink>
+                              ) : sub.plan_name}
+                            </span>
                             <button
                               onClick={(e) => { e.stopPropagation(); handleRenewSubscription(sub); }}
                               className="absolute top-0.5 right-0.5 opacity-0 group-hover:opacity-100"
@@ -1283,7 +1378,14 @@ const CalendarManagement = () => {
                         <div className="text-xs text-muted-foreground">
                           {format(parseISO(apt.start_time), "HH:mm")} - {format(parseISO(apt.end_time), "HH:mm")}
                         </div>
-                        {clientName && <div className="text-xs text-muted-foreground mt-1"><User className="w-3 h-3 inline mr-1" />{clientName}</div>}
+                        {clientName && (
+                          <div className="text-xs text-muted-foreground mt-1">
+                            <User className="w-3 h-3 inline mr-1" />
+                            <ClientLink userId={apt.client_id} className="font-normal">
+                              {clientName}
+                            </ClientLink>
+                          </div>
+                        )}
                         {apt.location && <div className="text-xs text-muted-foreground mt-0.5">📍 {apt.location}</div>}
                       </div>
                       <div className="flex gap-1">
@@ -1324,7 +1426,13 @@ const CalendarManagement = () => {
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-sm">Scadenza Scheda</div>
                         <div className="text-xs text-muted-foreground">{deadline.name}</div>
-                        {clientName && <div className="text-xs text-muted-foreground mt-1">{clientName}</div>}
+                        {clientName && (
+                          <div className="text-xs text-muted-foreground mt-1">
+                            <ClientLink userId={deadline.client_id} className="font-normal">
+                              {clientName}
+                            </ClientLink>
+                          </div>
+                        )}
                       </div>
                       <ExternalLink className="w-4 h-4 text-muted-foreground mt-1" />
                     </div>
@@ -1339,7 +1447,13 @@ const CalendarManagement = () => {
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-sm">Scadenza Abbonamento</div>
                         <div className="text-xs text-muted-foreground">{sub.plan_name}</div>
-                        {clientName && <div className="text-xs text-muted-foreground mt-1">{clientName}</div>}
+                        {clientName && (
+                          <div className="text-xs text-muted-foreground mt-1">
+                            <ClientLink userId={sub.user_id} className="font-normal">
+                              {clientName}
+                            </ClientLink>
+                          </div>
+                        )}
                       </div>
                       <Button 
                         size="sm" 
