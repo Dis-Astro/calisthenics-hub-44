@@ -30,7 +30,6 @@ import {
   Save,
   X,
   Users,
-  RefreshCw
 } from "lucide-react";
 import {
   AlertDialog,
@@ -263,13 +262,21 @@ const ClientDetailPage = () => {
     const sub = subscriptions.find(s => s.id === newPayForm.subscription_id);
     if (!sub) { setCreatingPay(false); return; }
 
-    const { error } = await supabase.from("payments").insert({
-      user_id: userId!,
-      subscription_id: newPayForm.subscription_id,
-      amount: parseFloat(newPayForm.amount),
-      method: newPayForm.method,
-      status: "completato",
-      notes: newPayForm.notes || null
+    const amount = parseFloat(newPayForm.amount);
+    if (!amount || amount <= 0) {
+      toast({ title: "Errore", description: "Importo non valido", variant: "destructive" });
+      setCreatingPay(false);
+      return;
+    }
+
+    const { error } = await (supabase.rpc as any)("register_subscription_payment", {
+      p_subscription_id: newPayForm.subscription_id,
+      p_user_id: userId!,
+      p_amount: amount,
+      p_method: newPayForm.method,
+      p_billing_month: `${sub.end_date.slice(0, 7)}-01`,
+      p_notes: newPayForm.notes || null,
+      p_recorded_by: null,
     });
 
     if (error) {
@@ -297,26 +304,6 @@ const ClientDetailPage = () => {
     setSavingEndDate(false);
   };
 
-  const [renewingSubId, setRenewingSubId] = useState<string | null>(null);
-  const handleRenewSubscription = async (sub: Subscription) => {
-    if (!sub.membership_plans) {
-      toast({ title: "Errore", description: "Piano non trovato", variant: "destructive" });
-      return;
-    }
-    setRenewingSubId(sub.id);
-    const newEnd = addMonths(new Date(sub.end_date), sub.membership_plans.duration_months);
-    const { error } = await supabase
-      .from("subscriptions")
-      .update({ end_date: format(newEnd, "yyyy-MM-dd"), status: "attivo" as SubscriptionStatus })
-      .eq("id", sub.id);
-    if (error) {
-      toast({ title: "Errore", description: "Impossibile rinnovare", variant: "destructive" });
-    } else {
-      toast({ title: "Rinnovato!", description: `Nuova scadenza: ${format(newEnd, "dd/MM/yyyy")}` });
-      fetchClientData();
-    }
-    setRenewingSubId(null);
-  };
 
   const handleDeletePayment = async (payId: string) => {
     const { error } = await supabase.from("payments").delete().eq("id", payId);
@@ -328,47 +315,6 @@ const ClientDetailPage = () => {
     }
   };
 
-  const handleRenewFromPayment = async (pay: Payment) => {
-    const sub = subscriptions.find(s => s.id === pay.subscription_id);
-    if (!sub || !sub.membership_plans) {
-      toast({ title: "Errore", description: "Abbonamento collegato non trovato", variant: "destructive" });
-      return;
-    }
-    setRenewingSubId(sub.id);
-    const newEnd = addMonths(new Date(sub.end_date), sub.membership_plans.duration_months);
-    const price = sub.membership_plans.price;
-
-    // 1. Extend subscription end date
-    const { error: subErr } = await supabase
-      .from("subscriptions")
-      .update({ end_date: format(newEnd, "yyyy-MM-dd"), status: "attivo" as SubscriptionStatus })
-      .eq("id", sub.id);
-
-    if (subErr) {
-      toast({ title: "Errore", description: "Impossibile rinnovare", variant: "destructive" });
-      setRenewingSubId(null);
-      return;
-    }
-
-    // 2. Auto-register a new payment using the source payment's method
-    const { error: payErr } = await supabase.from("payments").insert({
-      subscription_id: sub.id,
-      user_id: sub.user_id,
-      amount: price,
-      method: pay.method,
-      payment_date: format(new Date(), "yyyy-MM-dd"),
-      status: "completato",
-      notes: `Rinnovo automatico (${format(newEnd, "dd/MM/yyyy")})`,
-    });
-
-    if (payErr) {
-      toast({ title: "Rinnovato senza incasso", description: "Abbonamento esteso ma incasso non registrato: " + payErr.message, variant: "destructive" });
-    } else {
-      toast({ title: "Rinnovato e incassato!", description: `+€${price.toFixed(2)} · scadenza ${format(newEnd, "dd/MM/yyyy")}` });
-    }
-    fetchClientData();
-    setRenewingSubId(null);
-  };
 
   const getSubscriptionStatus = (sub: Subscription) => {
     const daysLeft = differenceInDays(new Date(sub.end_date), new Date());
@@ -485,16 +431,6 @@ const ClientDetailPage = () => {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="w-6 h-6 text-primary hover:text-primary"
-                            title="Rinnova"
-                            onClick={() => handleRenewSubscription(sub)}
-                            disabled={renewingSubId === sub.id}
-                          >
-                            {renewingSubId === sub.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
                             className="w-6 h-6 text-muted-foreground hover:text-foreground"
                             title="Modifica scadenza"
                             onClick={() => {
@@ -606,37 +542,6 @@ const ClientDetailPage = () => {
                         {pay.status}
                       </Badge>
                       <div className="flex gap-1">
-                        {pay.subscription_id && (() => {
-                          const sub = subscriptions.find(s => s.id === pay.subscription_id);
-                          const months = sub?.membership_plans?.duration_months;
-                          const newEnd = sub ? format(addMonths(new Date(sub.end_date), sub.membership_plans?.duration_months || 0), "dd/MM/yyyy") : "";
-                          return (
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="w-6 h-6 text-primary"
-                                  title="Rinnova abbonamento collegato"
-                                >
-                                  <RefreshCw className="w-3 h-3" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Rinnovare e registrare incasso?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Estende la scadenza di {months} mese{months === 1 ? "" : "i"}{newEnd && ` (nuova: ${newEnd})`} <strong>e registra automaticamente un nuovo incasso di €{sub?.membership_plans?.price?.toFixed(2)}</strong> con metodo "{pay.method}".
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Annulla</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => handleRenewFromPayment(pay)}>Rinnova</AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          );
-                        })()}
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button variant="ghost" size="icon" className="w-6 h-6 text-destructive" title="Elimina pagamento">

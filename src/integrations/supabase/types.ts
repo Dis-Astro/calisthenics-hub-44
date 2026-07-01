@@ -643,6 +643,7 @@ export type Database = {
       payments: {
         Row: {
           amount: number
+          billing_month: string
           created_at: string
           id: string
           method: string
@@ -656,6 +657,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          billing_month?: string
           created_at?: string
           id?: string
           method?: string
@@ -669,6 +671,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          billing_month?: string
           created_at?: string
           id?: string
           method?: string
@@ -981,6 +984,21 @@ export type Database = {
       is_coach: { Args: { user_uuid: string }; Returns: boolean }
       is_segretaria: { Args: { user_uuid: string }; Returns: boolean }
       is_staff: { Args: { user_uuid: string }; Returns: boolean }
+      register_subscription_payment: {
+        Args: {
+          p_amount: number
+          p_billing_month: string
+          p_method: string
+          p_notes?: string | null
+          p_recorded_by?: string | null
+          p_subscription_id: string
+          p_user_id: string
+        }
+        Returns: {
+          new_end_date: string
+          payment_id: string
+        }[]
+      }
     }
     Enums: {
       error_report_status: "aperta" | "in_lavorazione" | "risolta" | "chiusa"

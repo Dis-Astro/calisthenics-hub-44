@@ -37,7 +37,6 @@ import {
   Euro,
   Plus,
   Trash2,
-  RefreshCw,
   LogOut,
   ChevronDown,
   ChevronRight,
@@ -118,7 +117,8 @@ const SegretariaDashboard = () => {
     clientName: string;
     planPrice: number;
     alreadyPaid: number;
-  }>({ open: false, subId: "", userId: "", clientName: "", planPrice: 0, alreadyPaid: 0 });
+    billingMonth: string;
+  }>({ open: false, subId: "", userId: "", clientName: "", planPrice: 0, alreadyPaid: 0, billingMonth: format(new Date(), "yyyy-MM-01") });
   const [payForm, setPayForm] = useState({ amount: "", method: "contanti", notes: "" });
   const [savingPay, setSavingPay] = useState(false);
 
@@ -229,21 +229,6 @@ const SegretariaDashboard = () => {
     setSavingSub(false);
   };
 
-  const renewSubscription = async (sub: Subscription) => {
-    if (!sub.membership_plans) return;
-    const newEnd = addMonths(new Date(sub.end_date), sub.membership_plans.duration_months);
-    const { error } = await supabase
-      .from("subscriptions")
-      .update({ end_date: format(newEnd, "yyyy-MM-dd"), status: "attivo" })
-      .eq("id", sub.id);
-    if (error) {
-      toast({ title: "Errore rinnovo", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: "Rinnovato", description: `Fino al ${format(newEnd, "dd MMM yyyy", { locale: it })}` });
-      fetchAll();
-    }
-  };
-
   // ---- Payment create/delete ----
   const openPayDialog = (sub: Subscription, clientName: string) => {
     const paid = getSubPayments(sub.id).reduce((sum, p) => sum + Number(p.amount), 0);
@@ -261,6 +246,7 @@ const SegretariaDashboard = () => {
       clientName,
       planPrice: price,
       alreadyPaid: paid,
+      billingMonth: `${sub.end_date.slice(0, 7)}-01`,
     });
   };
 
@@ -271,15 +257,14 @@ const SegretariaDashboard = () => {
       return;
     }
     setSavingPay(true);
-    const { error } = await supabase.from("payments").insert({
-      subscription_id: payDialog.subId,
-      user_id: payDialog.userId,
-      amount: amt,
-      payment_date: format(new Date(), "yyyy-MM-dd"),
-      method: payForm.method,
-      status: "completato",
-      notes: payForm.notes || null,
-      recorded_by: profile?.user_id,
+    const { error } = await (supabase.rpc as any)("register_subscription_payment", {
+      p_subscription_id: payDialog.subId,
+      p_user_id: payDialog.userId,
+      p_amount: amt,
+      p_method: payForm.method,
+      p_billing_month: payDialog.billingMonth,
+      p_notes: payForm.notes || null,
+      p_recorded_by: profile?.user_id || null,
     });
     if (error) {
       toast({ title: "Errore", description: error.message, variant: "destructive" });
@@ -425,9 +410,6 @@ const SegretariaDashboard = () => {
                         <div className="flex flex-wrap gap-2">
                           <Button size="sm" onClick={() => openPayDialog(sub, fullName)} className="gap-2">
                             <Euro className="w-4 h-4" /> Registra incasso
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => renewSubscription(sub)} className="gap-2">
-                            <RefreshCw className="w-4 h-4" /> Rinnova
                           </Button>
                           <Button size="sm" variant="outline" onClick={() => openSubDialog(client.user_id, fullName, sub.id)} className="gap-2">
                             <CreditCard className="w-4 h-4" /> Cambia abbonamento

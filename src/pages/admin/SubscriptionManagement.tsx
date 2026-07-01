@@ -23,10 +23,11 @@ import {
   CheckCircle,
   Clock,
   Users,
-  RefreshCw,
   Package,
   Trash2,
-  Edit
+  Edit,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import {
   AlertDialog,
@@ -42,7 +43,7 @@ import {
 import AdminLayout from "@/components/admin/AdminLayout";
 import ClientLink from "@/components/admin/ClientLink";
 import type { Database } from "@/integrations/supabase/types";
-import { format, addMonths, differenceInDays, endOfMonth, isPast, startOfMonth } from "date-fns";
+import { format, addMonths, differenceInDays, isPast, startOfMonth } from "date-fns";
 import { it } from "date-fns/locale";
 import { useSearchParams } from "react-router-dom";
 type SubscriptionStatus = Database["public"]["Enums"]["subscription_status"];
@@ -83,6 +84,7 @@ interface Payment {
   user_id: string;
   subscription_id: string;
   amount: number;
+  billing_month: string;
   payment_date: string;
   method: string;
   status: PaymentStatus;
@@ -131,6 +133,108 @@ const planTypeLabels: Record<string, string> = {
   cliente_corso: "Cliente Corso"
 };
 
+const MONTH_KEY_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+const getCurrentMonthKey = () => format(new Date(), "yyyy-MM");
+
+const normalizeMonthKey = (value?: string | null) =>
+  value && MONTH_KEY_RE.test(value) ? value : getCurrentMonthKey();
+
+const parseDateAtStartOfDay = (value?: string | null) => {
+  const datePart = value?.slice(0, 10);
+  const date = datePart ? new Date(`${datePart}T00:00:00`) : new Date();
+  return Number.isNaN(date.getTime()) ? new Date() : date;
+};
+
+const monthStartDate = (monthKey: string) =>
+  startOfMonth(parseDateAtStartOfDay(`${normalizeMonthKey(monthKey)}-01`));
+
+const dateToMonthKey = (dateValue?: string | null) =>
+  format(parseDateAtStartOfDay(dateValue), "yyyy-MM");
+
+const monthKeyToDateString = (monthKey: string) => `${normalizeMonthKey(monthKey)}-01`;
+
+const formatMonthKey = (monthKey: string) =>
+  format(monthStartDate(monthKey), "MMMM yyyy", { locale: it });
+
+const compareMonthKeys = (a: string, b: string) =>
+  monthStartDate(a).getTime() - monthStartDate(b).getTime();
+
+const getPaymentBillingMonthKey = (payment: Pick<Payment, "billing_month" | "payment_date">) =>
+  dateToMonthKey(payment.billing_month || payment.payment_date);
+
+const getSubscriptionDueMonthKey = (subscription: Subscription) =>
+  dateToMonthKey(subscription.end_date);
+
+interface MonthOption {
+  value: string;
+  label: string;
+}
+
+const MonthSelector = ({
+  value,
+  options,
+  onChange,
+}: {
+  value: string;
+  options: MonthOption[];
+  onChange: (value: string) => void;
+}) => {
+  const safeValue = normalizeMonthKey(value);
+  const hasValue = options.some(option => option.value === safeValue);
+  const visibleOptions = hasValue
+    ? options
+    : [...options, { value: safeValue, label: formatMonthKey(safeValue) }]
+        .sort((a, b) => compareMonthKeys(a.value, b.value));
+
+  return (
+    <div className="flex w-full items-end gap-1 rounded-md border bg-background p-1 md:w-auto">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="h-9 w-9 flex-shrink-0"
+        title="Mese precedente"
+        onClick={() => onChange(format(addMonths(monthStartDate(safeValue), -1), "yyyy-MM"))}
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </Button>
+      <div className="min-w-0 flex-1 md:w-[190px]">
+        <Label className="sr-only">Mese operativo</Label>
+        <Select value={safeValue} onValueChange={onChange}>
+          <SelectTrigger className="h-9">
+            <SelectValue placeholder="Seleziona mese" />
+          </SelectTrigger>
+          <SelectContent>
+            {visibleOptions.map(option => (
+              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="h-9 w-9 flex-shrink-0"
+        title="Mese successivo"
+        onClick={() => onChange(format(addMonths(monthStartDate(safeValue), 1), "yyyy-MM"))}
+      >
+        <ChevronRight className="h-4 w-4" />
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-9 flex-shrink-0 px-3"
+        onClick={() => onChange(getCurrentMonthKey())}
+      >
+        Oggi
+      </Button>
+    </div>
+  );
+};
+
 const SubscriptionManagement = () => {
   const { profile } = useAuth();
   const { toast } = useToast();
@@ -148,7 +252,6 @@ const SubscriptionManagement = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [lessonPackages, setLessonPackages] = useState<LessonPackage[]>([]);
-  const [renewingId, setRenewingId] = useState<string | null>(null);
   const [deletingPackageId, setDeletingPackageId] = useState<string | null>(null);
   const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
 
@@ -183,6 +286,7 @@ const SubscriptionManagement = () => {
   const [newPayment, setNewPayment] = useState({
     subscription_id: "",
     amount: "",
+    billing_month: billingMonth,
     method: "contanti",
     notes: ""
   });
@@ -342,75 +446,6 @@ const SubscriptionManagement = () => {
     setDeletePlanId(null);
   };
 
-  // Renew subscription: extend end_date by plan's duration_months
-  const handleRenewSubscription = async (sub: Subscription) => {
-    if (!sub.membership_plans) {
-      toast({ title: "Errore", description: "Piano non trovato per questo abbonamento", variant: "destructive" });
-      return;
-    }
-    setRenewingId(sub.id);
-    const currentEnd = new Date(sub.end_date);
-    const newEndDate = addMonths(currentEnd, sub.membership_plans.duration_months);
-
-    const { error } = await supabase
-      .from("subscriptions")
-      .update({ 
-        end_date: format(newEndDate, "yyyy-MM-dd"),
-        status: "attivo" as SubscriptionStatus
-      })
-      .eq("id", sub.id);
-
-    if (error) {
-      toast({ title: "Errore", description: "Impossibile rinnovare l'abbonamento", variant: "destructive" });
-    } else {
-      toast({ 
-        title: "Rinnovato!", 
-        description: `Abbonamento rinnovato fino al ${format(newEndDate, "dd MMM yyyy", { locale: it })}` 
-      });
-      fetchData();
-    }
-    setRenewingId(null);
-  };
-
-  // Renew + auto-record payment (used from payments tab)
-  const handleRenewAndRecord = async (sub: Subscription, sourcePayment: Payment) => {
-    if (!sub.membership_plans) {
-      toast({ title: "Errore", description: "Piano non trovato", variant: "destructive" });
-      return;
-    }
-    setRenewingId(sub.id);
-    const newEnd = addMonths(new Date(sub.end_date), sub.membership_plans.duration_months);
-    const price = sub.membership_plans.price;
-
-    const { error: subErr } = await supabase
-      .from("subscriptions")
-      .update({ end_date: format(newEnd, "yyyy-MM-dd"), status: "attivo" as SubscriptionStatus })
-      .eq("id", sub.id);
-
-    if (subErr) {
-      toast({ title: "Errore", description: "Impossibile rinnovare", variant: "destructive" });
-      setRenewingId(null);
-      return;
-    }
-
-    const { error: payErr } = await supabase.from("payments").insert({
-      subscription_id: sub.id,
-      user_id: sub.user_id,
-      amount: price,
-      method: sourcePayment.method,
-      payment_date: format(new Date(), "yyyy-MM-dd"),
-      status: "completato" as PaymentStatus,
-      notes: `Rinnovo automatico (${format(newEnd, "dd/MM/yyyy")})`,
-    });
-
-    if (payErr) {
-      toast({ title: "Rinnovato senza incasso", description: payErr.message, variant: "destructive" });
-    } else {
-      toast({ title: "Rinnovato e incassato!", description: `+€${price.toFixed(2)} · scadenza ${format(newEnd, "dd MMM yyyy", { locale: it })}` });
-    }
-    fetchData();
-    setRenewingId(null);
-  };
   const createPackage = async () => {
     if (!newPackage.user_id || !newPackage.total_lessons || !newPackage.price) {
       toast({ title: "Errore", description: "Compila tutti i campi obbligatori", variant: "destructive" });
@@ -548,6 +583,8 @@ const SubscriptionManagement = () => {
   };
 
   const recordPayment = async () => {
+    const billingMonthKey = normalizeMonthKey(newPayment.billing_month);
+
     if (!newPayment.subscription_id || !newPayment.amount) {
       toast({
         title: "Errore",
@@ -564,23 +601,53 @@ const SubscriptionManagement = () => {
       return;
     }
 
-    const { error } = await supabase
-      .from("payments")
-      .insert({
-        user_id: subscription.user_id,
-        subscription_id: newPayment.subscription_id,
-        amount: parseFloat(newPayment.amount),
-        method: newPayment.method,
-        status: "completato",
-        notes: newPayment.notes || null,
-        recorded_by: profile?.user_id
+    const amount = parseFloat(newPayment.amount);
+    if (!amount || amount <= 0) {
+      toast({ title: "Importo non valido", variant: "destructive" });
+      setCreating(false);
+      return;
+    }
+
+    const alreadyPaid = isSubscriptionMonthPaid(subscription, billingMonthKey);
+
+    if (alreadyPaid) {
+      toast({
+        title: "Mese gia' saldato",
+        description: `${subscription.profiles?.first_name || "Cliente"} risulta gia' pagato per ${formatMonthKey(billingMonthKey)}.`,
+        variant: "destructive",
       });
+      setCreating(false);
+      return;
+    }
+
+    const dueMonthKey = getSubscriptionDueMonthKey(subscription);
+    const dueMonthPaid = isSubscriptionMonthPaid(subscription, dueMonthKey);
+
+    if (compareMonthKeys(billingMonthKey, dueMonthKey) > 0 && !dueMonthPaid) {
+      toast({
+        title: "Arretrato da saldare prima",
+        description: `Prima registra il pagamento di ${formatMonthKey(dueMonthKey)}. Cosi' non resta un mese pendente.`,
+        variant: "destructive",
+      });
+      setCreating(false);
+      return;
+    }
+
+    const { error } = await (supabase.rpc as any)("register_subscription_payment", {
+      p_subscription_id: subscription.id,
+      p_user_id: subscription.user_id,
+      p_amount: amount,
+      p_method: newPayment.method,
+      p_billing_month: monthKeyToDateString(billingMonthKey),
+      p_notes: newPayment.notes || null,
+      p_recorded_by: profile?.user_id || null,
+    });
 
     if (error) {
       console.error("Payment error:", error);
       toast({
         title: "Errore",
-        description: "Impossibile registrare il pagamento",
+        description: error.message || "Impossibile registrare il pagamento",
         variant: "destructive"
       });
     } else {
@@ -588,7 +655,7 @@ const SubscriptionManagement = () => {
         title: "Pagamento registrato",
         description: "Il pagamento è stato registrato con successo"
       });
-      setNewPayment({ subscription_id: "", amount: "", method: "contanti", notes: "" });
+      setNewPayment({ subscription_id: "", amount: "", billing_month: selectedBillingMonth, method: "contanti", notes: "" });
       setIsPaymentDialogOpen(false);
       fetchData();
     }
@@ -624,25 +691,87 @@ const SubscriptionManagement = () => {
     return true;
   });
 
-  const selectedBillingMonth = billingMonth || format(new Date(), "yyyy-MM");
-  const selectedMonthStart = startOfMonth(new Date(`${selectedBillingMonth}-01T00:00:00`));
-  const selectedMonthEnd = endOfMonth(selectedMonthStart);
-  const selectedMonthLabel = format(selectedMonthStart, "MMMM yyyy", { locale: it });
+  const selectedBillingMonth = normalizeMonthKey(billingMonth);
+  const selectedMonthLabel = formatMonthKey(selectedBillingMonth);
 
-  const isInSelectedMonth = (dateValue: string) => {
-    const date = new Date(`${dateValue.slice(0, 10)}T00:00:00`);
-    return date >= selectedMonthStart && date <= selectedMonthEnd;
+  const monthOptions = useMemo(() => {
+    const keys = new Set<string>([
+      selectedBillingMonth,
+      getCurrentMonthKey(),
+      ...subscriptions.flatMap(sub => [dateToMonthKey(sub.start_date), dateToMonthKey(sub.end_date)]),
+      ...payments.map(getPaymentBillingMonthKey),
+    ]);
+
+    const sortedKeys = Array.from(keys)
+      .filter(key => MONTH_KEY_RE.test(key))
+      .sort(compareMonthKeys);
+
+    const first = sortedKeys[0] || getCurrentMonthKey();
+    const last = sortedKeys[sortedKeys.length - 1] || getCurrentMonthKey();
+    const from = addMonths(monthStartDate(first), -2);
+    const to = addMonths(monthStartDate(last), 6);
+    const options: MonthOption[] = [];
+
+    for (let cursor = from; cursor <= to && options.length < 96; cursor = addMonths(cursor, 1)) {
+      const value = format(cursor, "yyyy-MM");
+      options.push({ value, label: formatMonthKey(value) });
+    }
+
+    return options;
+  }, [selectedBillingMonth, subscriptions, payments]);
+
+  const handleBillingMonthChange = (value: string) => {
+    setBillingMonth(normalizeMonthKey(value));
   };
 
-  const filteredPayments = payments.filter(payment => isInSelectedMonth(payment.payment_date));
+  const isInSelectedMonth = (monthKey: string) => normalizeMonthKey(monthKey) === selectedBillingMonth;
+
+  const filteredPayments = payments.filter(payment => isInSelectedMonth(getPaymentBillingMonthKey(payment)));
   const monthlyCompletedPayments = filteredPayments.filter(payment => payment.status === "completato");
   const monthlyRevenue = monthlyCompletedPayments.reduce((total, payment) => total + payment.amount, 0);
+  const getCompletedAmountForBillingMonth = (subscriptionId: string, monthKey: string) =>
+    payments
+      .filter(payment =>
+        payment.subscription_id === subscriptionId &&
+        payment.status === "completato" &&
+        getPaymentBillingMonthKey(payment) === normalizeMonthKey(monthKey)
+      )
+      .reduce((total, payment) => total + payment.amount, 0);
+  const isSubscriptionMonthPaid = (sub: Subscription, monthKey: string) =>
+    getCompletedAmountForBillingMonth(sub.id, monthKey) >= (sub.membership_plans?.price || 0);
   const monthlyDueSubscriptions = subscriptions
-    .filter(sub => isInSelectedMonth(sub.end_date))
+    .filter(sub => isInSelectedMonth(getSubscriptionDueMonthKey(sub)))
     .sort((a, b) => new Date(a.end_date).getTime() - new Date(b.end_date).getTime());
   const monthlyUnpaidDueSubscriptions = monthlyDueSubscriptions.filter(sub =>
-    !monthlyCompletedPayments.some(payment => payment.subscription_id === sub.id)
+    !isSubscriptionMonthPaid(sub, selectedBillingMonth)
   );
+
+  const selectedPaymentSubscription = subscriptions.find(s => s.id === newPayment.subscription_id);
+  const selectedPaymentDueMonthKey = selectedPaymentSubscription
+    ? getSubscriptionDueMonthKey(selectedPaymentSubscription)
+    : selectedBillingMonth;
+  const selectedPaymentWillRenew = selectedPaymentSubscription
+    ? compareMonthKeys(normalizeMonthKey(newPayment.billing_month), selectedPaymentDueMonthKey) >= 0
+    : false;
+  const selectedPaymentNewEndDate = selectedPaymentSubscription?.membership_plans && selectedPaymentWillRenew
+    ? addMonths(parseDateAtStartOfDay(selectedPaymentSubscription.end_date), selectedPaymentSubscription.membership_plans.duration_months)
+    : null;
+  const selectedPaymentMonthAlreadyPaid = selectedPaymentSubscription
+    ? isSubscriptionMonthPaid(selectedPaymentSubscription, normalizeMonthKey(newPayment.billing_month))
+    : false;
+  const selectedPaymentSkipsArrears = selectedPaymentSubscription
+    ? compareMonthKeys(normalizeMonthKey(newPayment.billing_month), selectedPaymentDueMonthKey) > 0 &&
+      !isSubscriptionMonthPaid(selectedPaymentSubscription, selectedPaymentDueMonthKey)
+    : false;
+
+  const paymentMonthOptions = useMemo(() => {
+    const optionMap = new Map(monthOptions.map(option => [option.value, option]));
+    [selectedBillingMonth, selectedPaymentDueMonthKey, normalizeMonthKey(newPayment.billing_month)].forEach(monthKey => {
+      optionMap.set(monthKey, { value: monthKey, label: formatMonthKey(monthKey) });
+    });
+
+    return Array.from(optionMap.values()).sort((a, b) => compareMonthKeys(a.value, b.value));
+  }, [monthOptions, selectedBillingMonth, selectedPaymentDueMonthKey, newPayment.billing_month]);
 
   const expiringCount = subscriptions.filter(s => {
     const daysLeft = differenceInDays(new Date(s.end_date), new Date());
@@ -717,12 +846,10 @@ const SubscriptionManagement = () => {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input placeholder="Cerca cliente..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
             </div>
-            <Input
-              type="month"
-              value={billingMonth}
-              onChange={(e) => setBillingMonth(e.target.value)}
-              className="w-full md:w-[170px]"
-              aria-label="Mese contabile"
+            <MonthSelector
+              value={selectedBillingMonth}
+              options={monthOptions}
+              onChange={handleBillingMonthChange}
             />
             <Dialog open={isSubscriptionDialogOpen} onOpenChange={setIsSubscriptionDialogOpen}>
               <DialogTrigger asChild>
@@ -773,11 +900,48 @@ const SubscriptionManagement = () => {
                     <Label>Abbonamento *</Label>
                     <Select value={newPayment.subscription_id} onValueChange={(v) => {
                       const sub = subscriptions.find(s => s.id === v);
-                      setNewPayment({ ...newPayment, subscription_id: v, amount: sub?.membership_plans?.price?.toString() || "" });
+                      setNewPayment({
+                        ...newPayment,
+                        subscription_id: v,
+                        amount: sub?.membership_plans?.price?.toString() || "",
+                        billing_month: sub ? getSubscriptionDueMonthKey(sub) : selectedBillingMonth,
+                      });
                     }}>
                       <SelectTrigger><SelectValue placeholder="Seleziona abbonamento" /></SelectTrigger>
                       <SelectContent>{subscriptions.map(s => <SelectItem key={s.id} value={s.id}>{s.profiles?.first_name} {s.profiles?.last_name} - {s.membership_plans?.name}</SelectItem>)}</SelectContent>
                     </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Mese saldato *</Label>
+                    <Select
+                      value={normalizeMonthKey(newPayment.billing_month)}
+                      onValueChange={(v) => setNewPayment({ ...newPayment, billing_month: normalizeMonthKey(v) })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleziona mese" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {paymentMonthOptions.map(option => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}{option.value === selectedPaymentDueMonthKey ? " - mese da saldare" : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedPaymentSubscription && (
+                      <div className={`rounded-md border p-2 text-xs ${selectedPaymentSkipsArrears || selectedPaymentMonthAlreadyPaid ? "border-destructive/40 bg-destructive/5 text-destructive" : "border-primary/20 bg-primary/5 text-muted-foreground"}`}>
+                        {selectedPaymentMonthAlreadyPaid ? (
+                          <p>Questo mese risulta gia' saldato per il cliente selezionato.</p>
+                        ) : selectedPaymentSkipsArrears ? (
+                          <p>Prima salda {formatMonthKey(selectedPaymentDueMonthKey)}: e' il primo mese pendente.</p>
+                        ) : (
+                          <p>
+                            Primo mese pendente: {formatMonthKey(selectedPaymentDueMonthKey)}.
+                            {selectedPaymentNewEndDate ? ` Dopo il pagamento la scadenza passa al ${format(selectedPaymentNewEndDate, "dd/MM/yyyy")}.` : ""}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label>Importo (€) *</Label>
@@ -802,7 +966,7 @@ const SubscriptionManagement = () => {
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setIsPaymentDialogOpen(false)}>Annulla</Button>
-                  <Button onClick={recordPayment} disabled={creating}>{creating && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Registra Pagamento</Button>
+                  <Button onClick={recordPayment} disabled={creating || selectedPaymentMonthAlreadyPaid || selectedPaymentSkipsArrears}>{creating && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Registra Pagamento</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -817,16 +981,7 @@ const SubscriptionManagement = () => {
                   <p className="text-sm text-muted-foreground">Mese operativo</p>
                   <p className="text-xl font-display tracking-wider">{selectedMonthLabel}</p>
                 </div>
-                <div className="flex w-full flex-col gap-2 md:w-auto">
-                  <Label htmlFor="billing-month-panel" className="text-xs text-muted-foreground">Seleziona mese</Label>
-                  <Input
-                    id="billing-month-panel"
-                    type="month"
-                    value={billingMonth}
-                    onChange={(e) => setBillingMonth(e.target.value)}
-                    className="w-full md:w-[180px]"
-                  />
-                </div>
+                <p className="text-sm text-muted-foreground">Saldo per mese saldato</p>
               </CardContent>
             </Card>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -835,7 +990,7 @@ const SubscriptionManagement = () => {
                   <Euro className="w-9 h-9 text-primary" />
                   <div>
                     <p className="text-2xl font-display">€{monthlyRevenue.toFixed(2)}</p>
-                    <p className="text-sm text-muted-foreground">Incassato {selectedMonthLabel}</p>
+                    <p className="text-sm text-muted-foreground">Saldato per {selectedMonthLabel}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -893,7 +1048,7 @@ const SubscriptionManagement = () => {
                       <TableBody>
                         {monthlyDueSubscriptions.map((sub) => {
                           const expStatus = getExpirationStatus(sub.end_date);
-                          const hasCompletedPayment = monthlyCompletedPayments.some(payment => payment.subscription_id === sub.id);
+                          const hasCompletedPayment = isSubscriptionMonthPaid(sub, selectedBillingMonth);
                           return (
                             <TableRow key={sub.id}>
                               <TableCell>
@@ -917,22 +1072,14 @@ const SubscriptionManagement = () => {
                                 <div className="flex justify-end gap-1">
                                   <Button
                                     size="sm"
-                                    variant="outline"
-                                    className="h-8 gap-1"
-                                    onClick={() => handleRenewSubscription(sub)}
-                                    disabled={renewingId === sub.id}
-                                  >
-                                    {renewingId === sub.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-                                    Rinnova
-                                  </Button>
-                                  <Button
-                                    size="sm"
                                     variant="secondary"
                                     className="h-8 gap-1"
+                                    disabled={hasCompletedPayment}
                                     onClick={() => {
                                       setNewPayment({
                                         subscription_id: sub.id,
                                         amount: sub.membership_plans?.price?.toString() || "",
+                                        billing_month: selectedBillingMonth,
                                         method: "contanti",
                                         notes: "",
                                       });
@@ -956,7 +1103,7 @@ const SubscriptionManagement = () => {
               <Card>
                 <CardHeader>
                   <CardTitle className="font-display tracking-wider">Incassi del mese</CardTitle>
-                  <CardDescription>{filteredPayments.length} pagamenti registrati</CardDescription>
+                  <CardDescription>{filteredPayments.length} pagamenti collegati al mese saldato</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {loading ? (
@@ -1047,13 +1194,21 @@ const SubscriptionManagement = () => {
                             <TableCell className="text-right">
                               <Button 
                                 size="sm" 
-                                variant="outline" 
+                                variant="secondary" 
                                 className="gap-1 h-8"
-                                onClick={() => handleRenewSubscription(sub)}
-                                disabled={renewingId === sub.id}
+                                onClick={() => {
+                                  setNewPayment({
+                                    subscription_id: sub.id,
+                                    amount: sub.membership_plans?.price?.toString() || "",
+                                    billing_month: getSubscriptionDueMonthKey(sub),
+                                    method: "contanti",
+                                    notes: "",
+                                  });
+                                  setIsPaymentDialogOpen(true);
+                                }}
                               >
-                                {renewingId === sub.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-                                Rinnova
+                                <Euro className="w-3 h-3" />
+                                Paga
                               </Button>
                             </TableCell>
                           </TableRow>
@@ -1239,18 +1394,9 @@ const SubscriptionManagement = () => {
             <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
                 <CardTitle className="font-display tracking-wider">Storico Pagamenti</CardTitle>
-                <CardDescription>{filteredPayments.length} pagamenti in {selectedMonthLabel}</CardDescription>
+                <CardDescription>{filteredPayments.length} pagamenti per {selectedMonthLabel}</CardDescription>
               </div>
-              <div className="flex w-full flex-col gap-2 md:w-auto">
-                <Label htmlFor="payments-month" className="text-xs text-muted-foreground">Mese pagamenti</Label>
-                <Input
-                  id="payments-month"
-                  type="month"
-                  value={billingMonth}
-                  onChange={(e) => setBillingMonth(e.target.value)}
-                  className="w-full md:w-[180px]"
-                />
-              </div>
+              <Badge variant="outline" className="w-fit">Mese saldato</Badge>
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -1262,17 +1408,17 @@ const SubscriptionManagement = () => {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Data</TableHead><TableHead>Cliente</TableHead>
+                        <TableHead>Incasso</TableHead><TableHead>Mese saldato</TableHead><TableHead>Cliente</TableHead>
                         <TableHead>Importo</TableHead><TableHead>Metodo</TableHead><TableHead>Stato</TableHead>
                         <TableHead className="text-right">Azioni</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredPayments.map((payment) => {
-                        const linkedSub = subscriptions.find(s => s.id === payment.subscription_id);
                         return (
                           <TableRow key={payment.id}>
                             <TableCell>{format(new Date(payment.payment_date), "dd MMM yyyy", { locale: it })}</TableCell>
+                            <TableCell>{formatMonthKey(getPaymentBillingMonthKey(payment))}</TableCell>
                             <TableCell>
                               {payment.profiles ? (
                                 <ClientLink userId={payment.user_id}>{payment.profiles.first_name} {payment.profiles.last_name}</ClientLink>
@@ -1289,34 +1435,6 @@ const SubscriptionManagement = () => {
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-1">
-                                {linkedSub && linkedSub.membership_plans && (
-                                  <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        className="h-8 px-2 gap-1"
-                                        title="Rinnova + registra incasso"
-                                        disabled={renewingId === linkedSub.id}
-                                      >
-                                        {renewingId === linkedSub.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-                                        Rinnova
-                                      </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                      <AlertDialogHeader>
-                                        <AlertDialogTitle>Rinnovare e registrare incasso?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                          Estende la scadenza di {linkedSub.membership_plans.duration_months} mese{linkedSub.membership_plans.duration_months === 1 ? "" : "i"} (nuova: {format(addMonths(new Date(linkedSub.end_date), linkedSub.membership_plans.duration_months), "dd/MM/yyyy")}) <strong>e registra un nuovo incasso di €{linkedSub.membership_plans.price.toFixed(2)}</strong> con metodo "{payment.method}".
-                                        </AlertDialogDescription>
-                                      </AlertDialogHeader>
-                                      <AlertDialogFooter>
-                                        <AlertDialogCancel>Annulla</AlertDialogCancel>
-                                        <AlertDialogAction onClick={() => handleRenewAndRecord(linkedSub, payment)}>Rinnova + Incassa</AlertDialogAction>
-                                      </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                  </AlertDialog>
-                                )}
                                 <Button
                                   size="sm"
                                   variant="ghost"
