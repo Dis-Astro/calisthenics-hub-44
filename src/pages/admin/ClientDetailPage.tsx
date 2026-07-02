@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -64,6 +64,44 @@ import { it } from "date-fns/locale";
 
 type UserRole = Database["public"]["Enums"]["user_role"];
 type SubscriptionStatus = Database["public"]["Enums"]["subscription_status"];
+type PaymentInsert = Database["public"]["Tables"]["payments"]["Insert"];
+
+const MONTH_KEY_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+const LEGACY_BILLING_MONTH_RE = /\[mese-saldato:(\d{4}-(?:0[1-9]|1[0-2]))\]/i;
+
+const getCurrentMonthKey = () => format(new Date(), "yyyy-MM");
+
+const normalizeMonthKey = (value?: string | null) =>
+  value && MONTH_KEY_RE.test(value) ? value : getCurrentMonthKey();
+
+const parseDateAtStartOfDay = (value?: string | null) => {
+  const datePart = value?.slice(0, 10);
+  const date = datePart ? new Date(`${datePart}T00:00:00`) : new Date();
+  return Number.isNaN(date.getTime()) ? new Date() : date;
+};
+
+const monthStartDate = (monthKey: string) =>
+  parseDateAtStartOfDay(`${normalizeMonthKey(monthKey)}-01`);
+
+const dateToMonthKey = (dateValue?: string | null) =>
+  format(parseDateAtStartOfDay(dateValue), "yyyy-MM");
+
+const monthKeyToDateString = (monthKey: string) => `${normalizeMonthKey(monthKey)}-01`;
+
+const formatMonthKey = (monthKey: string) =>
+  format(monthStartDate(monthKey), "MMMM yyyy", { locale: it });
+
+const compareMonthKeys = (a: string, b: string) =>
+  monthStartDate(a).getTime() - monthStartDate(b).getTime();
+
+const getLegacyBillingMonthKey = (notes?: string | null) =>
+  notes?.match(LEGACY_BILLING_MONTH_RE)?.[1] || null;
+
+const getPaymentBillingMonthKey = (payment: Pick<Payment, "billing_month" | "payment_date" | "notes">) =>
+  payment.billing_month ? dateToMonthKey(payment.billing_month) : getLegacyBillingMonthKey(payment.notes) || dateToMonthKey(payment.payment_date);
+
+const getSubscriptionDueMonthKey = (subscription: Subscription) =>
+  dateToMonthKey(subscription.end_date);
 
 interface Profile {
   id: string;
@@ -101,6 +139,7 @@ interface Subscription {
 interface Payment {
   id: string;
   amount: number;
+  billing_month?: string | null;
   payment_date: string;
   method: string;
   status: string;
@@ -160,7 +199,7 @@ const ClientDetailPage = () => {
 
   // New payment dialog
   const [isNewPayOpen, setIsNewPayOpen] = useState(false);
-  const [newPayForm, setNewPayForm] = useState({ subscription_id: "", amount: "", method: "contanti", notes: "" });
+  const [newPayForm, setNewPayForm] = useState({ subscription_id: "", amount: "", billing_month: getCurrentMonthKey(), method: "contanti", notes: "" });
   const [creatingPay, setCreatingPay] = useState(false);
 
   // Edit subscription end date
@@ -253,6 +292,17 @@ const ClientDetailPage = () => {
     setCreatingSub(false);
   };
 
+  const openPaymentForSubscription = (sub: Subscription) => {
+    setNewPayForm({
+      subscription_id: sub.id,
+      amount: sub.membership_plans?.price?.toString() || "",
+      billing_month: getSubscriptionDueMonthKey(sub),
+      method: "contanti",
+      notes: "",
+    });
+    setIsNewPayOpen(true);
+  };
+
   const handleCreatePayment = async () => {
     if (!newPayForm.subscription_id || !newPayForm.amount) {
       toast({ title: "Errore", description: "Seleziona abbonamento e importo", variant: "destructive" });
@@ -268,22 +318,38 @@ const ClientDetailPage = () => {
       setCreatingPay(false);
       return;
     }
+    const billingMonthKey = normalizeMonthKey(newPayForm.billing_month);
 
-    const { error } = await (supabase.rpc as any)("register_subscription_payment", {
-      p_subscription_id: newPayForm.subscription_id,
-      p_user_id: userId!,
-      p_amount: amount,
-      p_method: newPayForm.method,
-      p_billing_month: `${sub.end_date.slice(0, 7)}-01`,
-      p_notes: newPayForm.notes || null,
-      p_recorded_by: null,
-    });
+    const paymentPayload: PaymentInsert = {
+      subscription_id: newPayForm.subscription_id,
+      user_id: userId!,
+      amount,
+      payment_date: format(new Date(), "yyyy-MM-dd"),
+      billing_month: monthKeyToDateString(billingMonthKey),
+      method: newPayForm.method,
+      status: "completato",
+      notes: newPayForm.notes || null,
+      recorded_by: null,
+    };
+
+    let { error } = await supabase.from("payments").insert(paymentPayload);
+
+    if (error && /billing_month|schema cache|column/i.test(error.message || "")) {
+      const { billing_month: _billingMonth, ...legacyPayload } = paymentPayload;
+      const legacyPaymentPayload: PaymentInsert = {
+        ...legacyPayload,
+        notes: [legacyPayload.notes?.trim(), `[mese-saldato:${billingMonthKey}]`].filter(Boolean).join("\n"),
+      };
+      ({ error } = await supabase
+        .from("payments")
+        .insert(legacyPaymentPayload));
+    }
 
     if (error) {
-      toast({ title: "Errore", description: "Impossibile registrare il pagamento", variant: "destructive" });
+      toast({ title: "Errore", description: error.message || "Impossibile registrare il pagamento", variant: "destructive" });
     } else {
-      toast({ title: "Pagamento registrato!" });
-      setNewPayForm({ subscription_id: "", amount: "", method: "contanti", notes: "" });
+      toast({ title: "Pagamento registrato!", description: `Incasso registrato per ${formatMonthKey(billingMonthKey)}` });
+      setNewPayForm({ subscription_id: "", amount: "", billing_month: getCurrentMonthKey(), method: "contanti", notes: "" });
       setIsNewPayOpen(false);
       fetchClientData();
     }
@@ -325,6 +391,28 @@ const ClientDetailPage = () => {
 
   const activeSubscription = subscriptions.find(s => s.status === "attivo" && !isPast(new Date(s.end_date)));
   const totalPayments = payments.filter(p => p.status === "completato").reduce((sum, p) => sum + p.amount, 0);
+  const paymentMonthOptions = useMemo(() => {
+    const keys = new Set<string>([
+      getCurrentMonthKey(),
+      normalizeMonthKey(newPayForm.billing_month),
+      ...subscriptions.flatMap(sub => [dateToMonthKey(sub.start_date), dateToMonthKey(sub.end_date)]),
+      ...payments.map(getPaymentBillingMonthKey),
+    ]);
+
+    const sortedKeys = Array.from(keys).filter(key => MONTH_KEY_RE.test(key)).sort(compareMonthKeys);
+    const first = sortedKeys[0] || getCurrentMonthKey();
+    const last = sortedKeys[sortedKeys.length - 1] || getCurrentMonthKey();
+    const from = addMonths(monthStartDate(first), -2);
+    const to = addMonths(monthStartDate(last), 6);
+    const options: { value: string; label: string }[] = [];
+
+    for (let cursor = from; cursor <= to && options.length < 96; cursor = addMonths(cursor, 1)) {
+      const value = format(cursor, "yyyy-MM");
+      options.push({ value, label: formatMonthKey(value) });
+    }
+
+    return options;
+  }, [newPayForm.billing_month, subscriptions, payments]);
 
   if (loading) {
     return (
@@ -428,6 +516,16 @@ const ClientDetailPage = () => {
                           </Badge>
                         </div>
                         <div className="flex gap-1">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="h-7 gap-1 px-2 text-xs"
+                            title="Registra incasso"
+                            onClick={() => openPaymentForSubscription(sub)}
+                          >
+                            <Euro className="w-3 h-3" />
+                            Incassa
+                          </Button>
                           <Button
                             variant="ghost"
                             size="icon"
@@ -536,7 +634,8 @@ const ClientDetailPage = () => {
                     <div key={pay.id} className="flex items-center justify-between gap-2 p-2 rounded bg-muted/30 text-sm">
                       <div className="min-w-0 flex-1">
                         <p className="font-medium">€{pay.amount}</p>
-                        <p className="text-xs text-muted-foreground truncate">{format(new Date(pay.payment_date), "dd/MM/yyyy")} · {pay.method}</p>
+                        <p className="text-xs text-muted-foreground truncate">Incasso {format(new Date(pay.payment_date), "dd/MM/yyyy")} - {pay.method}</p>
+                        <p className="text-xs text-muted-foreground truncate">Mese saldato: {formatMonthKey(getPaymentBillingMonthKey(pay))}</p>
                       </div>
                       <Badge variant={pay.status === "completato" ? "default" : "secondary"} className="text-xs">
                         {pay.status}
@@ -762,12 +861,36 @@ const ClientDetailPage = () => {
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label>Abbonamento *</Label>
-              <Select value={newPayForm.subscription_id} onValueChange={v => setNewPayForm({ ...newPayForm, subscription_id: v })}>
+              <Select value={newPayForm.subscription_id} onValueChange={v => {
+                const sub = subscriptions.find(s => s.id === v);
+                setNewPayForm({
+                  ...newPayForm,
+                  subscription_id: v,
+                  amount: sub?.membership_plans?.price?.toString() || newPayForm.amount,
+                  billing_month: sub ? getSubscriptionDueMonthKey(sub) : newPayForm.billing_month,
+                });
+              }}>
                 <SelectTrigger><SelectValue placeholder="Seleziona abbonamento" /></SelectTrigger>
                 <SelectContent>
                   {subscriptions.map(s => (
                     <SelectItem key={s.id} value={s.id}>
                       {s.membership_plans?.name} — scad. {format(new Date(s.end_date), "dd/MM/yyyy")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Mese saldato *</Label>
+              <Select
+                value={normalizeMonthKey(newPayForm.billing_month)}
+                onValueChange={v => setNewPayForm({ ...newPayForm, billing_month: normalizeMonthKey(v) })}
+              >
+                <SelectTrigger><SelectValue placeholder="Seleziona mese" /></SelectTrigger>
+                <SelectContent>
+                  {paymentMonthOptions.map(option => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
                     </SelectItem>
                   ))}
                 </SelectContent>

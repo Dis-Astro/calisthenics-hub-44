@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import type { Database } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -54,6 +55,8 @@ interface Plan {
   plan_type: string;
 }
 
+type PaymentInsert = Database["public"]["Tables"]["payments"]["Insert"];
+
 interface Subscription {
   id: string;
   user_id: string;
@@ -87,6 +90,9 @@ const methodLabels: Record<string, string> = {
   bonifico: "Bonifico",
   satispay: "Satispay",
 };
+
+const cleanPaymentNotes = (notes?: string | null) =>
+  notes?.replace(/\n?\[mese-saldato:\d{4}-(?:0[1-9]|1[0-2])\]/gi, "").trim() || "";
 
 const SegretariaDashboard = () => {
   const { signOut, profile } = useAuth();
@@ -257,15 +263,31 @@ const SegretariaDashboard = () => {
       return;
     }
     setSavingPay(true);
-    const { error } = await (supabase.rpc as any)("register_subscription_payment", {
-      p_subscription_id: payDialog.subId,
-      p_user_id: payDialog.userId,
-      p_amount: amt,
-      p_method: payForm.method,
-      p_billing_month: payDialog.billingMonth,
-      p_notes: payForm.notes || null,
-      p_recorded_by: profile?.user_id || null,
-    });
+    const paymentPayload: PaymentInsert = {
+      subscription_id: payDialog.subId,
+      user_id: payDialog.userId,
+      amount: amt,
+      payment_date: format(new Date(), "yyyy-MM-dd"),
+      billing_month: payDialog.billingMonth,
+      method: payForm.method,
+      status: "completato",
+      notes: payForm.notes || null,
+      recorded_by: profile?.user_id || null,
+    };
+
+    let { error } = await supabase.from("payments").insert(paymentPayload);
+
+    if (error && /billing_month|schema cache|column/i.test(error.message || "")) {
+      const { billing_month: _billingMonth, ...legacyPayload } = paymentPayload;
+      const legacyPaymentPayload: PaymentInsert = {
+        ...legacyPayload,
+        notes: [legacyPayload.notes?.trim(), `[mese-saldato:${payDialog.billingMonth.slice(0, 7)}]`].filter(Boolean).join("\n"),
+      };
+      ({ error } = await supabase
+        .from("payments")
+        .insert(legacyPaymentPayload));
+    }
+
     if (error) {
       toast({ title: "Errore", description: error.message, variant: "destructive" });
     } else {
@@ -426,7 +448,7 @@ const SegretariaDashboard = () => {
                                   <span className="font-semibold tabular-nums">€{Number(p.amount).toFixed(2)}</span>
                                   <Badge variant="secondary" className="text-xs">{methodLabels[p.method] ?? p.method}</Badge>
                                   <span className="text-muted-foreground text-xs">{format(new Date(p.payment_date), "dd/MM/yyyy")}</span>
-                                  {p.notes && <span className="text-muted-foreground text-xs truncate">— {p.notes}</span>}
+                                  {cleanPaymentNotes(p.notes) && <span className="text-muted-foreground text-xs truncate">- {cleanPaymentNotes(p.notes)}</span>}
                                 </div>
                                 <Button
                                   size="icon"

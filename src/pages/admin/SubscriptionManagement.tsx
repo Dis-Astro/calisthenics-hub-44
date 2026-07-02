@@ -48,6 +48,7 @@ import { it } from "date-fns/locale";
 import { useSearchParams } from "react-router-dom";
 type SubscriptionStatus = Database["public"]["Enums"]["subscription_status"];
 type PaymentStatus = Database["public"]["Enums"]["payment_status"];
+type PaymentInsert = Database["public"]["Tables"]["payments"]["Insert"];
 
 interface MembershipPlan {
   id: string;
@@ -160,8 +161,16 @@ const formatMonthKey = (monthKey: string) =>
 const compareMonthKeys = (a: string, b: string) =>
   monthStartDate(a).getTime() - monthStartDate(b).getTime();
 
-const getPaymentBillingMonthKey = (payment: Pick<Payment, "billing_month" | "payment_date">) =>
-  dateToMonthKey(payment.billing_month || payment.payment_date);
+const LEGACY_BILLING_MONTH_RE = /\[mese-saldato:(\d{4}-(?:0[1-9]|1[0-2]))\]/i;
+
+const getLegacyBillingMonthKey = (notes?: string | null) =>
+  notes?.match(LEGACY_BILLING_MONTH_RE)?.[1] || null;
+
+const withLegacyBillingMonthNote = (notes: string | null, billingMonthKey: string) =>
+  [notes?.trim(), `[mese-saldato:${billingMonthKey}]`].filter(Boolean).join("\n");
+
+const getPaymentBillingMonthKey = (payment: Pick<Payment, "billing_month" | "payment_date" | "notes">) =>
+  payment.billing_month ? dateToMonthKey(payment.billing_month) : getLegacyBillingMonthKey(payment.notes) || dateToMonthKey(payment.payment_date);
 
 const getSubscriptionDueMonthKey = (subscription: Subscription) =>
   dateToMonthKey(subscription.end_date);
@@ -608,40 +617,30 @@ const SubscriptionManagement = () => {
       return;
     }
 
-    const alreadyPaid = isSubscriptionMonthPaid(subscription, billingMonthKey);
+    const paymentPayload: PaymentInsert = {
+      subscription_id: subscription.id,
+      user_id: subscription.user_id,
+      amount,
+      payment_date: format(new Date(), "yyyy-MM-dd"),
+      billing_month: monthKeyToDateString(billingMonthKey),
+      method: newPayment.method,
+      status: "completato" as PaymentStatus,
+      notes: newPayment.notes || null,
+      recorded_by: profile?.user_id || null,
+    };
 
-    if (alreadyPaid) {
-      toast({
-        title: "Mese gia' saldato",
-        description: `${subscription.profiles?.first_name || "Cliente"} risulta gia' pagato per ${formatMonthKey(billingMonthKey)}.`,
-        variant: "destructive",
-      });
-      setCreating(false);
-      return;
+    let { error } = await supabase.from("payments").insert(paymentPayload);
+
+    if (error && /billing_month|schema cache|column/i.test(error.message || "")) {
+      const { billing_month: _billingMonth, ...legacyPayload } = paymentPayload;
+      const legacyPaymentPayload: PaymentInsert = {
+        ...legacyPayload,
+        notes: withLegacyBillingMonthNote(legacyPayload.notes, billingMonthKey),
+      };
+      ({ error } = await supabase
+        .from("payments")
+        .insert(legacyPaymentPayload));
     }
-
-    const dueMonthKey = getSubscriptionDueMonthKey(subscription);
-    const dueMonthPaid = isSubscriptionMonthPaid(subscription, dueMonthKey);
-
-    if (compareMonthKeys(billingMonthKey, dueMonthKey) > 0 && !dueMonthPaid) {
-      toast({
-        title: "Arretrato da saldare prima",
-        description: `Prima registra il pagamento di ${formatMonthKey(dueMonthKey)}. Cosi' non resta un mese pendente.`,
-        variant: "destructive",
-      });
-      setCreating(false);
-      return;
-    }
-
-    const { error } = await (supabase.rpc as any)("register_subscription_payment", {
-      p_subscription_id: subscription.id,
-      p_user_id: subscription.user_id,
-      p_amount: amount,
-      p_method: newPayment.method,
-      p_billing_month: monthKeyToDateString(billingMonthKey),
-      p_notes: newPayment.notes || null,
-      p_recorded_by: profile?.user_id || null,
-    });
 
     if (error) {
       console.error("Payment error:", error);
@@ -653,7 +652,7 @@ const SubscriptionManagement = () => {
     } else {
       toast({
         title: "Pagamento registrato",
-        description: "Il pagamento è stato registrato con successo"
+        description: `Incasso registrato per ${formatMonthKey(billingMonthKey)}`
       });
       setNewPayment({ subscription_id: "", amount: "", billing_month: selectedBillingMonth, method: "contanti", notes: "" });
       setIsPaymentDialogOpen(false);
@@ -739,8 +738,7 @@ const SubscriptionManagement = () => {
       .reduce((total, payment) => total + payment.amount, 0);
   const isSubscriptionMonthPaid = (sub: Subscription, monthKey: string) =>
     getCompletedAmountForBillingMonth(sub.id, monthKey) >= (sub.membership_plans?.price || 0);
-  const monthlyDueSubscriptions = subscriptions
-    .filter(sub => isInSelectedMonth(getSubscriptionDueMonthKey(sub)))
+  const monthlyDueSubscriptions = [...filteredSubscriptions]
     .sort((a, b) => new Date(a.end_date).getTime() - new Date(b.end_date).getTime());
   const monthlyUnpaidDueSubscriptions = monthlyDueSubscriptions.filter(sub =>
     !isSubscriptionMonthPaid(sub, selectedBillingMonth)
@@ -750,19 +748,9 @@ const SubscriptionManagement = () => {
   const selectedPaymentDueMonthKey = selectedPaymentSubscription
     ? getSubscriptionDueMonthKey(selectedPaymentSubscription)
     : selectedBillingMonth;
-  const selectedPaymentWillRenew = selectedPaymentSubscription
-    ? compareMonthKeys(normalizeMonthKey(newPayment.billing_month), selectedPaymentDueMonthKey) >= 0
-    : false;
-  const selectedPaymentNewEndDate = selectedPaymentSubscription?.membership_plans && selectedPaymentWillRenew
-    ? addMonths(parseDateAtStartOfDay(selectedPaymentSubscription.end_date), selectedPaymentSubscription.membership_plans.duration_months)
-    : null;
-  const selectedPaymentMonthAlreadyPaid = selectedPaymentSubscription
-    ? isSubscriptionMonthPaid(selectedPaymentSubscription, normalizeMonthKey(newPayment.billing_month))
-    : false;
-  const selectedPaymentSkipsArrears = selectedPaymentSubscription
-    ? compareMonthKeys(normalizeMonthKey(newPayment.billing_month), selectedPaymentDueMonthKey) > 0 &&
-      !isSubscriptionMonthPaid(selectedPaymentSubscription, selectedPaymentDueMonthKey)
-    : false;
+  const selectedPaymentMonthPaidAmount = selectedPaymentSubscription
+    ? getCompletedAmountForBillingMonth(selectedPaymentSubscription.id, normalizeMonthKey(newPayment.billing_month))
+    : 0;
 
   const paymentMonthOptions = useMemo(() => {
     const optionMap = new Map(monthOptions.map(option => [option.value, option]));
@@ -923,23 +911,17 @@ const SubscriptionManagement = () => {
                       <SelectContent>
                         {paymentMonthOptions.map(option => (
                           <SelectItem key={option.value} value={option.value}>
-                            {option.label}{option.value === selectedPaymentDueMonthKey ? " - mese da saldare" : ""}
+                            {option.label}{option.value === selectedPaymentDueMonthKey ? " - scadenza attuale" : ""}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                     {selectedPaymentSubscription && (
-                      <div className={`rounded-md border p-2 text-xs ${selectedPaymentSkipsArrears || selectedPaymentMonthAlreadyPaid ? "border-destructive/40 bg-destructive/5 text-destructive" : "border-primary/20 bg-primary/5 text-muted-foreground"}`}>
-                        {selectedPaymentMonthAlreadyPaid ? (
-                          <p>Questo mese risulta gia' saldato per il cliente selezionato.</p>
-                        ) : selectedPaymentSkipsArrears ? (
-                          <p>Prima salda {formatMonthKey(selectedPaymentDueMonthKey)}: e' il primo mese pendente.</p>
-                        ) : (
-                          <p>
-                            Primo mese pendente: {formatMonthKey(selectedPaymentDueMonthKey)}.
-                            {selectedPaymentNewEndDate ? ` Dopo il pagamento la scadenza passa al ${format(selectedPaymentNewEndDate, "dd/MM/yyyy")}.` : ""}
-                          </p>
-                        )}
+                      <div className="rounded-md border border-primary/20 bg-primary/5 p-2 text-xs text-muted-foreground">
+                        <p>
+                          Registri un incasso per {formatMonthKey(normalizeMonthKey(newPayment.billing_month))}.
+                          {selectedPaymentMonthPaidAmount > 0 ? ` Gia' incassati: €${selectedPaymentMonthPaidAmount.toFixed(2)}.` : " Nessun incasso gia' registrato per questo mese."}
+                        </p>
                       </div>
                     )}
                   </div>
@@ -966,7 +948,7 @@ const SubscriptionManagement = () => {
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setIsPaymentDialogOpen(false)}>Annulla</Button>
-                  <Button onClick={recordPayment} disabled={creating || selectedPaymentMonthAlreadyPaid || selectedPaymentSkipsArrears}>{creating && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Registra Pagamento</Button>
+                  <Button onClick={recordPayment} disabled={creating}>{creating && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Registra Pagamento</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -1008,7 +990,7 @@ const SubscriptionManagement = () => {
                   <Calendar className="w-9 h-9 text-muted-foreground" />
                   <div>
                     <p className="text-2xl font-display">{monthlyDueSubscriptions.length}</p>
-                    <p className="text-sm text-muted-foreground">Scadenze nel mese</p>
+                    <p className="text-sm text-muted-foreground">Clienti controllati</p>
                   </div>
                 </CardContent>
               </Card>
@@ -1017,7 +999,7 @@ const SubscriptionManagement = () => {
                   <AlertTriangle className="w-9 h-9 text-destructive" />
                   <div>
                     <p className="text-2xl font-display">{monthlyUnpaidDueSubscriptions.length}</p>
-                    <p className="text-sm text-muted-foreground">Da verificare</p>
+                    <p className="text-sm text-muted-foreground">Non incassati</p>
                   </div>
                 </CardContent>
               </Card>
@@ -1026,21 +1008,21 @@ const SubscriptionManagement = () => {
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
               <Card>
                 <CardHeader>
-                  <CardTitle className="font-display tracking-wider">Scadenze del mese</CardTitle>
-                  <CardDescription>{monthlyDueSubscriptions.length} abbonamenti in scadenza</CardDescription>
+                  <CardTitle className="font-display tracking-wider">Situazione incassi del mese</CardTitle>
+                  <CardDescription>{monthlyDueSubscriptions.length} abbonamenti controllati per {selectedMonthLabel}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {loading ? (
                     <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
                   ) : monthlyDueSubscriptions.length === 0 ? (
-                    <div className="text-center py-10 text-muted-foreground"><Calendar className="w-10 h-10 mx-auto mb-3 opacity-50" /><p>Nessuna scadenza nel mese selezionato</p></div>
+                    <div className="text-center py-10 text-muted-foreground"><Calendar className="w-10 h-10 mx-auto mb-3 opacity-50" /><p>Nessun abbonamento da mostrare</p></div>
                   ) : (
                     <Table>
                       <TableHeader>
                         <TableRow>
                           <TableHead>Cliente</TableHead>
                           <TableHead>Piano</TableHead>
-                          <TableHead>Scadenza</TableHead>
+                          <TableHead>Scadenza attuale</TableHead>
                           <TableHead>Stato</TableHead>
                           <TableHead className="text-right">Azioni</TableHead>
                         </TableRow>
@@ -1049,6 +1031,7 @@ const SubscriptionManagement = () => {
                         {monthlyDueSubscriptions.map((sub) => {
                           const expStatus = getExpirationStatus(sub.end_date);
                           const hasCompletedPayment = isSubscriptionMonthPaid(sub, selectedBillingMonth);
+                          const paidAmount = getCompletedAmountForBillingMonth(sub.id, selectedBillingMonth);
                           return (
                             <TableRow key={sub.id}>
                               <TableCell>
@@ -1066,6 +1049,7 @@ const SubscriptionManagement = () => {
                                     <expStatus.icon className="w-3 h-3" />{expStatus.label}
                                   </Badge>
                                   {hasCompletedPayment && <Badge variant="outline">Pagato</Badge>}
+                                  {paidAmount > 0 && !hasCompletedPayment && <Badge variant="outline">€{paidAmount.toFixed(2)}</Badge>}
                                 </div>
                               </TableCell>
                               <TableCell className="text-right">
@@ -1074,7 +1058,6 @@ const SubscriptionManagement = () => {
                                     size="sm"
                                     variant="secondary"
                                     className="h-8 gap-1"
-                                    disabled={hasCompletedPayment}
                                     onClick={() => {
                                       setNewPayment({
                                         subscription_id: sub.id,
@@ -1087,7 +1070,7 @@ const SubscriptionManagement = () => {
                                     }}
                                   >
                                     <Euro className="w-3 h-3" />
-                                    Paga
+                                    Incassa
                                   </Button>
                                 </div>
                               </TableCell>
@@ -1172,7 +1155,8 @@ const SubscriptionManagement = () => {
                       {filteredSubscriptions.map((sub) => {
                         const expStatus = getExpirationStatus(sub.end_date);
                         const roleLabel = sub.profiles?.role === 'cliente_coaching' ? 'Coaching' : sub.profiles?.role === 'cliente_corso' ? 'Corso' : 'Palestra';
-                        const roleVariant = sub.profiles?.role === 'cliente_coaching' ? 'default' : sub.profiles?.role === 'cliente_corso' ? 'secondary' : 'outline';
+                        const roleVariant: "default" | "secondary" | "outline" =
+                          sub.profiles?.role === 'cliente_coaching' ? 'default' : sub.profiles?.role === 'cliente_corso' ? 'secondary' : 'outline';
                         return (
                           <TableRow key={sub.id}>
                             <TableCell>
@@ -1182,7 +1166,7 @@ const SubscriptionManagement = () => {
                                 <span className="text-muted-foreground italic">Utente eliminato ({sub.user_id.slice(0, 8)})</span>
                               )}
                             </TableCell>
-                            <TableCell><Badge variant={roleVariant as any}>{roleLabel}</Badge></TableCell>
+                            <TableCell><Badge variant={roleVariant}>{roleLabel}</Badge></TableCell>
                             <TableCell>{sub.membership_plans?.name}</TableCell>
                             <TableCell>{format(new Date(sub.start_date), "dd MMM yyyy", { locale: it })}</TableCell>
                             <TableCell>{format(new Date(sub.end_date), "dd MMM yyyy", { locale: it })}</TableCell>
@@ -1208,7 +1192,7 @@ const SubscriptionManagement = () => {
                                 }}
                               >
                                 <Euro className="w-3 h-3" />
-                                Paga
+                                Incassa
                               </Button>
                             </TableCell>
                           </TableRow>

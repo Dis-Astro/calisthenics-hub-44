@@ -112,7 +112,6 @@ const AdminDashboard = () => {
               { icon: Calendar, label: "Gestisci Calendario", href: "/admin/calendario" },
               { icon: CreditCard, label: "Gestisci Abbonamenti", href: "/admin/abbonamenti" },
               { icon: BookOpen, label: "Gestisci Corsi", href: "/admin/corsi" },
-              { icon: Dumbbell, label: "Gestisci Esercizi", href: "/admin/esercizi" },
             ].map(item => (
               <Link key={item.href} to={item.href}>
                 <Button className="w-full justify-between" variant="secondary">

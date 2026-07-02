@@ -29,7 +29,6 @@ const navigationItems = [
   { icon: Calendar, label: "Calendario", href: "/admin/calendario" },
   { icon: CreditCard, label: "Abbonamenti", href: "/admin/abbonamenti" },
   { icon: BookOpen, label: "Corsi", href: "/admin/corsi" },
-  { icon: Dumbbell, label: "Esercizi", href: "/admin/esercizi" },
   { icon: Clock, label: "Orari Palestra", href: "/admin/orari" },
   { icon: MessageSquare, label: "Feedback Clienti", href: "/admin/segnalazioni" },
   { icon: Receipt, label: "Spese", href: "/admin/spese" },
