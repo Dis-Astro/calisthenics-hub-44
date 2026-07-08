@@ -26,6 +26,7 @@ import {
   Package,
   Trash2,
   Edit,
+  Archive,
   ChevronLeft,
   ChevronRight
 } from "lucide-react";
@@ -75,6 +76,8 @@ interface Subscription {
   start_date: string;
   end_date: string;
   status: SubscriptionStatus;
+  archived_at: string | null;
+  archived_reason: string | null;
   notes: string | null;
   profiles?: Profile;
   membership_plans?: MembershipPlan;
@@ -108,14 +111,20 @@ const statusLabels: Record<SubscriptionStatus, string> = {
   attivo: "Attivo",
   scaduto: "Scaduto",
   sospeso: "Sospeso",
-  cancellato: "Cancellato"
+  cancellato: "Cancellato",
+  archiviato: "Archiviato",
+  chiuso: "Chiuso",
+  terminato: "Terminato"
 };
 
 const statusBadgeVariant: Record<SubscriptionStatus, "default" | "secondary" | "destructive" | "outline"> = {
   attivo: "default",
   scaduto: "destructive",
   sospeso: "secondary",
-  cancellato: "outline"
+  cancellato: "outline",
+  archiviato: "outline",
+  chiuso: "outline",
+  terminato: "outline"
 };
 
 const paymentStatusLabels: Record<PaymentStatus, string> = {
@@ -174,6 +183,14 @@ const getPaymentBillingMonthKey = (payment: Pick<Payment, "billing_month" | "pay
 
 const getSubscriptionDueMonthKey = (subscription: Subscription) =>
   dateToMonthKey(subscription.end_date);
+
+const closedSubscriptionStatuses: SubscriptionStatus[] = ["archiviato", "chiuso", "terminato", "cancellato"];
+
+const isArchivedSubscription = (subscription: Pick<Subscription, "status">) =>
+  closedSubscriptionStatuses.includes(subscription.status);
+
+const isOperationalSubscription = (subscription: Pick<Subscription, "status">) =>
+  !isArchivedSubscription(subscription);
 
 interface MonthOption {
   value: string;
@@ -507,6 +524,27 @@ const SubscriptionManagement = () => {
     setDeletingPaymentId(null);
   };
 
+  const archiveSubscription = async (subscriptionId: string) => {
+    const { error } = await supabase
+      .from("subscriptions")
+      .update({
+        status: "archiviato",
+        archived_at: format(new Date(), "yyyy-MM-dd"),
+        archived_reason: "Archiviato manualmente",
+      })
+      .eq("id", subscriptionId);
+
+    if (error) {
+      toast({ title: "Errore", description: "Impossibile archiviare l'abbonamento", variant: "destructive" });
+    } else {
+      toast({
+        title: "Abbonamento archiviato",
+        description: "Non generera' piu' avvisi, ma i pagamenti restano nello storico.",
+      });
+      fetchData();
+    }
+  };
+
   // Record package payment (standalone, not linked to subscription)
   const recordPackagePayment = async () => {
     if (!newPackagePayment.package_id || !newPackagePayment.amount) {
@@ -676,6 +714,8 @@ const SubscriptionManagement = () => {
   };
 
   const filteredSubscriptions = subscriptions.filter(sub => {
+    if (!isOperationalSubscription(sub)) return false;
+
     const clientName = sub.profiles 
       ? `${sub.profiles.first_name} ${sub.profiles.last_name}`.toLowerCase()
       : "utente eliminato";
@@ -762,11 +802,12 @@ const SubscriptionManagement = () => {
   }, [monthOptions, selectedBillingMonth, selectedPaymentDueMonthKey, newPayment.billing_month]);
 
   const expiringCount = subscriptions.filter(s => {
+    if (!isOperationalSubscription(s)) return false;
     const daysLeft = differenceInDays(new Date(s.end_date), new Date());
     return daysLeft <= 7 && daysLeft >= 0;
   }).length;
 
-  const expiredCount = subscriptions.filter(s => isPast(new Date(s.end_date))).length;
+  const expiredCount = subscriptions.filter(s => isOperationalSubscription(s) && isPast(new Date(s.end_date))).length;
 
   return (
     <AdminLayout title="ABBONAMENTI" icon={<CreditCard className="w-6 h-6" />}>
@@ -776,8 +817,8 @@ const SubscriptionManagement = () => {
           <CardContent className="p-4 flex items-center gap-4">
             <Users className="w-10 h-10 text-primary" />
             <div>
-              <p className="text-2xl font-display">{subscriptions.length}</p>
-              <p className="text-sm text-muted-foreground">Abbonamenti Totali</p>
+              <p className="text-2xl font-display">{subscriptions.filter(isOperationalSubscription).length}</p>
+              <p className="text-sm text-muted-foreground">Abbonamenti Operativi</p>
             </div>
           </CardContent>
         </Card>
@@ -896,7 +937,14 @@ const SubscriptionManagement = () => {
                       });
                     }}>
                       <SelectTrigger><SelectValue placeholder="Seleziona abbonamento" /></SelectTrigger>
-                      <SelectContent>{subscriptions.map(s => <SelectItem key={s.id} value={s.id}>{s.profiles?.first_name} {s.profiles?.last_name} - {s.membership_plans?.name}</SelectItem>)}</SelectContent>
+                      <SelectContent>
+                        {subscriptions.map(s => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.profiles?.first_name} {s.profiles?.last_name} - {s.membership_plans?.name} - {statusLabels[s.status]}
+                            {s.archived_at ? ` dal ${format(new Date(s.archived_at), "dd/MM/yyyy")}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
@@ -1134,7 +1182,7 @@ const SubscriptionManagement = () => {
         <TabsContent value="subscriptions">
           <Card>
             <CardHeader>
-              <CardTitle className="font-display tracking-wider">Abbonamenti Attivi</CardTitle>
+              <CardTitle className="font-display tracking-wider">Abbonamenti Operativi</CardTitle>
               <CardDescription>{filteredSubscriptions.length} abbonamenti trovati</CardDescription>
             </CardHeader>
             <CardContent>
@@ -1176,24 +1224,48 @@ const SubscriptionManagement = () => {
                               </Badge>
                             </TableCell>
                             <TableCell className="text-right">
-                              <Button 
-                                size="sm" 
-                                variant="secondary" 
-                                className="gap-1 h-8"
-                                onClick={() => {
-                                  setNewPayment({
-                                    subscription_id: sub.id,
-                                    amount: sub.membership_plans?.price?.toString() || "",
-                                    billing_month: getSubscriptionDueMonthKey(sub),
-                                    method: "contanti",
-                                    notes: "",
-                                  });
-                                  setIsPaymentDialogOpen(true);
-                                }}
-                              >
-                                <Euro className="w-3 h-3" />
-                                Incassa
-                              </Button>
+                              <div className="flex justify-end gap-1">
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  className="gap-1 h-8"
+                                  onClick={() => {
+                                    setNewPayment({
+                                      subscription_id: sub.id,
+                                      amount: sub.membership_plans?.price?.toString() || "",
+                                      billing_month: getSubscriptionDueMonthKey(sub),
+                                      method: "contanti",
+                                      notes: "",
+                                    });
+                                    setIsPaymentDialogOpen(true);
+                                  }}
+                                >
+                                  <Euro className="w-3 h-3" />
+                                  Incassa
+                                </Button>
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button size="sm" variant="outline" className="gap-1 h-8">
+                                      <Archive className="w-3 h-3" />
+                                      Archivia
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Archiviare questo abbonamento?</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        L'abbonamento non generera' piu' avvisi, ma i pagamenti resteranno nello storico.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Annulla</AlertDialogCancel>
+                                      <AlertDialogAction onClick={() => archiveSubscription(sub.id)}>
+                                        Archivia abbonamento
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </div>
                             </TableCell>
                           </TableRow>
                         );

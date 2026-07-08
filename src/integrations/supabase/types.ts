@@ -743,6 +743,8 @@ export type Database = {
       }
       subscriptions: {
         Row: {
+          archived_at: string | null
+          archived_reason: string | null
           created_at: string
           end_date: string
           id: string
@@ -754,6 +756,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          archived_at?: string | null
+          archived_reason?: string | null
           created_at?: string
           end_date: string
           id?: string
@@ -765,6 +769,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          archived_at?: string | null
+          archived_reason?: string | null
           created_at?: string
           end_date?: string
           id?: string
@@ -1004,7 +1010,14 @@ export type Database = {
       error_report_status: "aperta" | "in_lavorazione" | "risolta" | "chiusa"
       expense_category: "fissa" | "variabile"
       payment_status: "completato" | "in_attesa" | "fallito" | "rimborsato"
-      subscription_status: "attivo" | "scaduto" | "sospeso" | "cancellato"
+      subscription_status:
+        | "attivo"
+        | "scaduto"
+        | "sospeso"
+        | "cancellato"
+        | "archiviato"
+        | "chiuso"
+        | "terminato"
       user_role:
         | "admin"
         | "coach"
@@ -1143,7 +1156,15 @@ export const Constants = {
       error_report_status: ["aperta", "in_lavorazione", "risolta", "chiusa"],
       expense_category: ["fissa", "variabile"],
       payment_status: ["completato", "in_attesa", "fallito", "rimborsato"],
-      subscription_status: ["attivo", "scaduto", "sospeso", "cancellato"],
+      subscription_status: [
+        "attivo",
+        "scaduto",
+        "sospeso",
+        "cancellato",
+        "archiviato",
+        "chiuso",
+        "terminato",
+      ],
       user_role: [
         "admin",
         "coach",

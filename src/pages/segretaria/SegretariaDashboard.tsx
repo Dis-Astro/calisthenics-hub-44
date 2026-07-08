@@ -64,6 +64,8 @@ interface Subscription {
   start_date: string;
   end_date: string;
   status: string;
+  archived_at?: string | null;
+  archived_reason?: string | null;
   membership_plans?: Plan;
 }
 
@@ -93,6 +95,11 @@ const methodLabels: Record<string, string> = {
 
 const cleanPaymentNotes = (notes?: string | null) =>
   notes?.replace(/\n?\[mese-saldato:\d{4}-(?:0[1-9]|1[0-2])\]/gi, "").trim() || "";
+
+const closedSubscriptionStatuses = ["archiviato", "chiuso", "terminato", "cancellato"];
+
+const isOperationalSubscription = (sub: Subscription) =>
+  !closedSubscriptionStatuses.includes(sub.status);
 
 const SegretariaDashboard = () => {
   const { signOut, profile } = useAuth();
@@ -171,7 +178,7 @@ const SegretariaDashboard = () => {
 
   // Get the most recent subscription for a client
   const getActiveSub = (userId: string): Subscription | undefined => {
-    const userSubs = subs.filter((s) => s.user_id === userId);
+    const userSubs = subs.filter((s) => s.user_id === userId && isOperationalSubscription(s));
     // Prefer status 'attivo', otherwise most recent end_date
     return (
       userSubs.find((s) => s.status === "attivo") ||
@@ -210,7 +217,11 @@ const SegretariaDashboard = () => {
     if (subDialog.currentSubId) {
       await supabase
         .from("subscriptions")
-        .update({ status: "cancellato" })
+        .update({
+          status: "archiviato",
+          archived_at: format(new Date(), "yyyy-MM-dd"),
+          archived_reason: "Archiviato da cambio abbonamento",
+        })
         .eq("id", subDialog.currentSubId);
     }
 
@@ -512,7 +523,7 @@ const SegretariaDashboard = () => {
             </div>
             {subDialog.currentSubId && (
               <p className="text-xs text-muted-foreground">
-                L'abbonamento attuale verrà cancellato e sostituito da quello nuovo.
+                L'abbonamento attuale verra' archiviato e sostituito da quello nuovo.
               </p>
             )}
           </div>
