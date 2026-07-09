@@ -30,7 +30,7 @@ import {
   Save,
   X,
   Users,
-  Archive,
+  Power,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -71,19 +71,16 @@ const statusLabels: Record<SubscriptionStatus, string> = {
   attivo: "Attivo",
   scaduto: "Scaduto",
   sospeso: "Sospeso",
-  cancellato: "Cancellato",
-  archiviato: "Archiviato",
-  chiuso: "Chiuso",
-  terminato: "Terminato",
+  cancellato: "Disattivato",
 };
 
-const closedSubscriptionStatuses: SubscriptionStatus[] = ["archiviato", "chiuso", "terminato", "cancellato"];
+const inactiveSubscriptionStatuses: SubscriptionStatus[] = ["cancellato"];
 
-const isArchivedSubscription = (subscription: Pick<Subscription, "status">) =>
-  closedSubscriptionStatuses.includes(subscription.status);
+const isInactiveSubscription = (subscription: Pick<Subscription, "status">) =>
+  inactiveSubscriptionStatuses.includes(subscription.status);
 
 const isOperationalSubscription = (subscription: Pick<Subscription, "status">) =>
-  !isArchivedSubscription(subscription);
+  !isInactiveSubscription(subscription);
 
 const MONTH_KEY_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 const LEGACY_BILLING_MONTH_RE = /\[mese-saldato:(\d{4}-(?:0[1-9]|1[0-2]))\]/i;
@@ -151,8 +148,6 @@ interface Subscription {
   start_date: string;
   end_date: string;
   status: SubscriptionStatus;
-  archived_at: string | null;
-  archived_reason: string | null;
   notes: string | null;
   membership_plans?: MembershipPlan;
 }
@@ -272,22 +267,21 @@ const ClientDetailPage = () => {
   const getSubscriptionPaymentCount = (subId: string) =>
     payments.filter(payment => payment.subscription_id === subId).length;
 
-  const handleArchiveSubscription = async (subId: string) => {
+  const handleToggleSubscriptionActive = async (sub: Subscription) => {
+    const nextStatus: SubscriptionStatus = isInactiveSubscription(sub) ? "attivo" : "cancellato";
     const { error } = await supabase
       .from("subscriptions")
-      .update({
-        status: "archiviato",
-        archived_at: format(new Date(), "yyyy-MM-dd"),
-        archived_reason: "Archiviato manualmente",
-      })
-      .eq("id", subId);
+      .update({ status: nextStatus })
+      .eq("id", sub.id);
 
     if (error) {
-      toast({ title: "Errore", description: "Impossibile archiviare l'abbonamento", variant: "destructive" });
+      toast({ title: "Errore", description: "Impossibile aggiornare l'abbonamento", variant: "destructive" });
     } else {
       toast({
-        title: "Abbonamento archiviato",
-        description: "Non generera' piu' avvisi, ma i pagamenti restano nello storico.",
+        title: nextStatus === "attivo" ? "Abbonamento riattivato" : "Abbonamento disattivato",
+        description: nextStatus === "attivo"
+          ? "L'abbonamento torna operativo."
+          : "Non generera' piu' avvisi, ma i pagamenti restano nello storico.",
       });
       fetchClientData();
     }
@@ -297,7 +291,7 @@ const ClientDetailPage = () => {
     if (getSubscriptionPaymentCount(subId) > 0) {
       toast({
         title: "Abbonamento non eliminabile",
-        description: "Questo abbonamento ha pagamenti associati. Non puo' essere eliminato senza perdere lo storico. Puoi archiviarlo per rimuoverlo dagli avvisi.",
+        description: "Questo abbonamento ha pagamenti associati. Non puo' essere eliminato senza perdere lo storico. Puoi disattivarlo per rimuoverlo dagli avvisi.",
         variant: "destructive",
       });
       return;
@@ -437,8 +431,8 @@ const ClientDetailPage = () => {
 
 
   const getSubscriptionStatus = (sub: Subscription) => {
-    if (isArchivedSubscription(sub)) {
-      return { label: statusLabels[sub.status], variant: "outline" as const, icon: Archive };
+    if (isInactiveSubscription(sub)) {
+      return { label: statusLabels[sub.status], variant: "outline" as const, icon: Power };
     }
 
     const daysLeft = differenceInDays(new Date(sub.end_date), new Date());
@@ -564,7 +558,7 @@ const ClientDetailPage = () => {
                   const status = getSubscriptionStatus(sub);
                   const isEditingThis = editingEndDateSubId === sub.id;
                   const paymentCount = getSubscriptionPaymentCount(sub.id);
-                  const archived = isArchivedSubscription(sub);
+                  const inactive = isInactiveSubscription(sub);
                   return (
                     <div key={sub.id} className={`p-3 rounded-lg border ${sub === activeSubscription ? 'border-primary/40 bg-primary/5' : 'border-border bg-muted/20'}`}>
                       <div className="flex items-start justify-between mb-2">
@@ -576,42 +570,40 @@ const ClientDetailPage = () => {
                           </Badge>
                         </div>
                         <div className="flex gap-1">
-                          {!archived && (
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              className="h-7 gap-1 px-2 text-xs"
-                              title="Registra incasso"
-                              onClick={() => openPaymentForSubscription(sub)}
-                            >
-                              <Euro className="w-3 h-3" />
-                              Incassa
-                            </Button>
-                          )}
-                          {!archived && (
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs" title="Archivia abbonamento">
-                                  <Archive className="w-3 h-3" />
-                                  Archivia
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Archiviare questo abbonamento?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    L'abbonamento non generera' piu' avvisi, ma i pagamenti resteranno nello storico.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Annulla</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => handleArchiveSubscription(sub.id)}>
-                                    Archivia abbonamento
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          )}
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="h-7 gap-1 px-2 text-xs"
+                            title="Registra incasso"
+                            onClick={() => openPaymentForSubscription(sub)}
+                          >
+                            <Euro className="w-3 h-3" />
+                            Incassa
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs" title={inactive ? "Riattiva abbonamento" : "Disattiva abbonamento"}>
+                                <Power className="w-3 h-3" />
+                                {inactive ? "Riattiva" : "Disattiva"}
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>{inactive ? "Riattivare questo abbonamento?" : "Disattivare questo abbonamento?"}</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  {inactive
+                                    ? "L'abbonamento tornera' operativo e potra' generare avvisi."
+                                    : "L'abbonamento non generera' piu' avvisi, ma i pagamenti resteranno nello storico."}
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Annulla</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleToggleSubscriptionActive(sub)}>
+                                  {inactive ? "Riattiva" : "Disattiva"}
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                           <Button
                             variant="ghost"
                             size="icon"
@@ -633,7 +625,7 @@ const ClientDetailPage = () => {
                             <AlertDialogContent>
                               <AlertDialogHeader>
                                 <AlertDialogTitle>Eliminare l'abbonamento?</AlertDialogTitle>
-                                <AlertDialogDescription>{paymentCount > 0 ? "Questo abbonamento ha pagamenti associati. Non puo' essere eliminato senza perdere lo storico. Puoi archiviarlo per rimuoverlo dagli avvisi." : "Questa azione non puo' essere annullata. Usala solo per errori di inserimento."}</AlertDialogDescription>
+                                <AlertDialogDescription>{paymentCount > 0 ? "Questo abbonamento ha pagamenti associati. Non puo' essere eliminato senza perdere lo storico. Puoi disattivarlo per rimuoverlo dagli avvisi." : "Questa azione non puo' essere annullata. Usala solo per errori di inserimento."}</AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
                                 <AlertDialogCancel>Annulla</AlertDialogCancel>
@@ -961,7 +953,6 @@ const ClientDetailPage = () => {
                   {subscriptions.map(s => (
                     <SelectItem key={s.id} value={s.id}>
                       {s.membership_plans?.name} - {statusLabels[s.status]} - scad. {format(new Date(s.end_date), "dd/MM/yyyy")}
-                      {s.archived_at ? ` - chiuso il ${format(new Date(s.archived_at), "dd/MM/yyyy")}` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>

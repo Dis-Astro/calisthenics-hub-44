@@ -743,8 +743,6 @@ export type Database = {
       }
       subscriptions: {
         Row: {
-          archived_at: string | null
-          archived_reason: string | null
           created_at: string
           end_date: string
           id: string
@@ -756,8 +754,6 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          archived_at?: string | null
-          archived_reason?: string | null
           created_at?: string
           end_date: string
           id?: string
@@ -769,8 +765,6 @@ export type Database = {
           user_id: string
         }
         Update: {
-          archived_at?: string | null
-          archived_reason?: string | null
           created_at?: string
           end_date?: string
           id?: string
@@ -1015,9 +1009,6 @@ export type Database = {
         | "scaduto"
         | "sospeso"
         | "cancellato"
-        | "archiviato"
-        | "chiuso"
-        | "terminato"
       user_role:
         | "admin"
         | "coach"
@@ -1161,9 +1152,6 @@ export const Constants = {
         "scaduto",
         "sospeso",
         "cancellato",
-        "archiviato",
-        "chiuso",
-        "terminato",
       ],
       user_role: [
         "admin",
